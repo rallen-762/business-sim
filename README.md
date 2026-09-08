@@ -1,4 +1,4 @@
-# Business Simulation Game
+# Basketball Shoe Market Simulator
 
 A classroom economics simulation: teams of students run competing shoe
 companies over 10 rounds per class period ("World"), with a teacher
