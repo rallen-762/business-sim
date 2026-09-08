@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ firm.team_name }} -- Dashboard{% endblock %}
 {% block nav %}
-  <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('market.dashboard') }}">Market Dashboard</a>
+  <a class="btn accent" style="padding:6px 14px;" href="{{ url_for('market.dashboard') }}">Market Dashboard</a>
   <a href="{{ url_for('auth.logout') }}">Log Out</a>
 {% endblock %}
 {% block content %}
@@ -20,6 +20,13 @@
 
 {% elif world.status == "transition" %}
 <div class="card">
+  {% if last_result.is_auto %}
+  <div class="card" style="background:#fff8ec;border-color:var(--accent);margin-bottom:16px;">
+    <strong>Emergency Production Directive Issued</strong>
+    <p style="margin-bottom:0;">Command was unreachable last cycle. All available capital was redirected to production.</p>
+  </div>
+  {% endif %}
+
   <span class="banner">Round {{ world.current_round }} Results</span>
   <div class="grid grid-3">
     <div class="stat"><div class="label">Units Sold</div><div class="value">{{ "{:,.0f}".format(last_result.units_sold_total) }}</div></div>
@@ -29,6 +36,14 @@
     <div class="stat"><div class="label">Quality Level</div><div class="value">{{ last_result.quality_level }}</div></div>
     <div class="stat"><div class="label">Ad Level</div><div class="value">{{ last_result.ad_level }}</div></div>
   </div>
+
+  <h3 style="margin-top:20px;">Cumulative Totals (Through Round {{ world.current_round }})</h3>
+  <div class="grid grid-3">
+    <div class="stat"><div class="label">Cumulative Revenue</div><div class="value">{{ "${:,.0f}".format(cumulative.cum_revenue or 0) }}</div></div>
+    <div class="stat"><div class="label">Cumulative Cost</div><div class="value">{{ "${:,.0f}".format(cumulative.cum_cost or 0) }}</div></div>
+    <div class="stat"><div class="label">Cumulative Profit</div><div class="value {{ 'negative' if (cumulative.cum_profit or 0) < 0 else 'positive' }}">{{ "${:,.0f}".format(cumulative.cum_profit or 0) }}</div></div>
+  </div>
+
   {% if last_result.loan_taken_this_round %}<p class="help-text">A $500,000 emergency loan was issued this round.</p>{% endif %}
   {% if last_result.plant_investment_blocked or last_result.celebrity_blocked %}<p class="help-text">Some spending was blocked because your firm was carrying loan debt this round.</p>{% endif %}
   <p>Waiting for the teacher to open Round {{ world.current_round + 1 }}.</p>
@@ -50,12 +65,15 @@
 <div class="card">
   <h2>Round {{ world.current_round }} of {{ rounds_per_world }}</h2>
   <div class="grid grid-3" style="margin-bottom:16px;">
-    <div class="stat"><div class="label">Cash</div><div class="value">{{ "${:,.0f}".format(firm.cash) }}</div></div>
+    <div class="stat"><div class="label">Cash</div><div class="value" id="stat-cash">{{ "${:,.0f}".format(firm.cash) }}</div></div>
     <div class="stat"><div class="label">Plant Capacity</div><div class="value">{{ "{:,}".format(firm.plant_capacity) }}</div></div>
+    <div class="stat"><div class="label">Quality Level</div><div class="value">{{ quality_level }} &mdash; {{ quality_label }}</div></div>
+    <div class="stat"><div class="label">Current Track</div><div class="value">{{ firm.last_track }}</div></div>
     <div class="stat"><div class="label">Loan Outstanding</div><div class="value">{{ "${:,.0f}".format(firm.loan_outstanding) }}</div></div>
+    <div class="stat"><div class="label">Loan Interest Expense (This Round)</div><div class="value">{{ "${:,.0f}".format(projected_loan_interest) }}</div></div>
   </div>
 
-  <form method="post" action="{{ url_for('firm.submit_decision') }}">
+  <form method="post" action="{{ url_for('firm.submit_decision') }}" id="decision-form">
     <div class="grid grid-2">
       <div>
         <label for="price">Price ($)</label>
@@ -63,44 +81,124 @@
       </div>
       <div>
         <label for="track">Track</label>
-        <select id="track" name="track" required>
-          {% for t in ["Budget", "Standard", "Premium"] %}
-          <option value="{{ t }}" {% if firm.last_track == t %}selected{% endif %}>{{ t }}</option>
+        <select id="track" name="track" required onchange="recalc()">
+          {% for t in tracks %}
+          <option value="{{ t }}" {% if firm.last_track == t %}selected{% endif %}>{{ t }} (${{ "%.2f"|format(track_unit_costs[t]) }}/unit)</option>
           {% endfor %}
         </select>
       </div>
+
       <div>
-        <label for="production_qty">Production Quantity</label>
-        <input type="number" min="0" max="{{ firm.plant_capacity }}" id="production_qty" name="production_qty" required>
-        <p class="help-text">Capacity this round: {{ "{:,}".format(firm.plant_capacity) }}</p>
+        <label for="rd_preset">R&amp;D Spend</label>
+        {% if rd_presets %}
+        <select id="rd_preset" onchange="document.getElementById('rd_spend').value=this.value; recalc();">
+          <option value="0">No R&amp;D this round ($0)</option>
+          {% for level, amount in rd_presets %}
+          <option value="{{ amount|round|int }}">${{ "{:,.0f}".format(amount) }} -- reach Quality Level {{ level }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <p class="help-text">Already at max Quality Level (10).</p>
+        {% endif %}
+        <input type="number" step="1" min="0" id="rd_spend" name="rd_spend" value="0" oninput="recalc()" style="margin-top:6px;">
       </div>
       <div>
-        <label for="rd_spend">R&amp;D Spend ($)</label>
-        <input type="number" step="1" min="0" id="rd_spend" name="rd_spend" value="0">
+        <label for="ad_preset">Advertising Spend</label>
+        {% if ad_presets %}
+        <select id="ad_preset" onchange="document.getElementById('ad_spend').value=this.value; recalc();">
+          <option value="0">No advertising this round ($0)</option>
+          {% for level, amount in ad_presets %}
+          <option value="{{ amount|round|int }}">${{ "{:,.0f}".format(amount) }} -- reach Ad Level {{ level }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <p class="help-text">Already at max Ad Level (10).</p>
+        {% endif %}
+        <input type="number" step="1" min="0" id="ad_spend" name="ad_spend" value="0" oninput="recalc()" style="margin-top:6px;">
       </div>
-      <div>
-        <label for="ad_spend">Advertising Spend ($)</label>
-        <input type="number" step="1" min="0" id="ad_spend" name="ad_spend" value="0">
-      </div>
+
       <div>
         <label for="plant_investment">Plant Investment</label>
-        <select id="plant_investment" name="plant_investment">
+        <select id="plant_investment" name="plant_investment" onchange="recalc()" {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
           <option value="0">None ($0)</option>
           <option value="100000">Expand +15,000 capacity ($100,000)</option>
         </select>
-        {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt -- will be zeroed automatically.</p>{% endif %}
+        {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>{% endif %}
+      </div>
+      <div>
+        <label>Production Quantity <span class="help-text">(auto-calculated)</span></label>
+        <input type="number" id="production_qty" name="production_qty" readonly style="background:#f0f1f3;">
+        <p class="help-text">Capacity this round: {{ "{:,}".format(firm.plant_capacity) }}</p>
       </div>
     </div>
 
     <div class="checkbox-row">
-      <input type="checkbox" id="celebrity_on" name="celebrity_on">
+      <input type="checkbox" id="celebrity_on" name="celebrity_on" onchange="recalc()" {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
       <label for="celebrity_on" style="margin:0;">Celebrity Endorsement ($50,000/round)</label>
     </div>
-    {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt -- will be zeroed automatically.</p>{% endif %}
+    {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>{% endif %}
 
-    <button class="btn accent full" style="margin-top:20px;" type="submit">Submit Decision</button>
+    <div class="card" style="margin-top:18px;background:var(--bg);">
+      <div class="grid grid-3">
+        <div class="stat"><div class="label">Cost Per Unit</div><div class="value" id="unit-cost-display">$0.00</div></div>
+        <div class="stat"><div class="label">Total Production Cost</div><div class="value" id="production-cost-display">$0</div></div>
+        <div class="stat"><div class="label">Committed Spend / Cash</div><div class="value" id="committed-spend-display">$0 / $0</div></div>
+      </div>
+      <p class="help-text" id="overspend-message" hidden style="color:var(--danger);font-weight:700;">Reduce spending to submit -- planned spend exceeds available cash.</p>
+    </div>
+
+    <button class="btn accent full" style="margin-top:20px;" type="submit" id="submit-btn">Submit Decision</button>
     <p class="help-text" style="text-align:center;">You cannot edit this after submitting.</p>
   </form>
 </div>
+
+<script>
+  const FIRM_CASH = {{ firm.cash|tojson }};
+  const PLANT_CAPACITY = {{ firm.plant_capacity|tojson }};
+  const TRACK_UNIT_COSTS = {{ track_unit_costs|tojson }};
+  const CELEBRITY_COST = {{ celebrity_cost|tojson }};
+
+  function recalc() {
+    const trackEl = document.getElementById('track');
+    const rdEl = document.getElementById('rd_spend');
+    const adEl = document.getElementById('ad_spend');
+    const plantEl = document.getElementById('plant_investment');
+    const celebEl = document.getElementById('celebrity_on');
+    const productionEl = document.getElementById('production_qty');
+    const submitBtn = document.getElementById('submit-btn');
+    const overspendMsg = document.getElementById('overspend-message');
+
+    const unitCost = TRACK_UNIT_COSTS[trackEl.value] || 0;
+    const rd = parseFloat(rdEl.value) || 0;
+    const ad = parseFloat(adEl.value) || 0;
+    const plant = plantEl.disabled ? 0 : (parseFloat(plantEl.value) || 0);
+    const celeb = celebEl.disabled ? 0 : (celebEl.checked ? CELEBRITY_COST : 0);
+
+    const committed = rd + ad + plant + celeb;
+    const leftover = FIRM_CASH - committed;
+
+    let production = 0;
+    if (leftover > 0 && unitCost > 0) {
+      production = Math.floor(Math.min(leftover / unitCost, PLANT_CAPACITY));
+    }
+    const productionCost = production * unitCost;
+
+    productionEl.value = production;
+    document.getElementById('unit-cost-display').textContent = '$' + unitCost.toFixed(2);
+    document.getElementById('production-cost-display').textContent = '$' + Math.round(productionCost).toLocaleString();
+    document.getElementById('committed-spend-display').textContent =
+      '$' + Math.round(committed).toLocaleString() + ' / $' + Math.round(FIRM_CASH).toLocaleString();
+
+    if (committed > FIRM_CASH) {
+      overspendMsg.hidden = false;
+      submitBtn.disabled = true;
+    } else {
+      overspendMsg.hidden = true;
+      submitBtn.disabled = false;
+    }
+  }
+
+  recalc();
+</script>
 {% endif %}
 {% endblock %}

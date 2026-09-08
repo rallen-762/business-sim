@@ -105,6 +105,22 @@ def quality_level_from_cumulative_rd(cumulative_rd: float) -> int:
     return level
 
 
+def rd_spend_presets(cumulative_rd_spend: float) -> list[tuple[int, float]]:
+    """Returns [(level, additional_spend_needed)] for every quality level
+    still ABOVE the firm's current one -- additional_spend_needed is what
+    they'd need to add THIS round, on top of what's already been spent, to
+    cross that level's cumulative threshold. Used to offer the Firm
+    Dashboard's R&D preset quick-fill options; already-reached levels are
+    omitted since $0 more is needed for those. Empty list once a firm is
+    already at Level 10 (nothing left to reach)."""
+    current_level = quality_level_from_cumulative_rd(cumulative_rd_spend)
+    return [
+        (level, threshold - cumulative_rd_spend)
+        for level, threshold in QUALITY_LADDER
+        if level > current_level
+    ]
+
+
 # --------------------------------------------------------------------------- #
 # Section 6: Advertising ladder -- cumulative spend -> level -> multiplier
 # --------------------------------------------------------------------------- #
@@ -129,6 +145,21 @@ def ad_level_and_multiplier(cumulative_ad: float) -> tuple[int, float]:
         if cumulative_ad >= threshold:
             level, multiplier = lvl, mult
     return level, multiplier
+
+
+def ad_spend_presets(cumulative_ad_spend: float) -> list[tuple[int, float]]:
+    """Same idea as rd_spend_presets() but for the Advertising ladder --
+    [(level, additional_spend_needed)] for every ad level still above the
+    firm's current one. Deliberately does NOT flag the Level 10 "trap" here
+    (same multiplier as Level 9 for more money) -- that's an intentional,
+    secret diminishing-returns curve per Section 6, not something the UI
+    should tip students off to."""
+    current_level, _ = ad_level_and_multiplier(cumulative_ad_spend)
+    return [
+        (level, threshold - cumulative_ad_spend)
+        for level, threshold, _ in AD_LADDER
+        if level > current_level
+    ]
 
 
 # --------------------------------------------------------------------------- #

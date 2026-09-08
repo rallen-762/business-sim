@@ -63,7 +63,7 @@ def register_firm(client, world_id, slot_number, team_name, password="secret123"
 
 def submit_decision(client, follow_redirects=False, **overrides):
     data = dict(
-        price="80", production_qty="45000", ad_spend="0", rd_spend="0",
+        price="80", production_qty="15000", ad_spend="0", rd_spend="0",
         track="Standard", plant_investment="0",
     )
     data.update(overrides)
@@ -148,12 +148,12 @@ def test_login_with_correct_password_reaches_dashboard(client):
 def test_submitting_decision_persists_it(app, client):
     world_id = create_world(client)
     firm_id = register_firm(client, world_id, 1, "Nike")
-    submit_decision(client, price="90", production_qty="40000")
+    submit_decision(client, price="90", production_qty="15000")
     with app.app_context():
         d = RoundDecision.query.filter_by(firm_id=firm_id, round_number=1).first()
         assert d is not None
         assert d.price == 90.0
-        assert d.production_qty == 40000
+        assert d.production_qty == 15000
         assert d.is_auto is False
 
 
@@ -179,13 +179,118 @@ def test_bankrupt_firm_cannot_submit(app, client):
 
 
 # --------------------------------------------------------------------------- #
+# Overspend hard-block (server-side, independent of the client-side calculator)
+# --------------------------------------------------------------------------- #
+
+def test_submit_decision_rejects_overspend_even_if_client_bypassed_js(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    # $1,000,000 cash, Standard track ($50/unit) -> 25,000 units would cost
+    # $1,250,000, more than available -- must be rejected regardless of what
+    # the (bypassed) client-side calculator would have computed.
+    resp = submit_decision(client, production_qty="25000", follow_redirects=True)
+    assert b"reduce spending to submit" in resp.data.lower()
+    with app.app_context():
+        assert RoundDecision.query.filter_by(firm_id=firm_id).count() == 0
+
+
+def test_submit_decision_allows_spend_exactly_equal_to_cash(client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    # Exactly $1,000,000 at $50/unit = 20,000 units -- affordable, not "over."
+    resp = submit_decision(client, production_qty="20000", follow_redirects=True)
+    assert b"Decision submitted" in resp.data
+
+
+def test_submit_decision_counts_all_spend_categories_toward_the_block(client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    # 15,000 units ($750,000) + $300,000 R&D = $1,050,000 > $1,000,000 cash.
+    resp = submit_decision(client, production_qty="15000", rd_spend="300000", follow_redirects=True)
+    assert b"reduce spending to submit" in resp.data.lower()
+
+
+# --------------------------------------------------------------------------- #
+# R&D/Ad presets, projected loan interest, non-submission card, soft-penalty
+# disabling, cumulative totals on the Round Results screen
+# --------------------------------------------------------------------------- #
+
+def test_dashboard_shows_rd_and_ad_presets(client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    assert "reach Quality Level 2" in body
+    assert "$50,000" in body
+    assert "reach Ad Level 2" in body
+    assert "$125,000" in body
+
+
+def test_dashboard_shows_projected_loan_interest_for_existing_balance(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with app.app_context():
+        firm = Firm.query.get(firm_id)
+        firm.loan_outstanding = 440_000
+        db.session.commit()
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    # (440,000 - 100,000 principal) * 10% = $34,000 projected interest.
+    assert "$34,000" in body
+
+
+def test_dashboard_disables_plant_and_celebrity_when_indebted(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with app.app_context():
+        firm = Firm.query.get(firm_id)
+        firm.loan_outstanding = 100_000
+        db.session.commit()
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    assert 'id="plant_investment" name="plant_investment" onchange="recalc()" disabled' in body
+    assert 'id="celebrity_on" name="celebrity_on" onchange="recalc()" disabled' in body
+
+
+def test_round_results_screen_shows_cumulative_totals(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    assert "Cumulative Totals" in body
+    assert "Cumulative Revenue" in body
+    assert "Cumulative Profit" in body
+
+
+def test_non_submission_shows_in_universe_status_card(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    # Never submits.
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    resp = client.get("/firm")
+    assert b"Emergency Production Directive Issued" in resp.data
+
+
+# --------------------------------------------------------------------------- #
 # Full round-advance flow (the actual DB<->engine bridge)
 # --------------------------------------------------------------------------- #
 
 def test_advancing_round_processes_all_firms_and_creates_results(app, client):
     world_id = create_world(client, slots=2)
     register_firm(client, world_id, 1, "Nike")
-    submit_decision(client, price="80", production_qty="45000")
+    submit_decision(client, price="80", production_qty="15000")
     client.get("/logout")
 
     # Firm 2 REGISTERS but never submits a decision -- exercises the
@@ -220,7 +325,7 @@ def test_firm_dashboard_shows_just_processed_round_result_during_transition(clie
     # current_round - 1. Caught live via a real HTTP smoke test.
     world_id = create_world(client, slots=1)
     register_firm(client, world_id, 1, "Nike")
-    submit_decision(client, price="80", production_qty="45000")
+    submit_decision(client, price="80", production_qty="15000")
     client.get("/logout")
 
     teacher_login(client)
@@ -240,7 +345,7 @@ def test_unregistered_slot_does_not_compete_and_gets_no_result_row(app, client):
     # process_round, not just displayed oddly.
     world_id = create_world(client, slots=2)
     register_firm(client, world_id, 1, "Nike")
-    submit_decision(client, price="80", production_qty="45000")
+    submit_decision(client, price="80", production_qty="15000")
     # Firm 2 is never registered at all.
     client.get("/logout")
 
@@ -263,6 +368,7 @@ def test_unregistered_slot_does_not_dilute_a_solo_registered_firms_market_share(
     with app.app_context():
         firm = Firm.query.filter_by(world_id=world_id, slot_number=1).first()
         firm.plant_capacity = 1_000_000  # so production isn't the binding constraint
+        firm.cash = 100_000_000  # ...and neither is cash, now that overspend is hard-blocked
         db.session.commit()
     submit_decision(client, price="80", production_qty="1000000")
     client.get("/logout")
@@ -500,7 +606,7 @@ def _play_two_rounds(client, world_id, firm_id):
     round's revenue/profit are distinguishable, leaving the world on Round 3
     ("collecting", no decision/result yet)."""
     register_firm(client, world_id, 1, "Nike")
-    submit_decision(client, price="80", production_qty="45000")
+    submit_decision(client, price="80", production_qty="15000")
     client.get("/logout")
 
     teacher_login(client)
@@ -509,7 +615,7 @@ def _play_two_rounds(client, world_id, firm_id):
     client.get("/teacher/logout")
 
     client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
-    submit_decision(client, price="120", production_qty="45000")
+    submit_decision(client, price="120", production_qty="15000")
     client.get("/logout")
 
     teacher_login(client)
@@ -624,7 +730,7 @@ def test_export_csv_requires_teacher_login(client):
 def test_export_csv_returns_downloadable_csv_with_data(client):
     world_id = create_world(client, slots=1)
     register_firm(client, world_id, 1, "Nike")
-    submit_decision(client, price="80", production_qty="45000")
+    submit_decision(client, price="80", production_qty="15000")
     client.get("/logout")
 
     teacher_login(client)

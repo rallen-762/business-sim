@@ -19,12 +19,35 @@ Edge cases considered:
     submitted -> show a waiting state; "transition" -> show the Round
     Transition Notice banner with last round's result; "complete" -> show a
     final summary, no form.
+ 6. Production Quantity is auto-computed client-side as leftover cash after
+    R&D/Ad/Plant/Celebrity spend, divided by the selected track's unit
+    cost, capped at plant capacity -- but the SERVER never trusts that
+    computation. submit_decision() independently re-derives the same
+    affordability check and rejects a submission whose total spend
+    (production cost included) exceeds the firm's actual cash, regardless
+    of what the client posted. A student with JS disabled, or bypassing the
+    UI directly, cannot submit an unaffordable plan either way.
+ 7. R&D/Ad spend "preset" quick-fill options only make sense above a firm's
+    CURRENT cumulative spend -- computed fresh per request from the firm's
+    live cumulative_rd_spend/cumulative_ad_spend, never cached, so they're
+    always correct even immediately after a round changes those totals.
 """
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, firm_login_required
-from app.constants import ROUNDS_PER_WORLD
+from app.constants import (
+    CELEBRITY_COST_PER_ROUND,
+    LOAN_INTEREST_RATE,
+    LOAN_REPAYMENT_PRINCIPAL,
+    ROUNDS_PER_WORLD,
+    TRACKS,
+    ad_spend_presets,
+    quality_level_from_cumulative_rd,
+    quality_track_label,
+    rd_spend_presets,
+    track_unit_cost,
+)
 from app.extensions import db
 from app.models import RoundDecision, RoundResult
 
@@ -48,10 +71,41 @@ def dashboard():
         firm_id=firm.id, round_number=world.current_round
     ).first()
 
+    # This firm's own cumulative totals through the round just shown above
+    # -- requested for the Round Results screen so a team sees "how am I
+    # doing overall," not just this round's numbers.
+    cumulative = (
+        db.session.query(
+            db.func.sum(RoundResult.revenue).label("cum_revenue"),
+            db.func.sum(RoundResult.total_cost).label("cum_cost"),
+            db.func.sum(RoundResult.profit).label("cum_profit"),
+        )
+        .filter(RoundResult.firm_id == firm.id, RoundResult.round_number <= world.current_round)
+        .first()
+    )
+
+    track_unit_costs = {t: track_unit_cost(t) for t in TRACKS}
+    quality_level = quality_level_from_cumulative_rd(firm.cumulative_rd_spend)
+
+    # Projected interest for the UPCOMING round, computed from the firm's
+    # CURRENT pre-existing balance -- mirrors engine.py's Step 8 exactly
+    # (principal comes off first, then 10% on what's left), so this is a
+    # true preview, not a guess. A loan taken mid-round-in-progress (there
+    # isn't one yet, since this round hasn't processed) never applies here.
+    remaining_after_principal = max(0.0, firm.loan_outstanding - LOAN_REPAYMENT_PRINCIPAL)
+    projected_loan_interest = remaining_after_principal * LOAN_INTEREST_RATE
+
     return render_template(
         "firm_dashboard.html",
         firm=firm, world=world, decision=decision, last_result=last_result,
-        rounds_per_world=ROUNDS_PER_WORLD,
+        cumulative=cumulative, rounds_per_world=ROUNDS_PER_WORLD,
+        track_unit_costs=track_unit_costs, tracks=TRACKS,
+        rd_presets=rd_spend_presets(firm.cumulative_rd_spend),
+        ad_presets=ad_spend_presets(firm.cumulative_ad_spend),
+        celebrity_cost=CELEBRITY_COST_PER_ROUND,
+        quality_level=quality_level,
+        quality_label=quality_track_label(quality_level, firm.last_track),
+        projected_loan_interest=projected_loan_interest,
     )
 
 
@@ -91,6 +145,20 @@ def submit_decision():
         return redirect(url_for("firm.dashboard"))
     if price < 0 or production_qty < 0 or ad_spend < 0 or rd_spend < 0:
         flash("Values can't be negative.")
+        return redirect(url_for("firm.dashboard"))
+
+    # Hard-block: total planned spend (production cost included) can never
+    # exceed available cash. The dashboard auto-computes Production Quantity
+    # client-side to make this true by construction, but the server never
+    # trusts that -- this is the real, unbypassable enforcement.
+    production_cost = production_qty * track_unit_cost(track)
+    celebrity_cost = CELEBRITY_COST_PER_ROUND if celebrity_on else 0
+    total_planned_spend = production_cost + ad_spend + rd_spend + plant_investment + celebrity_cost
+    if total_planned_spend > firm.cash:
+        flash(
+            f"That plan costs ${total_planned_spend:,.0f} but you only have "
+            f"${firm.cash:,.0f} on hand -- reduce spending to submit."
+        )
         return redirect(url_for("firm.dashboard"))
 
     db.session.add(RoundDecision(

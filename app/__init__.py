@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from flask import Flask
 
@@ -25,6 +26,13 @@ def create_app(config_overrides=None):
     # Single global teacher password (not per-World) -- confirmed as the
     # simplest option for one teacher running several class periods.
     app.config["TEACHER_PASSWORD"] = os.environ.get("TEACHER_PASSWORD", "dev-teacher-change-me")
+    # Flask's session cookie is non-permanent by default (no Expires/Max-Age
+    # at all) -- some browsers, Chromebooks especially, treat that as safe
+    # to drop when a tab is discarded/backgrounded for memory, which reads
+    # to the user as "got logged out just from switching windows." Making
+    # the session permanent with an explicit lifetime gives the cookie a
+    # real expiry the browser is supposed to honor and keep around.
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 
     if config_overrides:
         app.config.update(config_overrides)

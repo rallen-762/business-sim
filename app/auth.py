@@ -11,9 +11,16 @@ Edge cases considered:
     deleted a World mid-session) must not crash the app -- current_firm()/
     current_world() return None via .get(), and every protected view treats
     None as "not logged in" rather than assuming the row still exists.
- 3. No token refresh, no expiry logic -- deliberately simple per the
-    project's standing requirement (Game Code + Team Password, Chromebook-
-    friendly). Flask's signed session cookie is the only session mechanism.
+ 3. No token refresh, no expiry logic beyond a single long-lived cookie --
+    deliberately simple per the project's standing requirement (Game Code +
+    Team Password, Chromebook-friendly). Flask's signed session cookie is
+    the only session mechanism.
+ 4. session.permanent is explicitly set True on login so the cookie carries
+    a real Expires/Max-Age (app.config["PERMANENT_SESSION_LIFETIME"], see
+    app/__init__.py) -- without this, Flask issues a session-only cookie
+    that some browsers (Chromebooks especially) drop when a backgrounded
+    tab gets discarded for memory, which read to users as "got logged out
+    just from switching windows."
 """
 
 import functools
@@ -26,12 +33,14 @@ from app.models import Firm, World
 
 def log_in_firm(firm):
     session.clear()
+    session.permanent = True
     session["firm_id"] = firm.id
     session["world_id"] = firm.world_id
 
 
 def log_in_teacher():
     session.clear()
+    session.permanent = True
     session["is_teacher"] = True
 
 

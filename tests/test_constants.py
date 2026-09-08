@@ -40,6 +40,26 @@ def test_quality_ladder_caps_at_10_beyond_max_spend():
     assert c.quality_level_from_cumulative_rd(10_000_000) == 10
 
 
+def test_rd_spend_presets_from_zero_lists_every_level_above_1():
+    presets = c.rd_spend_presets(0)
+    assert presets[0] == (2, 50_000)
+    assert presets[-1] == (10, 700_000)
+    assert len(presets) == 9  # levels 2..10
+
+
+def test_rd_spend_presets_only_shows_levels_above_current():
+    # Already spent $150,000 -- sitting at Level 4, needs $50,000 MORE to
+    # hit Level 5 ($200,000 threshold), not the full $200,000 again.
+    presets = c.rd_spend_presets(150_000)
+    assert presets[0] == (5, 50_000)
+    assert all(level > 4 for level, _ in presets)
+
+
+def test_rd_spend_presets_empty_once_at_level_10():
+    assert c.rd_spend_presets(700_000) == []
+    assert c.rd_spend_presets(50_000_000) == []
+
+
 # --------------------------------------------------------------------------- #
 # Advertising ladder
 # --------------------------------------------------------------------------- #
@@ -59,6 +79,23 @@ def test_ad_ladder_level_10_is_the_trap_no_extra_gain():
 
 def test_ad_ladder_caps_beyond_level_10():
     assert c.ad_level_and_multiplier(50_000_000) == (10, 1.705)
+
+
+def test_ad_spend_presets_from_zero_lists_every_level_above_1():
+    presets = c.ad_spend_presets(0)
+    assert presets[0] == (2, 125_000)
+    assert presets[-1] == (10, 1_625_000)
+    assert len(presets) == 9
+
+
+def test_ad_spend_presets_only_shows_levels_above_current():
+    presets = c.ad_spend_presets(225_000)  # already at Level 3
+    assert presets[0] == (4, 125_000)  # $350,000 - $225,000
+    assert all(level > 3 for level, _ in presets)
+
+
+def test_ad_spend_presets_empty_once_at_level_10():
+    assert c.ad_spend_presets(1_625_000) == []
 
 
 # --------------------------------------------------------------------------- #
