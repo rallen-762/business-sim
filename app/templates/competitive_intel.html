@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Competitive Intelligence{% endblock %}
+{% block nav %}
+  {% if session.get('is_teacher') %}
+    <a href="{{ url_for('teacher.market', world_id=world.id) }}">&larr; Market Dashboard</a>
+    <a href="{{ url_for('teacher.logout') }}">Log Out</a>
+  {% else %}
+    <a href="{{ url_for('market.dashboard') }}">&larr; Market Dashboard</a>
+    <a href="{{ url_for('auth.logout') }}">Log Out</a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Competitive Intelligence Report</h2>
+  {% if latest_round is none %}
+    <p class="help-text">No rounds have been processed yet -- check back after Round 1 is processed.</p>
+  {% else %}
+  <p class="help-text">
+    Round {{ latest_round }} snapshot. Every firm's price, track, quality, advertising, units sold, and market
+    share are visible here -- but not their cash position, plant capacity, or R&amp;D spend.
+  </p>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>Company</th><th>Price</th><th>Track</th><th>Quality Lvl</th>
+        <th>Ad Spend</th><th>Units Sold</th><th>Market Share</th><th>Debt?</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.team_name }}</td>
+        <td>{{ "${:,.2f}".format(row.price) if row.price is not none else "—" }}</td>
+        <td>{{ row.track or "—" }}</td>
+        <td>{{ row.quality_level }}</td>
+        <td>{{ "${:,.0f}".format(row.ad_spend) if row.ad_spend is not none else "—" }}</td>
+        <td>{{ "{:,.0f}".format(row.units_sold) }}</td>
+        <td>{{ "%.1f"|format(row.market_share_pct) }}%</td>
+        <td>{% if row.carrying_debt %}<span class="badge bankrupt">Carrying Debt</span>{% else %}<span class="badge ok">None</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

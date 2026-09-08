@@ -173,6 +173,31 @@ tr.bankrupt { opacity: 0.55; }
 }
 .avatar-thumb { width: 40px; height: 40px; object-fit: contain; }
 
+/* --- Market Dashboard: podium --- */
+.podium { display: flex; align-items: flex-end; justify-content: center; gap: 24px; margin: 10px 0 24px; flex-wrap: wrap; }
+.podium-spot { text-align: center; }
+.podium-spot img { display: block; margin: 0 auto 8px; object-fit: contain; }
+.podium-spot .rank-badge { font-weight: 800; color: var(--text-muted); font-size: 0.8rem; }
+.podium-spot .name { font-weight: 700; margin-top: 4px; }
+.podium-spot.rank-1 { order: 2; }
+.podium-spot.rank-1 img { width: 120px; height: 120px; }
+.podium-spot.rank-2 { order: 1; }
+.podium-spot.rank-2 img { width: 90px; height: 90px; }
+.podium-spot.rank-3 { order: 3; }
+.podium-spot.rank-3 img { width: 68px; height: 68px; }
+
+/* --- Market Dashboard: pie chart + legend --- */
+.pie-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.pie { width: 180px; height: 180px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
+.pie-legend { list-style: none; margin: 0; padding: 0; }
+.pie-legend li { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.9rem; }
+.pie-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+/* --- Market Dashboard: segment overview cards --- */
+.segment-card .label { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
+.segment-card .label:first-child { margin-top: 0; }
+.segment-card .value { font-weight: 700; }
+
 .slot-list { display: grid; gap: 10px; }
 .slot-item {
   display: flex; align-items: center; justify-content: space-between;

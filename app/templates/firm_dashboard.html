@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ firm.team_name }} -- Dashboard{% endblock %}
 {% block nav %}
-  <a href="{{ url_for('market.dashboard') }}">Market</a>
+  <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('market.dashboard') }}">Market Dashboard</a>
   <a href="{{ url_for('auth.logout') }}">Log Out</a>
 {% endblock %}
 {% block content %}

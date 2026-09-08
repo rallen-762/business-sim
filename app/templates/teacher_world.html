@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ world.name }}{% endblock %}
 {% block nav %}
-  <a href="{{ url_for('teacher.market', world_id=world.id) }}">Market</a>
+  <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('teacher.market', world_id=world.id) }}">Market Dashboard</a>
   <a href="{{ url_for('teacher.team_lookup', world_id=world.id) }}">Team Lookup</a>
   <a href="{{ url_for('teacher.dashboard') }}">All Worlds</a>
   <a href="{{ url_for('teacher.logout') }}">Log Out</a>

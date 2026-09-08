@@ -379,6 +379,67 @@ def test_market_dashboard_shows_latest_round_after_processing(client):
     assert b"Nike" in resp.data
 
 
+def test_market_dashboard_shows_podium_ranking_pie_and_segments(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    resp = client.get("/market")
+    body = resp.data.decode()
+    assert 'class="podium"' in body
+    assert "Round Totals" in body
+    assert "Market Share" in body
+    assert "Customer Segments" in body
+    assert "Low Income" in body and "Casual/Fashion" in body
+    assert "View Competitive Intelligence Report" in body
+
+
+def test_market_dashboard_market_link_reaches_intel_report(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    resp = client.get("/market/intel")
+    body = resp.data.decode()
+    assert "Nike" in body
+    assert "Competitive Intelligence Report" in body
+    # Hidden fields must never appear in the rendered page at all.
+    assert "Plant Capacity" not in body
+    assert "Cash" not in body
+    assert "R&amp;D Spend" not in body and "R&D Spend" not in body
+
+
+def test_teacher_intel_route_requires_teacher_login(client):
+    world_id = create_world(client)
+    client.get("/teacher/logout")
+    resp = client.get(f"/teacher/worlds/{world_id}/intel", follow_redirects=True)
+    assert b"Teacher login required" in resp.data
+
+
+def test_teacher_intel_route_reachable(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    resp = client.get(f"/teacher/worlds/{world_id}/intel")
+    assert b"Nike" in resp.data
+
+
 def test_team_lookup_shows_decision_and_result_history(app, client):
     world_id = create_world(client, slots=1)
     firm_id = register_firm(client, world_id, 1, "Nike")
@@ -537,7 +598,7 @@ def test_teacher_market_shows_latest_round_data(client):
     client.post(f"/teacher/worlds/{world_id}/advance")
     resp = client.get(f"/teacher/worlds/{world_id}/market")
     assert b"Nike" in resp.data
-    assert b"Showing Round 1" in resp.data
+    assert b"through Round 1" in resp.data
 
 
 def test_teacher_world_page_links_to_market(client):

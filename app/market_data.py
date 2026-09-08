@@ -1,34 +1,315 @@
 """
-Shared query logic for the Market Dashboard, used by both the firm-facing
-route (app/blueprints/market.py, scoped to the logged-in firm's own world)
-and the teacher-facing route (app/blueprints/teacher.py, scoped to whichever
+Shared query/computation logic for the Market Dashboard and the
+Competitive Intelligence Report, used by both the firm-facing routes
+(app/blueprints/market.py, scoped to the logged-in firm's own world) and
+the teacher-facing routes (app/blueprints/teacher.py, scoped to whichever
 world_id the teacher is looking at). Kept in one place so the two call
-sites can never drift on what "latest round" or "market data" means.
+sites can never drift on what "market share," "cumulative," or "leading
+track" means.
+
+Edge cases considered:
+ 1. Unregistered/unclaimed firm slots never appear anywhere here -- they
+    have no RoundResult rows (per the earlier fix excluding them from
+    process_round), and cumulative/standings queries only ever look at
+    RoundResult, so this is automatic, not a separate filter to remember.
+ 2. Zero rounds processed yet -- every function here degrades to an empty
+    list / None rather than crashing; templates render an explicit
+    "no data yet" state for that case.
+ 3. Market share divides by the round's TOTAL units sold across all firms
+    -- guarded against division by zero (a round where literally nobody
+    sold anything, e.g. universal extreme overpricing) by returning 0% for
+    everyone rather than crashing.
+ 4. Cumulative Price has no sensible meaning (summing a price across
+    rounds is nonsensical) -- cumulative_standings() reports Price as a
+    current/latest-round snapshot, while Units Sold/Revenue/Profit are
+    true lifetime sums. Confirmed with the user.
+ 5. Ties in cumulative profit are broken by firm slot_number for a stable,
+    deterministic sort -- arbitrary but consistent, not a locked
+    requirement.
+ 6. "Leading Track" per segment needs a track breakdown that RoundResult
+    doesn't store directly (it only stores units sold by SEGMENT, not by
+    segment+track) -- reconstructed by pairing each firm's per-segment
+    units for the round with that same firm's RoundDecision.track for the
+    same round, then summing per track. A segment with zero total sales
+    that round has no leading track (None), not an arbitrary pick.
+ 7. The Competitive Intelligence Report deliberately OMITS plant capacity,
+    cash balance, and R&D spend from its returned rows entirely (not just
+    hidden by the template) -- so a future column added elsewhere can't
+    get copy-pasted into this report and leak a number that's supposed to
+    stay hidden from rival firms.
+ 8. The Competitive Intelligence Report's "loan flag" is a boolean (is this
+    firm carrying debt at all), never the dollar amount -- matching the
+    locked spec's "no dollar amount shown, just a flag."
 """
 
+from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS
 from app.extensions import db
-from app.models import Firm, RoundResult
+from app.models import Firm, RoundDecision, RoundResult
+
+PIE_COLORS = (
+    "#2159d1", "#ef8a1f", "#1c8a4b", "#c0392b",
+    "#8e44ad", "#16a2b8", "#d4a017", "#e91e8c",
+)
 
 
-def latest_round_results(world):
-    """Returns (results, round_shown) for the most recently processed round
-    in this world. round_shown is None (and results []) if no round has
-    been processed yet -- the template shows an explicit "no data" state
-    for that case rather than an empty table."""
-    latest_round = (
+def latest_processed_round(world):
+    """The highest round_number with at least one RoundResult in this
+    world, or None if no round has been processed yet."""
+    return (
         db.session.query(db.func.max(RoundResult.round_number))
         .join(Firm, Firm.id == RoundResult.firm_id)
         .filter(Firm.world_id == world.id)
         .scalar()
     )
 
-    if latest_round is None:
+
+def latest_round_results(world):
+    """Returns (results, round_shown) for the most recently processed
+    round. round_shown is None (results []) if none processed yet."""
+    round_shown = latest_processed_round(world)
+    if round_shown is None:
         return [], None
+    results = (
+        RoundResult.query
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id, RoundResult.round_number == round_shown)
+        .all()
+    )
+    return results, round_shown
+
+
+def cumulative_standings(world):
+    """Returns a list of dicts, one per REGISTERED firm that has played at
+    least one round, sorted by cumulative profit descending (ties broken
+    by slot_number). Each dict: firm, latest_price, cum_units, cum_revenue,
+    cum_profit. Empty list if no round has been processed yet."""
+    latest_round = latest_processed_round(world)
+    if latest_round is None:
+        return []
+
+    cumulative_rows = (
+        db.session.query(
+            RoundResult.firm_id,
+            db.func.sum(RoundResult.units_sold_total).label("cum_units"),
+            db.func.sum(RoundResult.revenue).label("cum_revenue"),
+            db.func.sum(RoundResult.profit).label("cum_profit"),
+        )
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id)
+        .group_by(RoundResult.firm_id)
+        .all()
+    )
+    cumulative_by_firm = {row.firm_id: row for row in cumulative_rows}
+
+    # "Latest price" is that firm's most recent submitted/auto decision,
+    # not necessarily from the same round for every firm (a firm could be
+    # bankrupt and frozen while others keep playing) -- so it's looked up
+    # per-firm as "their own most recent decision," not "the world's
+    # current round's decision."
+    latest_decision_by_firm = {}
+    for firm_id in cumulative_by_firm:
+        d = (
+            RoundDecision.query.filter_by(firm_id=firm_id)
+            .order_by(RoundDecision.round_number.desc())
+            .first()
+        )
+        if d:
+            latest_decision_by_firm[firm_id] = d
+
+    firms_by_id = {f.id: f for f in Firm.query.filter_by(world_id=world.id).all()}
+
+    rows = []
+    for firm_id, c in cumulative_by_firm.items():
+        firm = firms_by_id.get(firm_id)
+        if firm is None or not firm.is_registered:
+            continue
+        d = latest_decision_by_firm.get(firm_id)
+        rows.append({
+            "firm": firm,
+            "latest_price": d.price if d else None,
+            "cum_units": c.cum_units or 0,
+            "cum_revenue": c.cum_revenue or 0,
+            "cum_profit": c.cum_profit or 0,
+        })
+
+    rows.sort(key=lambda row: (-row["cum_profit"], row["firm"].slot_number))
+    return rows
+
+
+def round_totals(world, round_number):
+    """Returns a list of dicts, one per registered firm with a RoundResult
+    for this specific round, sorted by THAT round's profit descending.
+    Each dict: firm, price, units, revenue, profit."""
+    results = (
+        RoundResult.query
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id, RoundResult.round_number == round_number)
+        .all()
+    )
+    decisions_by_firm = {
+        d.firm_id: d
+        for d in RoundDecision.query.join(Firm)
+        .filter(Firm.world_id == world.id, RoundDecision.round_number == round_number)
+    }
+
+    rows = []
+    for r in results:
+        if not r.firm.is_registered:
+            continue
+        d = decisions_by_firm.get(r.firm_id)
+        rows.append({
+            "firm": r.firm,
+            "price": d.price if d else None,
+            "units": r.units_sold_total,
+            "revenue": r.revenue,
+            "profit": r.profit,
+        })
+
+    rows.sort(key=lambda row: (-row["profit"], row["firm"].slot_number))
+    return rows
+
+
+def market_shares_for_round(world, round_number):
+    """Returns a list of dicts (firm, units, share_pct) for firms with a
+    result in this round, share_pct out of the round's total units sold
+    across all (registered) firms. All-zero (nobody sold anything) yields
+    0% for everyone rather than dividing by zero."""
+    results = (
+        RoundResult.query
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id, RoundResult.round_number == round_number)
+        .all()
+    )
+    registered = [r for r in results if r.firm.is_registered]
+    total_units = sum(r.units_sold_total for r in registered)
+
+    rows = []
+    for r in registered:
+        share_pct = (r.units_sold_total / total_units * 100) if total_units > 0 else 0
+        rows.append({"firm": r.firm, "units": r.units_sold_total, "share_pct": share_pct})
+
+    rows.sort(key=lambda row: (-row["share_pct"], row["firm"].slot_number))
+    return rows
+
+
+def build_pie_gradient(shares):
+    """Takes [{"share_pct": float, ...}] (as produced by
+    market_shares_for_round) and returns a CSS conic-gradient() string,
+    cycling PIE_COLORS if there are more firms than colors. Returns a flat
+    neutral-gray gradient if every share is 0 (nobody sold anything)."""
+    total_pct = sum(row["share_pct"] for row in shares)
+    if not shares or total_pct <= 0:
+        return "conic-gradient(#d8dce3 0% 100%)"
+
+    stops = []
+    cursor = 0.0
+    for i, row in enumerate(shares):
+        color = PIE_COLORS[i % len(PIE_COLORS)]
+        start = cursor
+        cursor += row["share_pct"]
+        stops.append(f"{color} {start:.4f}% {cursor:.4f}%")
+    return "conic-gradient(" + ", ".join(stops) + ")"
+
+
+def segment_overview(world, round_number):
+    """Returns a list of dicts, one per SEGMENTS entry (in SEGMENTS order):
+    name, relative_size_pct (static -- a segment's fixed share of the total
+    buyer pool, unrelated to any round), units_sold_this_round (summed
+    across all firms), leading_track (whichever of Budget/Standard/Premium
+    captured the most units in that segment this round, or None if the
+    segment had zero sales this round)."""
+    total_buyers = sum(SEGMENT_BUYER_COUNT.values())
+
+    overview = []
+    if round_number is None:
+        for seg in SEGMENTS:
+            overview.append({
+                "name": seg,
+                "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
+                "units_sold_this_round": 0,
+                "leading_track": None,
+            })
+        return overview
 
     results = (
         RoundResult.query
         .join(Firm, Firm.id == RoundResult.firm_id)
-        .filter(Firm.world_id == world.id, RoundResult.round_number == latest_round)
+        .filter(Firm.world_id == world.id, RoundResult.round_number == round_number)
         .all()
     )
-    return results, latest_round
+    decisions_by_firm = {
+        d.firm_id: d
+        for d in RoundDecision.query.join(Firm)
+        .filter(Firm.world_id == world.id, RoundDecision.round_number == round_number)
+    }
+
+    for seg in SEGMENTS:
+        units_by_track = {"Budget": 0.0, "Standard": 0.0, "Premium": 0.0}
+        total_units = 0.0
+        for r in results:
+            if not r.firm.is_registered:
+                continue
+            seg_units = (r.units_sold_by_segment or {}).get(seg, 0)
+            total_units += seg_units
+            d = decisions_by_firm.get(r.firm_id)
+            if d and d.track in units_by_track:
+                units_by_track[d.track] += seg_units
+
+        leading_track = None
+        best = max(units_by_track.values()) if units_by_track else 0
+        if best > 0:
+            for track in ("Budget", "Standard", "Premium"):  # deterministic tie-break order
+                if units_by_track[track] == best:
+                    leading_track = track
+                    break
+
+        overview.append({
+            "name": seg,
+            "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
+            "units_sold_this_round": total_units,
+            "leading_track": leading_track,
+        })
+
+    return overview
+
+
+def competitive_intel_rows(world, round_number):
+    """Returns a list of dicts, one per registered firm with a result in
+    this round -- ONLY the fields the locked spec says are visible:
+    team_name, price, track, quality_level, ad_spend, units_sold,
+    market_share_pct, carrying_debt (bool). Plant capacity, cash balance,
+    and R&D spend are never included in this dict at all -- deliberately,
+    not just left out of a template."""
+    shares = market_shares_for_round(world, round_number)
+    share_by_firm = {row["firm"].id: row["share_pct"] for row in shares}
+
+    results = (
+        RoundResult.query
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id, RoundResult.round_number == round_number)
+        .all()
+    )
+    decisions_by_firm = {
+        d.firm_id: d
+        for d in RoundDecision.query.join(Firm)
+        .filter(Firm.world_id == world.id, RoundDecision.round_number == round_number)
+    }
+
+    rows = []
+    for r in results:
+        if not r.firm.is_registered:
+            continue
+        d = decisions_by_firm.get(r.firm_id)
+        rows.append({
+            "team_name": r.firm.team_name,
+            "price": d.price if d else None,
+            "track": d.track if d else None,
+            "quality_level": r.quality_level,
+            "ad_spend": d.ad_spend if d else None,
+            "units_sold": r.units_sold_total,
+            "market_share_pct": share_by_firm.get(r.firm_id, 0),
+            "carrying_debt": r.loan_outstanding_after > 0,
+        })
+
+    rows.sort(key=lambda row: -row["market_share_pct"])
+    return rows
