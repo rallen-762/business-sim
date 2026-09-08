@@ -40,4 +40,17 @@ def create_app(config_overrides=None):
         app.register_blueprint(market.bp)
         app.register_blueprint(teacher.bp)
 
+    @app.cli.command("init-db")
+    def init_db_command():
+        """Creates any missing tables. Safe to run repeatedly (only adds
+        tables that don't exist yet -- never alters or drops existing ones).
+        No migration tool (e.g. Alembic) is set up; a real schema CHANGE
+        later would need a manual step, not just re-running this. Meant to
+        be run once per deploy via Render's Pre-Deploy Command, not on every
+        gunicorn worker boot -- running it from every worker at once could
+        race on the very first deploy."""
+        with app.app_context():
+            db.create_all()
+        print("Database tables created (or already existed).")
+
     return app
