@@ -396,6 +396,40 @@ def test_team_lookup_shows_decision_and_result_history(app, client):
 # CSV export route
 # --------------------------------------------------------------------------- #
 
+def test_delete_world_requires_teacher_login(client):
+    world_id = create_world(client)
+    client.get("/teacher/logout")
+    resp = client.post(f"/teacher/worlds/{world_id}/delete", follow_redirects=True)
+    assert b"Teacher login required" in resp.data
+    with client.application.app_context():
+        assert World.query.get(world_id) is not None  # untouched
+
+
+def test_delete_world_cascades_everything(app, client):
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")  # creates a RoundResult too
+
+    resp = client.post(f"/teacher/worlds/{world_id}/delete", follow_redirects=True)
+    assert b"permanently deleted" in resp.data
+
+    with app.app_context():
+        assert World.query.get(world_id) is None
+        assert Firm.query.get(firm_id) is None
+        assert RoundDecision.query.filter_by(firm_id=firm_id).count() == 0
+        assert RoundResult.query.filter_by(firm_id=firm_id).count() == 0
+
+
+def test_delete_nonexistent_world_returns_404(client):
+    teacher_login(client)
+    resp = client.post("/teacher/worlds/99999/delete")
+    assert resp.status_code == 404
+
+
 def test_export_csv_requires_teacher_login(client):
     world_id = create_world(client)
     client.get("/teacher/logout")

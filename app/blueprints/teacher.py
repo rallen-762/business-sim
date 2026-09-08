@@ -118,6 +118,24 @@ def view_world(world_id):
     )
 
 
+@bp.route("/worlds/<int:world_id>/delete", methods=["POST"])
+@teacher_login_required
+def delete_world(world_id):
+    """Permanently deletes a World and everything under it (Firms,
+    RoundDecisions, RoundResults -- cascade is enforced both at the ORM
+    level and the DB foreign keys, see models.py). Irreversible; the
+    template-side confirm() dialog is the only guard against a misclick,
+    matching this app's general "keep it simple" auth/UX posture -- there's
+    no undo/trash, so this is meant for cleaning up test/mistaken Worlds,
+    not something to click lightly on a real class period's data."""
+    world = World.query.get_or_404(world_id)
+    name = world.name
+    db.session.delete(world)
+    db.session.commit()
+    flash(f"World '{name}' and all its data were permanently deleted.")
+    return redirect(url_for("teacher.dashboard"))
+
+
 @bp.route("/worlds/<int:world_id>/advance", methods=["POST"])
 @teacher_login_required
 def advance_round(world_id):

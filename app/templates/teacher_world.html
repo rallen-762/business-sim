@@ -28,6 +28,15 @@
 </div>
 
 <div class="card">
+  <h3>Danger Zone</h3>
+  <p class="help-text">Permanently deletes this World and every team, decision, and result under it. There is no undo -- only use this on a test or mistaken World.</p>
+  <form method="post" action="{{ url_for('teacher.delete_world', world_id=world.id) }}"
+        onsubmit="return confirm('Delete this World and ALL its data? This cannot be undone.');">
+    <button class="btn" style="background:var(--danger);box-shadow:0 4px 0 #7d241a;" type="submit">Delete This World</button>
+  </form>
+</div>
+
+<div class="card">
   <h3>Firms</h3>
   <table>
     <thead><tr><th>Slot</th><th>Team</th><th>Cash</th><th>Status</th></tr></thead>
