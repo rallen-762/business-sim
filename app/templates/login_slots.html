@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ world.name }} -- Choose Your Team{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ world.name }}</h2>
+  <p class="help-text">Pick your team if it's already registered, or claim an open slot to get started.</p>
+</div>
+
+<div class="slot-list">
+  {% for firm in firms %}
+  <a class="slot-item" href="{{ url_for('auth.firm_login', world_id=world.id, firm_id=firm.id) }}" style="text-decoration:none;color:inherit;">
+    {% if firm.is_registered %}
+      <span class="slot-name">
+        {% if firm.avatar %}<img class="avatar-thumb" src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="">{% endif %}
+        {{ firm.team_name }}
+      </span>
+      <span class="btn secondary" style="padding:6px 14px;">Log In</span>
+    {% else %}
+      <span class="slot-empty">Firm {{ firm.slot_number }} -- unclaimed</span>
+      <span class="btn accent" style="padding:6px 14px;">Register</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

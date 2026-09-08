@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Create Your Team{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;margin:24px auto;">
+  <h2>Create Your Team -- Firm {{ firm.slot_number }}</h2>
+  <form method="post">
+    <label for="team_name">Team Name</label>
+    <input type="text" id="team_name" name="team_name" maxlength="80" required>
+
+    <label for="password">Team Password</label>
+    <input type="password" id="password" name="password" required>
+    <p class="help-text">Everyone on your team will use this to log back in -- write it down.</p>
+
+    <label>Choose Your Avatar</label>
+    <div class="avatar-grid">
+      {% for filename in avatars %}
+      <label class="avatar-choice">
+        <input type="radio" name="avatar" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
+        <span class="avatar-frame"><img src="{{ url_for('static', filename='img/avatars/' ~ filename) }}" alt=""></span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <button class="btn accent full" style="margin-top:20px;" type="submit">Create Team &amp; Enter</button>
+  </form>
+</div>
+{% endblock %}

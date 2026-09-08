@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Market Dashboard{% endblock %}
+{% block nav %}
+  <a href="{{ url_for('firm.dashboard') }}">My Firm</a>
+  <a href="{{ url_for('auth.logout') }}">Log Out</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Market Dashboard</h2>
+  {% if round_shown is none %}
+    <p class="help-text">No rounds have been processed yet -- check back after Round 1 is processed.</p>
+  {% else %}
+    <p class="help-text">Showing Round {{ round_shown }} results.</p>
+    <table>
+      <thead><tr><th>Firm</th><th>Units Sold</th><th>Revenue</th><th>Profit</th><th>Quality Lvl</th><th>Ad Lvl</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in results %}
+        <tr class="{{ 'bankrupt' if r.is_bankrupt }}">
+          <td>{{ r.firm.team_name }}</td>
+          <td>{{ "{:,.0f}".format(r.units_sold_total) }}</td>
+          <td>{{ "${:,.0f}".format(r.revenue) }}</td>
+          <td class="{{ 'value negative' if r.profit < 0 else 'value positive' }}">{{ "${:,.0f}".format(r.profit) }}</td>
+          <td>{{ r.quality_level }}</td>
+          <td>{{ r.ad_level }}</td>
+          <td>{% if r.is_bankrupt %}<span class="badge bankrupt">Bankrupt</span>{% else %}<span class="badge ok">Active</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+{% endblock %}

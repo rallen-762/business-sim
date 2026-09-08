@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Log In{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+  <h2>Enter your Game Code</h2>
+  <p class="help-text">Get this from your teacher.</p>
+  <form method="post">
+    <label for="game_code">Game Code</label>
+    <input type="text" id="game_code" name="game_code" autocomplete="off" autocapitalize="characters" required>
+    <button class="btn accent full" style="margin-top:18px;" type="submit">Continue</button>
+  </form>
+  <p class="help-text" style="margin-top:16px;">
+    Teacher? <a href="{{ url_for('auth.teacher_login') }}">Log in here</a>.
+  </p>
+</div>
+{% endblock %}

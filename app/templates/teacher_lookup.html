@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Team Lookup -- {{ world.name }}{% endblock %}
+{% block nav %}
+  <a href="{{ url_for('teacher.view_world', world_id=world.id) }}">&larr; {{ world.name }}</a>
+  <a href="{{ url_for('teacher.logout') }}">Log Out</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Team Lookup</h2>
+  <form method="get">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search team name...">
+  </form>
+  <div class="slot-list" style="margin-top:14px;">
+    {% for firm in firms %}
+    <a class="slot-item" href="{{ url_for('teacher.team_lookup', world_id=world.id, firm_id=firm.id, q=query) }}" style="text-decoration:none;color:inherit;">
+      <span>{{ firm.team_name or "Firm " ~ firm.slot_number ~ " (unclaimed)" }}</span>
+      {% if firm.bankrupt %}<span class="badge bankrupt">Bankrupt</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if selected_firm %}
+<div class="card">
+  <h3>{{ selected_firm.team_name }}</h3>
+  <p>Cash: {{ "${:,.0f}".format(selected_firm.cash) }} &middot; Capacity: {{ selected_firm.plant_capacity }}</p>
+
+  <h4>Decision History</h4>
+  <table>
+    <thead><tr><th>Round</th><th>Price</th><th>Track</th><th>Production</th><th>R&amp;D</th><th>Ads</th><th>Celeb.</th><th>Plant Inv.</th><th>Auto?</th></tr></thead>
+    <tbody>
+      {% for d in decisions %}
+      <tr>
+        <td>{{ d.round_number }}</td>
+        <td>${{ d.price }}</td>
+        <td>{{ d.track }}</td>
+        <td>{{ d.production_qty }}</td>
+        <td>${{ "{:,.0f}".format(d.rd_spend) }}</td>
+        <td>${{ "{:,.0f}".format(d.ad_spend) }}</td>
+        <td>{{ "Yes" if d.celebrity_on else "No" }}</td>
+        <td>${{ "{:,.0f}".format(d.plant_investment) }}</td>
+        <td>{{ "Auto" if d.is_auto else "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h4>Round Results</h4>
+  <table>
+    <thead><tr><th>Round</th><th>Units Sold</th><th>Revenue</th><th>Profit</th><th>Cash After</th></tr></thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td>{{ r.round_number }}</td>
+        <td>{{ "{:,.0f}".format(r.units_sold_total) }}</td>
+        <td>{{ "${:,.0f}".format(r.revenue) }}</td>
+        <td class="{{ 'value negative' if r.profit < 0 else 'value positive' }}">{{ "${:,.0f}".format(r.profit) }}</td>
+        <td>{{ "${:,.0f}".format(r.cash_after) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Teacher Dashboard{% endblock %}
+{% block nav %}<a href="{{ url_for('teacher.logout') }}">Log Out</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Create a World</h2>
+  <form method="post" action="{{ url_for('teacher.create_world') }}">
+    <div class="grid grid-2">
+      <div>
+        <label for="name">Period Name</label>
+        <input type="text" id="name" name="name" placeholder="Period 3" required>
+      </div>
+      <div>
+        <label for="planned_firm_slots">Number of Firms</label>
+        <input type="number" id="planned_firm_slots" name="planned_firm_slots" min="1" max="8" value="7" required>
+      </div>
+    </div>
+    <button class="btn accent" style="margin-top:18px;" type="submit">Create World</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Your Worlds</h2>
+  {% if not worlds %}
+    <p class="help-text">No worlds yet -- create one above.</p>
+  {% else %}
+  <table>
+    <thead><tr><th>Name</th><th>Game Code</th><th>Round</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for world in worlds %}
+      <tr>
+        <td>{{ world.name }}</td>
+        <td><code>{{ world.game_code }}</code></td>
+        <td>{{ world.current_round }}</td>
+        <td>{{ world.status }}</td>
+        <td><a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('teacher.view_world', world_id=world.id) }}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

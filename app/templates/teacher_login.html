@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Teacher Login{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+  <h2>Teacher Login</h2>
+  <form method="post">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required autofocus>
+    <button class="btn full" style="margin-top:18px;" type="submit">Log In</button>
+  </form>
+</div>
+{% endblock %}

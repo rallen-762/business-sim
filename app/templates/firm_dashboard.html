@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ firm.team_name }} -- Dashboard{% endblock %}
+{% block nav %}
+  <a href="{{ url_for('market.dashboard') }}">Market</a>
+  <a href="{{ url_for('auth.logout') }}">Log Out</a>
+{% endblock %}
+{% block content %}
+
+{% if firm.bankrupt %}
+<div class="card">
+  <span class="banner" style="background:var(--danger);box-shadow:0 3px 0 #7d241a;">Bankrupt</span>
+  <p>{{ firm.team_name }} is out of the game. Your dashboard is frozen, but you'll stay listed on the standings.</p>
+</div>
+
+{% elif world.status == "transition" and last_result is none %}
+<div class="card">
+  <span class="banner">Round {{ world.current_round }} Processed</span>
+  <p>Waiting for the teacher to open the next round.</p>
+</div>
+
+{% elif world.status == "transition" %}
+<div class="card">
+  <span class="banner">Round {{ world.current_round }} Results</span>
+  <div class="grid grid-3">
+    <div class="stat"><div class="label">Units Sold</div><div class="value">{{ "{:,.0f}".format(last_result.units_sold_total) }}</div></div>
+    <div class="stat"><div class="label">Revenue</div><div class="value">{{ "${:,.0f}".format(last_result.revenue) }}</div></div>
+    <div class="stat"><div class="label">Profit</div><div class="value {{ 'negative' if last_result.profit < 0 else 'positive' }}">{{ "${:,.0f}".format(last_result.profit) }}</div></div>
+    <div class="stat"><div class="label">Cash</div><div class="value">{{ "${:,.0f}".format(last_result.cash_after) }}</div></div>
+    <div class="stat"><div class="label">Quality Level</div><div class="value">{{ last_result.quality_level }}</div></div>
+    <div class="stat"><div class="label">Ad Level</div><div class="value">{{ last_result.ad_level }}</div></div>
+  </div>
+  {% if last_result.loan_taken_this_round %}<p class="help-text">A $500,000 emergency loan was issued this round.</p>{% endif %}
+  {% if last_result.plant_investment_blocked or last_result.celebrity_blocked %}<p class="help-text">Some spending was blocked because your firm was carrying loan debt this round.</p>{% endif %}
+  <p>Waiting for the teacher to open Round {{ world.current_round + 1 }}.</p>
+</div>
+
+{% elif world.status == "complete" %}
+<div class="card">
+  <span class="banner">Game Complete</span>
+  <p>Final cash: {{ "${:,.0f}".format(firm.cash) }}</p>
+</div>
+
+{% elif decision %}
+<div class="card">
+  <span class="banner">Round {{ world.current_round }} Submitted</span>
+  <p>You've submitted your decision for this round. Decisions can't be edited once submitted -- check back once the teacher processes the round.</p>
+</div>
+
+{% else %}
+<div class="card">
+  <h2>Round {{ world.current_round }} of {{ rounds_per_world }}</h2>
+  <div class="grid grid-3" style="margin-bottom:16px;">
+    <div class="stat"><div class="label">Cash</div><div class="value">{{ "${:,.0f}".format(firm.cash) }}</div></div>
+    <div class="stat"><div class="label">Plant Capacity</div><div class="value">{{ "{:,}".format(firm.plant_capacity) }}</div></div>
+    <div class="stat"><div class="label">Loan Outstanding</div><div class="value">{{ "${:,.0f}".format(firm.loan_outstanding) }}</div></div>
+  </div>
+
+  <form method="post" action="{{ url_for('firm.submit_decision') }}">
+    <div class="grid grid-2">
+      <div>
+        <label for="price">Price ($)</label>
+        <input type="number" step="0.01" min="0" id="price" name="price" value="{{ firm.last_price }}" required>
+      </div>
+      <div>
+        <label for="track">Track</label>
+        <select id="track" name="track" required>
+          {% for t in ["Budget", "Standard", "Premium"] %}
+          <option value="{{ t }}" {% if firm.last_track == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="production_qty">Production Quantity</label>
+        <input type="number" min="0" max="{{ firm.plant_capacity }}" id="production_qty" name="production_qty" required>
+        <p class="help-text">Capacity this round: {{ "{:,}".format(firm.plant_capacity) }}</p>
+      </div>
+      <div>
+        <label for="rd_spend">R&amp;D Spend ($)</label>
+        <input type="number" step="1" min="0" id="rd_spend" name="rd_spend" value="0">
+      </div>
+      <div>
+        <label for="ad_spend">Advertising Spend ($)</label>
+        <input type="number" step="1" min="0" id="ad_spend" name="ad_spend" value="0">
+      </div>
+      <div>
+        <label for="plant_investment">Plant Investment</label>
+        <select id="plant_investment" name="plant_investment">
+          <option value="0">None ($0)</option>
+          <option value="100000">Expand +15,000 capacity ($100,000)</option>
+        </select>
+        {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt -- will be zeroed automatically.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="celebrity_on" name="celebrity_on">
+      <label for="celebrity_on" style="margin:0;">Celebrity Endorsement ($50,000/round)</label>
+    </div>
+    {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt -- will be zeroed automatically.</p>{% endif %}
+
+    <button class="btn accent full" style="margin-top:20px;" type="submit">Submit Decision</button>
+    <p class="help-text" style="text-align:center;">You cannot edit this after submitting.</p>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
