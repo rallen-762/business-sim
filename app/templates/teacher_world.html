@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ world.name }}{% endblock %}
 {% block nav %}
+  <a href="{{ url_for('teacher.market', world_id=world.id) }}">Market</a>
   <a href="{{ url_for('teacher.team_lookup', world_id=world.id) }}">Team Lookup</a>
   <a href="{{ url_for('teacher.dashboard') }}">All Worlds</a>
   <a href="{{ url_for('teacher.logout') }}">Log Out</a>
@@ -38,22 +39,62 @@
 
 <div class="card">
   <h3>Firms</h3>
+
+  <form method="get" style="margin-bottom:14px;">
+    <label for="round" style="display:inline;margin-right:8px;">Viewing Round:</label>
+    <select id="round" name="round" onchange="this.form.submit()" style="width:auto;display:inline-block;">
+      {% for n in range(1, world.current_round + 1) %}
+      <option value="{{ n }}" {% if n == selected_round %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+    <span class="help-text">Cumulative totals below reflect rounds 1&ndash;{{ selected_round }} only.</span>
+  </form>
+
+  <div style="overflow-x:auto;">
   <table>
-    <thead><tr><th>Slot</th><th>Team</th><th>Cash</th><th>Status</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Status</th><th>Team</th>
+        <th>Price</th><th>Track</th><th>Production</th><th>Ad Spend</th><th>R&amp;D Spend</th><th>Celeb.</th><th>Plant Inv.</th>
+        <th>Units Sold</th><th>Revenue</th><th>Total Cost</th><th>Profit</th><th>Cash</th><th>Loan Outst.</th><th>Quality Lvl</th>
+        <th>Cum. Revenue</th><th>Cum. Profit</th><th>Cum. Units</th>
+      </tr>
+    </thead>
     <tbody>
       {% for firm in firms %}
-      <tr class="{{ 'bankrupt' if firm.bankrupt }}">
-        <td>{{ firm.slot_number }}</td>
-        <td>{{ firm.team_name or "(unclaimed)" }}</td>
-        <td>{{ "${:,.0f}".format(firm.cash) }}</td>
+      {% set d = decisions_by_firm.get(firm.id) %}
+      {% set r = results_by_firm.get(firm.id) %}
+      {% set c = cumulative_by_firm.get(firm.id) %}
+      {% set is_bankrupt_this_round = r.is_bankrupt if r else firm.bankrupt %}
+      <tr class="{{ 'bankrupt' if is_bankrupt_this_round }}">
         <td>
-          {% if firm.bankrupt %}<span class="badge bankrupt">Bankrupt</span>
-          {% elif not firm.is_registered %}<span class="badge">Unclaimed</span>
+          {% if not firm.is_registered %}<span class="badge">Unclaimed</span>
+          {% elif is_bankrupt_this_round %}<span class="badge bankrupt">Bankrupt</span>
           {% else %}<span class="badge ok">Active</span>{% endif %}
         </td>
+        <td>{{ firm.team_name or "(unclaimed)" }}</td>
+        <td>{{ "${:,.2f}".format(d.price) if d else "—" }}</td>
+        <td>{{ d.track if d else "—" }}</td>
+        <td>{{ "{:,}".format(d.production_qty) if d else "—" }}</td>
+        <td>{{ "${:,.0f}".format(d.ad_spend) if d else "—" }}</td>
+        <td>{{ "${:,.0f}".format(d.rd_spend) if d else "—" }}</td>
+        <td>{{ ("Yes" if d.celebrity_on else "No") if d else "—" }}</td>
+        <td>{{ "${:,.0f}".format(d.plant_investment) if d else "—" }}</td>
+        <td>{{ "{:,.0f}".format(r.units_sold_total) if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(r.revenue) if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(r.total_cost) if r else "—" }}</td>
+        <td class="{{ 'value negative' if r and r.profit < 0 else 'value positive' if r else '' }}">{{ "${:,.0f}".format(r.profit) if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(r.cash_after) if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(r.loan_outstanding_after) if r else "—" }}</td>
+        <td>{{ r.quality_level if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(c.cum_revenue) if c else "$0" }}</td>
+        <td>{{ "${:,.0f}".format(c.cum_profit) if c else "$0" }}</td>
+        <td>{{ "{:,.0f}".format(c.cum_units) if c else "0" }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
+  <p class="help-text">"—" means this firm hasn't submitted/been processed for Round {{ selected_round }} yet.</p>
 </div>
 {% endblock %}

@@ -46,6 +46,7 @@ from app.constants import (
 from app.csv_export import build_export_rows, export_filename, rows_to_csv_string
 from app.engine import FirmDecision, FirmState, process_round, synthesize_non_submission_decision
 from app.extensions import db
+from app.market_data import latest_round_results
 from app.models import Firm, RoundDecision, RoundResult, World
 
 bp = Blueprint("teacher", __name__, url_prefix="/teacher")
@@ -111,10 +112,56 @@ def view_world(world_id):
         .filter(Firm.world_id == world.id, RoundDecision.round_number == world.current_round)
         .count()
     )
+
+    # Round selector: any round 1..current_round can be viewed (a round
+    # beyond current_round doesn't exist yet). Defaults to the current one.
+    selected_round = request.args.get("round", type=int) or world.current_round
+    selected_round = max(1, min(selected_round, world.current_round))
+
+    decisions_by_firm = {
+        d.firm_id: d
+        for d in RoundDecision.query.join(Firm)
+        .filter(Firm.world_id == world.id, RoundDecision.round_number == selected_round)
+    }
+    results_by_firm = {
+        r.firm_id: r
+        for r in RoundResult.query.join(Firm)
+        .filter(Firm.world_id == world.id, RoundResult.round_number == selected_round)
+    }
+
+    # Running totals through the SELECTED round specifically -- viewing a
+    # past round must show totals as of THAT round, not the world's current
+    # round, even though more rounds may have been played since.
+    cumulative_rows = (
+        db.session.query(
+            RoundResult.firm_id,
+            db.func.sum(RoundResult.revenue).label("cum_revenue"),
+            db.func.sum(RoundResult.profit).label("cum_profit"),
+            db.func.sum(RoundResult.units_sold_total).label("cum_units"),
+        )
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id, RoundResult.round_number <= selected_round)
+        .group_by(RoundResult.firm_id)
+        .all()
+    )
+    cumulative_by_firm = {row.firm_id: row for row in cumulative_rows}
+
     return render_template(
         "teacher_world.html", world=world, firms=firms,
         submitted_count=submitted_count, registered_count=registered_count,
-        rounds_per_world=ROUNDS_PER_WORLD,
+        rounds_per_world=ROUNDS_PER_WORLD, selected_round=selected_round,
+        decisions_by_firm=decisions_by_firm, results_by_firm=results_by_firm,
+        cumulative_by_firm=cumulative_by_firm,
+    )
+
+
+@bp.route("/worlds/<int:world_id>/market")
+@teacher_login_required
+def market(world_id):
+    world = World.query.get_or_404(world_id)
+    results, round_shown = latest_round_results(world)
+    return render_template(
+        "market_dashboard.html", world=world, results=results, round_shown=round_shown,
     )
 
 

@@ -1,8 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Market Dashboard{% endblock %}
 {% block nav %}
-  <a href="{{ url_for('firm.dashboard') }}">My Firm</a>
-  <a href="{{ url_for('auth.logout') }}">Log Out</a>
+  {% if session.get('is_teacher') %}
+    <a href="{{ url_for('teacher.view_world', world_id=world.id) }}">&larr; {{ world.name }}</a>
+    <a href="{{ url_for('teacher.logout') }}">Log Out</a>
+  {% else %}
+    <a href="{{ url_for('firm.dashboard') }}">My Firm</a>
+    <a href="{{ url_for('auth.logout') }}">Log Out</a>
+  {% endif %}
 {% endblock %}
 {% block content %}
 <div class="card">

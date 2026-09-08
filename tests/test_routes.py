@@ -430,6 +430,129 @@ def test_delete_nonexistent_world_returns_404(client):
     assert resp.status_code == 404
 
 
+# --------------------------------------------------------------------------- #
+# Teacher World page: round selector, decision/output columns, running totals
+# --------------------------------------------------------------------------- #
+
+def _play_two_rounds(client, world_id, firm_id):
+    """Registers Nike, plays two full rounds with different prices so each
+    round's revenue/profit are distinguishable, leaving the world on Round 3
+    ("collecting", no decision/result yet)."""
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, price="80", production_qty="45000")
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")  # round 1 -> transition
+    client.post(f"/teacher/worlds/{world_id}/advance")  # -> round 2, collecting
+    client.get("/teacher/logout")
+
+    client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    submit_decision(client, price="120", production_qty="45000")
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")  # round 2 -> transition
+    client.post(f"/teacher/worlds/{world_id}/advance")  # -> round 3, collecting
+
+
+def test_round_selector_defaults_to_current_round(client):
+    # create_world() already leaves the client logged in as teacher --
+    # no firm registration needed just to check the selector's default.
+    world_id = create_world(client, slots=1)
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    assert 'value="1" selected' in resp.data.decode()
+
+
+def test_round_selector_shows_that_rounds_own_decision_and_result(app, client):
+    world_id = create_world(client, slots=1)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
+    _play_two_rounds(client, world_id, firm_id)
+
+    resp1 = client.get(f"/teacher/worlds/{world_id}?round=1")
+    body1 = resp1.data.decode()
+    assert "80.00" in body1  # round 1's price
+    assert "120.00" not in body1
+
+    resp2 = client.get(f"/teacher/worlds/{world_id}?round=2")
+    body2 = resp2.data.decode()
+    assert "120.00" in body2
+    assert "80.00" not in body2
+
+
+def test_pending_round_shows_dashes_not_a_crash(app, client):
+    world_id = create_world(client, slots=1)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
+    _play_two_rounds(client, world_id, firm_id)  # leaves world on round 3, collecting, no decision yet
+
+    resp = client.get(f"/teacher/worlds/{world_id}?round=3")
+    assert resp.status_code == 200
+    assert b'\xe2\x80\x94' in resp.data  # the em-dash placeholder, UTF-8 encoded
+
+
+def test_cumulative_totals_respect_the_selected_round_not_the_live_round(app, client):
+    world_id = create_world(client, slots=1)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
+    _play_two_rounds(client, world_id, firm_id)
+
+    with app.app_context():
+        from app.models import RoundResult
+        r1 = RoundResult.query.filter_by(firm_id=firm_id, round_number=1).first()
+        r2 = RoundResult.query.filter_by(firm_id=firm_id, round_number=2).first()
+
+    # Viewing round 1: cumulative should be round 1 ONLY, even though the
+    # world has since moved on to round 3.
+    resp1 = client.get(f"/teacher/worlds/{world_id}?round=1")
+    body1 = resp1.data.decode()
+    assert f"${r1.revenue:,.0f}" in body1
+
+    # Viewing round 2: cumulative should be round 1 + round 2.
+    resp2 = client.get(f"/teacher/worlds/{world_id}?round=2")
+    body2 = resp2.data.decode()
+    expected_cum_revenue = r1.revenue + r2.revenue
+    assert f"${expected_cum_revenue:,.0f}" in body2
+
+
+# --------------------------------------------------------------------------- #
+# Teacher-facing Market Dashboard
+# --------------------------------------------------------------------------- #
+
+def test_teacher_market_requires_teacher_login(client):
+    world_id = create_world(client)
+    client.get("/teacher/logout")
+    resp = client.get(f"/teacher/worlds/{world_id}/market", follow_redirects=True)
+    assert b"Teacher login required" in resp.data
+
+
+def test_teacher_market_shows_latest_round_data(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    resp = client.get(f"/teacher/worlds/{world_id}/market")
+    assert b"Nike" in resp.data
+    assert b"Showing Round 1" in resp.data
+
+
+def test_teacher_world_page_links_to_market(client):
+    world_id = create_world(client)
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    assert f'/teacher/worlds/{world_id}/market'.encode() in resp.data
+
+
+def test_firm_dashboard_links_to_market(client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    resp = client.get("/firm")
+    assert b'/market' in resp.data
+
+
 def test_export_csv_requires_teacher_login(client):
     world_id = create_world(client)
     client.get("/teacher/logout")
