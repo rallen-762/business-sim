@@ -1,0 +1,225 @@
+TEACHER REFERENCE GUIDE
+Business Simulation — Hidden Mechanics & Formulas
+(For Robert's use only — not shared with students)
+
+
+===========================================================================
+1. THE ADVERTISING DIMINISHING-RETURNS "TRAP"
+===========================================================================
+
+What it is:
+Advertising spend follows a ladder with 10 levels. Each level costs more
+than the last, and each level gives a smaller demand boost than the one
+before it. By Level 9, the demand multiplier essentially maxes out at
+1.705. Level 10 costs an additional $275,000 on top of Level 9's cumulative
+$1,350,000 -- and delivers ZERO additional demand benefit. It is a secret
+"trap": a firm that keeps pouring money into advertising past Level 9 is
+just burning cash for no gain.
+
+Why it's designed this way:
+It rewards firms who read the diminishing returns and stop investing once
+the curve flattens, and punishes firms who blindly max out every category
+assuming "more spend always = more sales." It's meant to surface a
+real economic lesson (diminishing marginal returns) through consequence,
+not through a lecture.
+
+The full ladder:
+
+  Level | Cost This Level | Cumulative Cost | Demand Multiplier
+  ------|------------------|-------------------|--------------------
+    1   |        --        |      $0           |   1.000
+    2   |    $75,000        |   $125,000        |   1.180
+    3   |    $100,000       |   $225,000        |   1.330
+    4   |    $125,000       |   $350,000        |   1.450
+    5   |    $150,000       |   $500,000        |   1.540
+    6   |    $175,000       |   $675,000        |   1.610
+    7   |    $200,000       |   $875,000        |   1.660
+    8   |    $225,000       |   $1,100,000      |   1.690
+    9   |    $250,000       |   $1,350,000      |   1.705
+   10   |    $275,000       |   $1,625,000      |   1.705  <-- TRAP: no gain
+
+Talking point for post-round debrief: ask a firm that hit Level 10 why
+they didn't stop at 9. This is a great "teachable moment" prompt.
+
+Note: Advertising's demand multiplier is FLAT and applies identically
+across all 5 market segments -- no per-segment variation was built in
+(a deliberate simplification decision).
+
+
+===========================================================================
+2. FULL DEMAND FORMULA (the complete picture)
+===========================================================================
+
+For a given Firm, in a given market Segment:
+
+  Firm's Demand Pull per Segment
+      =   Track Preference Multiplier (segment, track)
+        x Quality Weight (segment, quality level)
+        x Price Multiplier (segment, price)
+        x Advertising Multiplier (flat, from ladder above)
+        x Celebrity Multiplier (segment)   [only if celebrity ON, else 1]
+
+  Firm's Share of Segment
+      =         Firm's Demand Pull per Segment
+          -----------------------------------------
+          SUM of Demand Pull, all firms, this segment
+
+  Units Sold (Firm, Segment)
+      = Firm's Share of Segment  x  Segment's Real Buyer Count
+
+Total units sold for a firm = sum of Units Sold across all 5 segments.
+
+
+===========================================================================
+3. THE FIVE MARKET SEGMENTS
+===========================================================================
+
+Total buyer pool = 408,000 per world (base 8,000 x scale factor 51).
+
+  Segment              | Real Buyer Count
+  ----------------------|-------------------
+  Low Income            |     127,500
+  NBA Fans               |      76,500
+  Basketball Players     |      51,000
+  Wealthy                |      40,800
+  Casual / Fashion       |     112,200
+
+With 7 firms at 45,000 units capacity each (315,000 total industry
+capacity), the buyer pool exceeds total capacity -- so production
+capacity, not raw demand, is normally the binding constraint on sales.
+This is intentional.
+
+
+---------------------------------------------------------------------------
+3a. Track Preference Multiplier
+---------------------------------------------------------------------------
+
+  Segment              | Budget | Standard | Premium
+  ----------------------|--------|----------|--------
+  Low Income             |  1.3   |   0.9    |  0.5
+  NBA Fans                |  0.5   |   0.9    |  1.4
+  Basketball Players      |  0.7   |   1.0    |  1.2
+  Wealthy                 |  0.4   |   0.8    |  1.5
+  Casual / Fashion        |  0.8   |   1.3    |  0.9
+
+
+---------------------------------------------------------------------------
+3b. Quality Weight (Quality Level 1 -> 10, linear interpolation)
+---------------------------------------------------------------------------
+
+  Segment              |  Q1  |  Q10 | Notes
+  ----------------------|------|------|----------------------------
+  Low Income             | 1.0  | 1.0  | Flat -- doesn't care about quality
+  NBA Fans                | 0.9  | 1.3  |
+  Basketball Players      | 0.7  | 1.8  | Steepest -- dominant factor
+  Wealthy                 | 0.8  | 1.6  |
+  Casual / Fashion        | 0.95 | 1.05 | Nearly flat
+
+NOTE: this replaced an earlier generic Track/Quality table (formerly
+Section 4b of the master doc) that would have double-counted quality's
+effect on demand. Quality Weight is now the ONLY quality-effect layer.
+
+
+---------------------------------------------------------------------------
+3c. Celebrity Endorsement Multiplier (applies only if Celebrity is ON)
+---------------------------------------------------------------------------
+
+  Segment              | Multiplier
+  ----------------------|-----------
+  Low Income             |   1.0
+  NBA Fans                |   1.5   <- primary driver for this segment
+  Basketball Players      |   1.1
+  Wealthy                 |   1.2
+  Casual / Fashion        |   1.0
+
+
+---------------------------------------------------------------------------
+3d. Price Multiplier (elasticity-based, LOCKED)
+---------------------------------------------------------------------------
+
+STANDARD SEGMENTS (Low Income, NBA Fans, Basketball Players, Casual/Fashion):
+
+  % above base  =  (Price - 50) / 50
+
+  Price Multiplier  =  MAX( 0,  1 - (% above base) x Elasticity Coefficient )
+
+  Elasticity Coefficients:
+      Low Income           1.4   (highly elastic / very price-sensitive)
+      Casual/Fashion        1.0   (unit elastic / baseline)
+      Basketball Players    0.7   (moderately inelastic)
+      NBA Fans               0.3   (highly inelastic -- buying brand/celebrity)
+
+  Sanity check at the $80 Round-1 anchor price (60% above base):
+      Low Income:          0.16 multiplier
+      Casual/Fashion:       0.40
+      Basketball Players:   0.58
+      NBA Fans:             0.82
+
+  (Earlier draft used coefficient 2.0 for Low Income -- this was too
+  aggressive, it zeroed that segment out completely by $75. Lowered to
+  1.4 so the segment stays technically reachable near the target price.)
+
+
+WEALTHY SEGMENT (piecewise -- different rule, NOT the formula above):
+
+  IF Price <= 200:
+      % above base  =  (Price - 50) / 50
+      Price Multiplier  =  1 - (% above base) x 0.1
+
+  IF 200 < Price <= 250:
+      Price Multiplier  =  0.70 x ( (250 - Price) / 50 ) ^ 2
+
+  IF Price > 250:
+      Price Multiplier  =  0   (price not allowed / demand dead)
+
+  Shape:  $200 -> 0.70   $210 -> 0.45   $225 -> 0.18
+          $240 -> 0.03   $250 -> 0.00
+
+  Concept: "the rich don't care about price, until suddenly they really
+  do." Flat/inelastic below $200, then a hard squared taper to zero.
+
+
+===========================================================================
+4. PRICING GUIDANCE TOOL (what students see, and why it's safe)
+===========================================================================
+
+Purpose: help students reason about price changes WITHOUT exposing any
+of the hidden numbers above (elasticity coefficients, quality weights,
+track multipliers, Wealthy ceiling curve all stay permanently secret).
+
+Mechanism:
+  - Baseline = the firm's own actual last-round result (actual price,
+    actual units sold).
+  - Student enters a hypothetical new price for the upcoming round.
+  - Tool applies that firm's own price elasticity (given their current
+    quality/track) to the baseline, and projects an estimated units-sold
+    range assuming everything else (competitors, own quality/track/ads)
+    behaves as it did last round.
+  - Framed as a plain comparison, e.g.: "Last round you sold about
+    9,000 units at $70. At $90, we estimate about 6,000 units, assuming
+    similar competitor behavior."
+  - The "assumes similar competitor behavior" caveat is shown to the
+    student every time.
+  - Round 1 has no prior-round baseline -- needs a fallback approach
+    (not yet designed).
+
+
+===========================================================================
+5. OPEN / STILL PENDING (as of this writing)
+===========================================================================
+
+  - Unsold / excess inventory handling -- what happens to units produced
+    but not sold in a round (carry forward? scrapped? storage cost?).
+    Explicitly deferred -- no default assumed yet.
+  - Round 1 fallback baseline for the pricing guidance tool (no prior
+    round exists yet).
+  - Student user guide itself -- still needs drafting (qualitative
+    segment descriptions only, no hidden numbers, plus a clear
+    explanation of the three Track price points: $37.50 Budget /
+    $50 Standard / $70 Premium).
+  - Teacher dashboard segment-breakdown tab (revenue/units by segment)
+    -- agreed conceptually, not yet designed in detail.
+
+===========================================================================
+END OF TEACHER REFERENCE GUIDE
+===========================================================================
