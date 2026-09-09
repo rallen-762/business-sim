@@ -1,0 +1,61 @@
+FINAL PER-SEGMENT DEMAND FORMULA (post quality-merge, post elasticity lock)
+============================================================================
+
+For a given Firm, in a given Segment:
+
+    Firm's Demand Pull per Segment
+        =   Track Preference Multiplier (segment, track)
+          x Quality Weight (segment, quality level)
+          x Price Multiplier (segment, price)
+          x Advertising Multiplier (ad level)
+          x Celebrity Multiplier (segment)      [only if celebrity ON, else = 1]
+
+Then, to get actual units sold to that segment:
+
+    Firm's Share of Segment
+        =         Firm's Demand Pull per Segment
+            -----------------------------------------
+            SUM of Demand Pull, all firms, this segment
+
+    Units Sold (Firm, Segment)
+        = Firm's Share of Segment  x  Segment's Real Buyer Count
+
+
+----------------------------------------------------------------------------
+PRICE MULTIPLIER — detail
+----------------------------------------------------------------------------
+
+STANDARD SEGMENTS (Low Income, NBA Fans, Basketball Players, Casual/Fashion):
+
+    % above base  =  (Price - 50) / 50
+
+    Price Multiplier  =  MAX( 0,  1  -  (% above base) x Elasticity Coefficient )
+
+    Elasticity Coefficients (LOCKED):
+        Low Income          1.4
+        Casual/Fashion      1.0
+        Basketball Players  0.7
+        NBA Fans            0.3
+
+
+WEALTHY SEGMENT (piecewise — different rule):
+
+    IF Price <= 200:
+        % above base  =  (Price - 50) / 50
+        Price Multiplier  =  1 - (% above base) x 0.1
+
+    IF 200 < Price <= 250:
+        Price Multiplier  =  0.70 x ( (250 - Price) / 50 )^2
+
+    IF Price > 250:
+        Price Multiplier  =  0   (not allowed / demand dead)
+
+
+    Wealthy curve shape:
+        Price 200  ->  0.70
+        Price 210  ->  0.45
+        Price 225  ->  0.18
+        Price 240  ->  0.03
+        Price 250  ->  0.00
+
+----------------------------------------------------------------------------
