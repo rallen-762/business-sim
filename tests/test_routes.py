@@ -631,6 +631,17 @@ def test_round_selector_defaults_to_current_round(client):
     assert 'value="1" selected' in resp.data.decode()
 
 
+def _firms_table_only(html):
+    # The Scouting Report section always reflects the LATEST processed
+    # round regardless of the Firms table's round selector (by design) --
+    # scope round-selector assertions to just the Firms table so the two
+    # sections' independent "which round am I showing" behavior can't be
+    # confused with each other.
+    start = html.index('<h3>Firms</h3>')
+    end = html.index('<h3>Scouting Report</h3>')
+    return html[start:end]
+
+
 def test_round_selector_shows_that_rounds_own_decision_and_result(app, client):
     world_id = create_world(client, slots=1)
     with app.app_context():
@@ -638,14 +649,14 @@ def test_round_selector_shows_that_rounds_own_decision_and_result(app, client):
     _play_two_rounds(client, world_id, firm_id)
 
     resp1 = client.get(f"/teacher/worlds/{world_id}?round=1")
-    body1 = resp1.data.decode()
-    assert "80.00" in body1  # round 1's price
-    assert "120.00" not in body1
+    firms_table1 = _firms_table_only(resp1.data.decode())
+    assert "80.00" in firms_table1  # round 1's price
+    assert "120.00" not in firms_table1
 
     resp2 = client.get(f"/teacher/worlds/{world_id}?round=2")
-    body2 = resp2.data.decode()
-    assert "120.00" in body2
-    assert "80.00" not in body2
+    firms_table2 = _firms_table_only(resp2.data.decode())
+    assert "120.00" in firms_table2
+    assert "80.00" not in firms_table2
 
 
 def test_pending_round_shows_dashes_not_a_crash(app, client):
@@ -711,6 +722,27 @@ def test_teacher_world_page_links_to_market(client):
     world_id = create_world(client)
     resp = client.get(f"/teacher/worlds/{world_id}")
     assert f'/teacher/worlds/{world_id}/market'.encode() in resp.data
+
+
+def test_scouting_report_placeholder_before_any_round(client):
+    world_id = create_world(client)
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    assert b"Scouting Report will appear after Round 1" in resp.data
+
+
+def test_scouting_report_shows_top_firm_after_a_round(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    body = resp.data.decode()
+    assert "Scouting Report" in body
+    assert "#1 -- Nike" in body
+    assert "not AI-generated" in body
 
 
 def test_firm_dashboard_links_to_market(client):

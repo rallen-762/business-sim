@@ -97,4 +97,22 @@
   </div>
   <p class="help-text">"—" means this firm hasn't submitted/been processed for Round {{ selected_round }} yet.</p>
 </div>
+
+<div class="card">
+  <h3>Scouting Report</h3>
+  {% if not scouting_report %}
+    <p class="help-text">Scouting Report will appear after Round 1 is processed.</p>
+  {% else %}
+    <p class="help-text">Top firms ranked by cumulative revenue (ties broken by cumulative profit), with a plain-language breakdown of what's driving their results this round -- fully rule-based, not AI-generated.</p>
+    <div class="grid grid-3">
+      {% for entry in scouting_report %}
+      <div class="stat">
+        <div class="label">#{{ entry.rank }} -- {{ entry.team_name }}</div>
+        <div class="value {{ 'negative' if entry.cum_profit < 0 else 'positive' }}" style="font-size:1.1rem;">{{ "${:,.0f}".format(entry.cum_revenue) }} revenue</div>
+        <p style="margin:8px 0 0;font-size:0.9rem;">{{ entry.summary }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
 {% endblock %}

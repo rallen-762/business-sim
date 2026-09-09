@@ -55,6 +55,7 @@ from app.market_data import (
     round_totals,
     segment_overview,
 )
+from app.scouting_report import build_scouting_report
 from app.models import Firm, RoundDecision, RoundResult, World
 
 bp = Blueprint("teacher", __name__, url_prefix="/teacher")
@@ -160,6 +161,7 @@ def view_world(world_id):
         rounds_per_world=ROUNDS_PER_WORLD, selected_round=selected_round,
         decisions_by_firm=decisions_by_firm, results_by_firm=results_by_firm,
         cumulative_by_firm=cumulative_by_firm,
+        scouting_report=build_scouting_report(world),
     )
 
 
