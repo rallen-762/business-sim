@@ -86,8 +86,14 @@ a { color: var(--primary); }
 }
 .stat .label { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .stat .value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
-.stat .value.negative { color: var(--danger); }
-.stat .value.positive { color: var(--success); }
+/* Unscoped (not just inside .stat) so the same red/amber/green convention
+   also applies to plain table cells -- Firms table, Market Dashboard, and
+   Teacher Lookup all already used this exact "value negative"/"value
+   positive" class combo on <td> before this rule covered anything outside
+   a .stat card. */
+.value.negative { color: var(--danger); }
+.value.positive { color: var(--success); }
+.value.warning { color: var(--accent-dark); }
 
 /* --- Forms --- */
 label { display: block; font-weight: 600; margin: 14px 0 4px; font-size: 0.9rem; }
@@ -150,6 +156,9 @@ tr.bankrupt { opacity: 0.55; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
 .badge.bankrupt { background: #fdecea; color: var(--danger); }
 .badge.ok { background: #e8f7ee; color: var(--success); }
+/* Informational, not a red/amber/green value judgment -- reuses the
+   existing --primary token rather than introducing a new color. */
+.badge.bot { background: #e8edfb; color: var(--primary); margin-left: 6px; }
 
 /* --- Avatar picker (the one place the pixel-frame accent belongs) --- */
 .avatar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }

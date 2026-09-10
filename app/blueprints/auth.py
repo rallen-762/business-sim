@@ -52,6 +52,14 @@ def index():
 
 @bp.route("/login", methods=["GET", "POST"])
 def game_code_entry():
+    # Same already-logged-in check index() does -- without it, this page
+    # (where the browser's address bar actually ends up after a "/" redirect)
+    # kept re-prompting for a game code even with a perfectly valid session
+    # underneath, if this was the URL revisited/bookmarked instead of "/".
+    if current_firm():
+        return redirect(url_for("firm.dashboard"))
+    if is_teacher():
+        return redirect(url_for("teacher.dashboard"))
     if request.method == "POST":
         code = request.form.get("game_code", "").strip().upper()
         world = World.query.filter_by(game_code=code).first()
@@ -125,6 +133,14 @@ def logout():
 
 @bp.route("/teacher/login", methods=["GET", "POST"])
 def teacher_login():
+    if is_teacher():
+        return redirect(url_for("teacher.dashboard"))
+    if current_app.config["IS_LOCAL_DEV"]:
+        # Local dev only (never true on Render -- see IS_LOCAL_DEV in
+        # create_app): skip the password gate entirely rather than ask for
+        # it every time this page is hit.
+        log_in_teacher()
+        return redirect(url_for("teacher.dashboard"))
     if request.method == "POST":
         password = request.form.get("password", "")
         if password and password == current_app.config["TEACHER_PASSWORD"]:

@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 
+import click
 from flask import Flask
 
 from app.extensions import db
@@ -26,6 +27,13 @@ def create_app(config_overrides=None):
     # Single global teacher password (not per-World) -- confirmed as the
     # simplest option for one teacher running several class periods.
     app.config["TEACHER_PASSWORD"] = os.environ.get("TEACHER_PASSWORD", "dev-teacher-change-me")
+    # True only when running locally: Render always injects a real DATABASE_URL
+    # (see _normalized_database_url above), so this is never true in production
+    # regardless of what TEACHER_PASSWORD happens to be set to. Used to skip
+    # the teacher password gate entirely for local dev -- confirmed with the
+    # user that repeatedly re-entering it while iterating locally was pure
+    # friction with no one else on the machine to gate out.
+    app.config["IS_LOCAL_DEV"] = "DATABASE_URL" not in os.environ
     # Flask's session cookie is non-permanent by default (no Expires/Max-Age
     # at all) -- some browsers, Chromebooks especially, treat that as safe
     # to drop when a tab is discarded/backgrounded for memory, which reads
@@ -36,6 +44,14 @@ def create_app(config_overrides=None):
 
     if config_overrides:
         app.config.update(config_overrides)
+
+    # The test suite creates the app via config_overrides without ever
+    # setting a real DATABASE_URL env var, so env-based IS_LOCAL_DEV
+    # detection alone would silently bypass the password check under
+    # pytest too -- forcing it off under TESTING keeps tests exercising
+    # the real password flow regardless of the host machine's env.
+    if app.config.get("TESTING"):
+        app.config["IS_LOCAL_DEV"] = False
 
     db.init_app(app)
 
@@ -60,5 +76,37 @@ def create_app(config_overrides=None):
         with app.app_context():
             db.create_all()
         print("Database tables created (or already existed).")
+
+    @app.cli.command("simulate-bots")
+    @click.option("--trials", default=10, show_default=True, help="Number of independent trials to run.")
+    @click.option("--seed", default=0, show_default=True, help="Base random seed (trial i uses seed+i).")
+    def simulate_bots_command(trials, seed):
+        """Runs N headless ROUNDS_PER_WORLD-round trials (one firm per bot
+        profile) using the real engine/round-processing code, against a
+        throwaway in-memory DB -- NEVER this command invocation's own
+        configured database (dev.db or Render's Postgres), regardless of
+        what DATABASE_URL happens to be set to. Prints each profile's
+        average finishing rank/stdev and average cumulative revenue/profit
+        across all trials -- a balance/testing tool, not a classroom
+        feature."""
+        from app.bots import BOT_PROFILES
+        from app.bot_sim import run_many_trials, summarize
+
+        sim_app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+        with sim_app.app_context():
+            db.create_all()
+            summary = summarize(run_many_trials(trials, base_seed=seed))
+
+        click.echo(f"\n{trials} trial(s), base seed={seed}\n")
+        header = f"{'Profile':<14}{'Avg Rank':>10}{'Rank StDev':>12}{'Avg Cum Revenue':>20}{'Avg Cum Profit':>20}"
+        click.echo(header)
+        click.echo("-" * len(header))
+        for profile, label in BOT_PROFILES.items():
+            s = summary[profile]
+            click.echo(
+                f"{label:<14}{s['avg_rank']:>10.2f}{s['stdev_rank']:>12.2f}"
+                f"{'$' + format(s['avg_cum_revenue'], ',.0f'):>20}"
+                f"{'$' + format(s['avg_cum_profit'], ',.0f'):>20}"
+            )
 
     return app

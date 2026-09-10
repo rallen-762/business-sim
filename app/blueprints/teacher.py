@@ -31,11 +31,15 @@ Edge cases considered:
 """
 
 import random
+import secrets
 import string
 
 from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
+from werkzeug.security import generate_password_hash
 
 from app.auth import log_out, teacher_login_required
+from app.bots import BOT_PROFILES
+from app.bots import decide as bot_decide
 from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
@@ -162,6 +166,7 @@ def view_world(world_id):
         decisions_by_firm=decisions_by_firm, results_by_firm=results_by_firm,
         cumulative_by_firm=cumulative_by_firm,
         scouting_report=build_scouting_report(world),
+        bot_profiles=BOT_PROFILES,
     )
 
 
@@ -203,6 +208,71 @@ def intel(world_id):
     )
 
 
+@bp.route("/worlds/<int:world_id>/firms/<int:firm_id>/bot", methods=["POST"])
+@teacher_login_required
+def assign_bot(world_id, firm_id):
+    """Assigns (or reassigns) a bot profile to a slot. Only ever touches an
+    UNCLAIMED slot (never a human-registered one) or a slot that's already
+    bot-controlled -- reassigning just swaps which profile drives it from
+    here on, the underlying Firm row (cash, capacity, history) is untouched
+    either way. A human-claimed slot can't be silently taken over through
+    this route -- the "Add Bot" control only ever appears next to
+    unclaimed rows in the template, and this is the server-side backstop
+    for that."""
+    firm = Firm.query.filter_by(id=firm_id, world_id=world_id).first_or_404()
+    profile = request.form.get("profile", "")
+
+    if profile not in BOT_PROFILES:
+        flash("Choose a valid bot profile.")
+        return redirect(url_for("teacher.view_world", world_id=world_id))
+
+    if firm.is_registered and not firm.bot_profile:
+        flash(f"Firm {firm.slot_number} is already claimed by a real team -- can't assign a bot there.")
+        return redirect(url_for("teacher.view_world", world_id=world_id))
+
+    is_new_assignment = firm.bot_profile is None
+    firm.bot_profile = profile
+    # Team name always reflects the CURRENT profile -- refreshed on a
+    # reassignment too, not just first assignment, so it never goes stale
+    # (e.g. still reading "Underbidder" after being switched to Elite).
+    # Slot number keeps it unique within the world even if the same profile
+    # is assigned to multiple slots.
+    firm.team_name = f"Bot #{firm.slot_number} ({BOT_PROFILES[profile]})"
+    if is_new_assignment:
+        # Placeholder password so is_registered is True and this slot
+        # participates in process_round like any other firm -- never
+        # actually used for anything (bots don't log in), just needs to be
+        # a real, non-guessable hash. Only set once; no reason to churn it
+        # on a reassignment.
+        firm.password_hash = generate_password_hash(secrets.token_hex(16))
+
+    db.session.commit()
+    flash(f"Firm {firm.slot_number} is now bot-controlled ({BOT_PROFILES[profile]}).")
+    return redirect(url_for("teacher.view_world", world_id=world_id))
+
+
+@bp.route("/worlds/<int:world_id>/firms/<int:firm_id>/bot/remove", methods=["POST"])
+@teacher_login_required
+def remove_bot(world_id, firm_id):
+    """Reverts a bot-controlled slot back to a true unclaimed slot (team
+    name/password/bot_profile cleared) so a real student can register it,
+    or the teacher can assign a different bot fresh. Deliberately does NOT
+    touch cash/plant_capacity/cumulative spend or any past RoundDecision/
+    RoundResult row on this Firm -- see models.py note 16: a student
+    claiming this slot afterward picks up exactly where the bot left off."""
+    firm = Firm.query.filter_by(id=firm_id, world_id=world_id).first_or_404()
+    if not firm.bot_profile:
+        flash(f"Firm {firm.slot_number} isn't bot-controlled.")
+        return redirect(url_for("teacher.view_world", world_id=world_id))
+
+    firm.bot_profile = None
+    firm.team_name = None
+    firm.password_hash = None
+    db.session.commit()
+    flash(f"Bot removed from Firm {firm.slot_number} -- that slot is unclaimed again.")
+    return redirect(url_for("teacher.view_world", world_id=world_id))
+
+
 @bp.route("/worlds/<int:world_id>/delete", methods=["POST"])
 @teacher_login_required
 def delete_world(world_id):
@@ -236,7 +306,11 @@ def advance_round(world_id):
     return redirect(url_for("teacher.view_world", world_id=world.id))
 
 
-def _process_current_round(world):
+def _process_current_round(world, rng=None):
+    # rng: defaults to None -> app.bots.decide() falls back to the stdlib
+    # `random` module for true randomness in live class play. The headless
+    # balance-testing harness (app/bot_sim.py) passes a seeded
+    # random.Random(seed) here instead, so a trial can be reproduced exactly.
     # An unclaimed slot (never registered) isn't a firm in the game yet --
     # it must NOT compete for demand or get a result row. Caught live: an
     # empty slot was silently consuming market share with a blank "Team
@@ -268,6 +342,42 @@ def _process_current_round(world):
                 celebrity_on=submitted.celebrity_on, plant_investment=submitted.plant_investment,
                 is_auto=False,
             )
+        elif firm.bot_profile:
+            # Bots always act -- "teacher should never have to manually
+            # trigger a bot's turn" -- using ONLY this firm's own history
+            # (never another firm's decisions/results), per app/bots.py's
+            # locked visibility rule.
+            last_decision = (
+                RoundDecision.query.filter_by(firm_id=firm.id)
+                .order_by(RoundDecision.round_number.desc()).first()
+            )
+            last_result = (
+                RoundResult.query.filter_by(firm_id=firm.id)
+                .order_by(RoundResult.round_number.desc()).first()
+            )
+            bot_decision = bot_decide(
+                profile=firm.bot_profile, firm_id=firm.id, round_number=world.current_round,
+                cash=firm.cash, capacity=firm.plant_capacity + firm.pending_capacity_increase,
+                cumulative_rd_spend=firm.cumulative_rd_spend, cumulative_ad_spend=firm.cumulative_ad_spend,
+                loan_outstanding=firm.loan_outstanding,
+                last_price=last_decision.price if last_decision else None,
+                last_profit=last_result.profit if last_result else None,
+                rng=rng,
+            )
+            decisions[firm.id] = bot_decision
+            db.session.add(RoundDecision(
+                firm_id=firm.id, round_number=world.current_round, price=bot_decision.price,
+                production_qty=bot_decision.production_qty, ad_spend=bot_decision.ad_spend,
+                rd_spend=bot_decision.rd_spend, track=bot_decision.track,
+                celebrity_on=bot_decision.celebrity_on, plant_investment=bot_decision.plant_investment,
+                is_auto=True,
+            ))
+            # Keep last_price/last_track current for this firm -- matters if
+            # a teacher later removes the bot and a real student takes over
+            # the slot (see models.py note 16): both the Firm Dashboard's
+            # quality label and a future non-submission fallback read these.
+            firm.last_price = bot_decision.price
+            firm.last_track = bot_decision.track
         else:
             auto = synthesize_non_submission_decision(
                 firm_id=firm.id, last_price=firm.last_price, last_track=firm.last_track,

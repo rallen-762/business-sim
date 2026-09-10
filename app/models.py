@@ -62,6 +62,18 @@ Edge cases considered while designing this schema:
     simultaneously; the (world_id, team_name) unique constraint still holds
     because SQL treats NULLs as distinct from each other for uniqueness
     purposes, in both SQLite and Postgres.
+16. Bot-controlled firms (Firm.bot_profile) reuse the exact same
+    is_registered/participation path as a human firm -- a bot slot gets a
+    real (if unusable/random) password_hash and a placeholder team_name at
+    assignment time, so process_round's "only registered firms compete"
+    filter needs no bot-aware branching at all. Removing a bot clears
+    team_name/password_hash/bot_profile back to null (a true unclaimed
+    slot again) but deliberately leaves cash/plant_capacity/cumulative
+    spend/RoundDecision/RoundResult history untouched on the same Firm
+    row -- letting a real student register that slot afterward picks up
+    exactly where the bot left off, which is the whole point of using a
+    bot to fill a no-show's slot mid-game rather than a placeholder that
+    gets discarded.
 """
 
 from datetime import datetime, timezone
@@ -111,6 +123,13 @@ class Firm(db.Model):
     team_name = db.Column(db.String(80), nullable=True)  # null until first-time registration
     password_hash = db.Column(db.String(255), nullable=True)  # null until first-time registration
     avatar = db.Column(db.String(120), nullable=True)  # set at registration; null until then
+    # One of app.bots.BOT_PROFILES' keys ("underbidder"/"marketing"/"elite"/
+    # "random"), or None for a human-controlled firm. A bot-assigned slot
+    # also gets a placeholder team_name + unusable password_hash (see
+    # teacher.assign_bot) so is_registered is True and it participates in
+    # process_round like any other firm -- bot_profile is the single source
+    # of truth for "is this a bot," never inferred from the password shape.
+    bot_profile = db.Column(db.String(20), nullable=True)
 
     cash = db.Column(db.Float, nullable=False)
     plant_capacity = db.Column(db.Integer, nullable=False)

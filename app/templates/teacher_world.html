@@ -11,6 +11,10 @@
   <h2>{{ world.name }}</h2>
   <p>Game Code: <code>{{ world.game_code }}</code> &middot; Round {{ world.current_round }} of {{ rounds_per_world }} &middot; Status: <strong>{{ world.status }}</strong></p>
   <a class="btn secondary" href="{{ url_for('teacher.export_csv', world_id=world.id) }}">Export CSV</a>
+  <form method="post" action="{{ url_for('teacher.delete_world', world_id=world.id) }}" style="display:inline;"
+        onsubmit="return confirm('Delete this World and ALL its data? This cannot be undone.');">
+    <button class="btn" style="background:var(--danger);box-shadow:0 4px 0 #7d241a;" type="submit">Delete This World</button>
+  </form>
 
   {% if world.status == "collecting" %}
     <p>{{ submitted_count }} / {{ registered_count }} registered firms have submitted for this round.</p>
@@ -26,15 +30,6 @@
   {% else %}
     <span class="banner">Game Complete</span>
   {% endif %}
-</div>
-
-<div class="card">
-  <h3>Danger Zone</h3>
-  <p class="help-text">Permanently deletes this World and every team, decision, and result under it. There is no undo -- only use this on a test or mistaken World.</p>
-  <form method="post" action="{{ url_for('teacher.delete_world', world_id=world.id) }}"
-        onsubmit="return confirm('Delete this World and ALL its data? This cannot be undone.');">
-    <button class="btn" style="background:var(--danger);box-shadow:0 4px 0 #7d241a;" type="submit">Delete This World</button>
-  </form>
 </div>
 
 <div class="card">
@@ -72,7 +67,34 @@
           {% elif is_bankrupt_this_round %}<span class="badge bankrupt">Bankrupt</span>
           {% else %}<span class="badge ok">Active</span>{% endif %}
         </td>
-        <td>{{ firm.team_name or "(unclaimed)" }}</td>
+        <td>
+          {{ firm.team_name or "(unclaimed)" }}
+          {% if firm.bot_profile %}<span class="badge bot">BOT</span>{% endif %}
+          {% if firm.bot_profile %}
+          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="margin-top:4px;">
+            <select name="profile" style="width:auto;display:inline-block;padding:3px 6px;font-size:0.78rem;">
+              {% for key, label in bot_profiles.items() %}
+              <option value="{{ key }}" {% if key == firm.bot_profile %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn secondary" style="padding:4px 8px;font-size:0.75rem;" type="submit">Reassign</button>
+          </form>
+          <form method="post" action="{{ url_for('teacher.remove_bot', world_id=world.id, firm_id=firm.id) }}" style="display:inline;"
+                onsubmit="return confirm('Remove this bot? The slot will become unclaimed again (its cash/history stays intact for whoever claims it next).');">
+            <button class="btn" style="padding:4px 8px;font-size:0.75rem;background:var(--danger);box-shadow:0 3px 0 #7d241a;" type="submit">Remove Bot</button>
+          </form>
+          {% elif not firm.is_registered %}
+          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="margin-top:4px;">
+            <select name="profile" style="width:auto;display:inline-block;padding:3px 6px;font-size:0.78rem;">
+              <option value="">Add Bot...</option>
+              {% for key, label in bot_profiles.items() %}
+              <option value="{{ key }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn accent" style="padding:4px 8px;font-size:0.75rem;" type="submit">Add</button>
+          </form>
+          {% endif %}
+        </td>
         <td>{{ "${:,.2f}".format(d.price) if d else "—" }}</td>
         <td>{{ d.track if d else "—" }}</td>
         <td>{{ "{:,}".format(d.production_qty) if d else "—" }}</td>
@@ -85,17 +107,20 @@
         <td>{{ "${:,.0f}".format(r.total_cost) if r else "—" }}</td>
         <td class="{{ 'value negative' if r and r.profit < 0 else 'value positive' if r else '' }}">{{ "${:,.0f}".format(r.profit) if r else "—" }}</td>
         <td>{{ "${:,.0f}".format(r.cash_after) if r else "—" }}</td>
-        <td>{{ "${:,.0f}".format(r.loan_outstanding_after) if r else "—" }}</td>
+        <td class="{{ 'value warning' if r and r.loan_outstanding_after > 0 else '' }}">{{ "${:,.0f}".format(r.loan_outstanding_after) if r else "—" }}</td>
         <td>{{ r.quality_level if r else "—" }}</td>
         <td>{{ "${:,.0f}".format(c.cum_revenue) if c else "$0" }}</td>
-        <td>{{ "${:,.0f}".format(c.cum_profit) if c else "$0" }}</td>
+        <td class="{{ 'value negative' if c and c.cum_profit < 0 else 'value positive' if c else '' }}">{{ "${:,.0f}".format(c.cum_profit) if c else "$0" }}</td>
         <td>{{ "{:,.0f}".format(c.cum_units) if c else "0" }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  <p class="help-text">"—" means this firm hasn't submitted/been processed for Round {{ selected_round }} yet.</p>
+  <p class="help-text">"—" means this firm hasn't submitted/been processed for Round {{ selected_round }} yet.
+    <span class="value negative">Red</span> = Profit/Cum. Profit is negative.
+    <span class="value warning">Amber</span> = Loan Outstanding &gt; $0 (this firm has used its one lifetime bailout loan &mdash; a second cash shortfall means bankruptcy, not another loan).
+  </p>
 </div>
 
 <div class="card">
