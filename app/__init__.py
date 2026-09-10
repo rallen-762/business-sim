@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 
 import click
+import sqlalchemy as sa
 from flask import Flask
 
 from app.extensions import db
@@ -66,15 +67,30 @@ def create_app(config_overrides=None):
 
     @app.cli.command("init-db")
     def init_db_command():
-        """Creates any missing tables. Safe to run repeatedly (only adds
-        tables that don't exist yet -- never alters or drops existing ones).
-        No migration tool (e.g. Alembic) is set up; a real schema CHANGE
-        later would need a manual step, not just re-running this. Meant to
-        be run once per deploy via Render's Pre-Deploy Command, not on every
+        """Creates any missing tables (db.create_all() -- safe to run
+        repeatedly, only adds tables that don't exist yet, never alters or
+        drops existing ones) PLUS one targeted, hand-written ADD COLUMN
+        check for firms.bot_profile -- the one additive schema change made
+        so far that create_all() can't handle on its own, since it only
+        creates missing TABLES, never adds a column to a table that
+        already exists. Still no general migration tool (e.g. Alembic);
+        this isn't trying to become one -- a FUTURE schema change needs
+        its own one-off addition here, following this same pattern, not a
+        reusable system. Safe to run repeatedly: guarded by an inspector
+        check, so it's a no-op once the column exists. Meant to be run
+        once per deploy via Render's Pre-Deploy Command, not on every
         gunicorn worker boot -- running it from every worker at once could
         race on the very first deploy."""
         with app.app_context():
             db.create_all()
+            inspector = sa.inspect(db.engine)
+            if "firms" in inspector.get_table_names():
+                existing_columns = {c["name"] for c in inspector.get_columns("firms")}
+                if "bot_profile" not in existing_columns:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text("ALTER TABLE firms ADD COLUMN bot_profile VARCHAR(20)"))
+                        conn.commit()
+                    print("Added firms.bot_profile column.")
         print("Database tables created (or already existed).")
 
     @app.cli.command("simulate-bots")
