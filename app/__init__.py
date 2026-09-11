@@ -110,6 +110,11 @@ def create_app(config_overrides=None):
                         conn.execute(sa.text("ALTER TABLE firms ADD COLUMN badge VARCHAR(120)"))
                         conn.commit()
                     print("Added firms.badge column.")
+                if "product_icon" not in existing_columns:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text("ALTER TABLE firms ADD COLUMN product_icon VARCHAR(120)"))
+                        conn.commit()
+                    print("Added firms.product_icon column.")
 
             # Old track value -> new tier value, everywhere a track string
             # is stored. "Premium" is unchanged so it's omitted.
@@ -139,7 +144,7 @@ def create_app(config_overrides=None):
             # keeps the same icon across re-runs instead of churning on every
             # deploy. Registered firms only: an unclaimed slot's NULL avatar
             # is correct, and the templates already guard for it.
-            from app.avatars import AVATAR_CHOICES, BADGE_CHOICES
+            from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
             from app.models import Firm, RoundResult
 
             fixed_icons = 0
@@ -150,9 +155,14 @@ def create_app(config_overrides=None):
                     firm.avatar = AVATAR_CHOICES[firm.id % len(AVATAR_CHOICES)]
                     fixed_icons += 1
                 if firm.badge not in BADGE_CHOICES:
-                    # x7 so a firm's badge doesn't track its avatar index
-                    # (7 and 10 are coprime, so this still covers the pool).
+                    # x7/x3 so a firm's three icons don't all track the same
+                    # index (both coprime with 10, so each still covers its
+                    # whole pool) -- otherwise every firm gets a matching
+                    # set and the rosters look duplicated.
                     firm.badge = BADGE_CHOICES[(firm.id * 7) % len(BADGE_CHOICES)]
+                    fixed_icons += 1
+                if firm.product_icon not in PRODUCT_CHOICES:
+                    firm.product_icon = PRODUCT_CHOICES[(firm.id * 3) % len(PRODUCT_CHOICES)]
                     fixed_icons += 1
             if fixed_icons:
                 db.session.commit()

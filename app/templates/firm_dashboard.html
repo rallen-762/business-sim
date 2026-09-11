@@ -8,8 +8,9 @@
 
 <div class="card firm-hero">
   <div class="firm-hero-marks">
-    {% if firm.avatar %}<img class="firm-hero-avatar" src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="">{% endif %}
-    {% if firm.badge %}<img class="firm-hero-badge" src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="">{% endif %}
+    {% if firm.avatar %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="Factory">{% endif %}
+    {% if firm.badge %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="Brand logo">{% endif %}
+    {% if firm.product_icon %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/products/' ~ firm.product_icon) }}" alt="Product">{% endif %}
   </div>
   <div class="firm-hero-text">
     <div class="firm-hero-label">{{ world.name }} &middot; Round {{ world.current_round }} of {{ rounds_per_world }}</div>

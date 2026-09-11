@@ -38,7 +38,7 @@ from flask import Blueprint, Response, flash, redirect, render_template, request
 from werkzeug.security import generate_password_hash
 
 from app.auth import log_out, teacher_login_required
-from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, TIER_ICONS
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, TIER_ICONS
 from app.bots import BOT_PROFILES
 from app.bots import decide as bot_decide
 from app.constants import (
@@ -261,7 +261,10 @@ def assign_bot(world_id, firm_id):
         # (like a human team's avatar, it's the slot's look, not the
         # strategy's).
         firm.avatar = random.choice(AVATAR_CHOICES)
-        firm.badge = random.choice(BADGE_CHOICES)  # same "own random icon" rationale, see above
+        # Same "own random icon" rationale as the avatar, for the two icons
+        # a human team picks for itself at registration.
+        firm.badge = random.choice(BADGE_CHOICES)
+        firm.product_icon = random.choice(PRODUCT_CHOICES)
         # Placeholder password so is_registered is True and this slot
         # participates in process_round like any other firm -- never
         # actually used for anything (bots don't log in), just needs to be

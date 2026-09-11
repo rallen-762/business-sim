@@ -29,6 +29,16 @@ BADGE_CHOICES = [
     "logo-06.png", "logo-07.png", "logo-08.png", "logo-09.png", "logo-10.png",
 ]
 
+# The team's own product shot (app/static/img/products/) -- chosen at
+# signup like the factory and the logo, and shown beside them in the Firm
+# Dashboard header. Distinct from TIER_ICONS below: this is the team's
+# branding and never changes, whereas the tier icon is DERIVED from which
+# tier they're currently selling and changes as they move up/down.
+PRODUCT_CHOICES = [
+    "headphone-01.png", "headphone-02.png", "headphone-03.png", "headphone-04.png", "headphone-05.png",
+    "headphone-06.png", "headphone-07.png", "headphone-08.png", "headphone-09.png", "headphone-10.png",
+]
+
 # One headphone icon per product tier (app/static/img/tiers/) -- the
 # request explicitly said to pick 3 of the 10 headphone/earbud icons to
 # represent Entry/Mid/Premium; chosen for a visual "step up" read (in-ear

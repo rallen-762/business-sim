@@ -31,6 +31,16 @@
       {% endfor %}
     </div>
 
+    <label style="margin-top:18px;">Choose Your Product</label>
+    <div class="avatar-grid">
+      {% for filename in products %}
+      <label class="avatar-choice">
+        <input type="radio" name="product_icon" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
+        <span class="avatar-frame"><img src="{{ url_for('static', filename='img/products/' ~ filename) }}" alt=""></span>
+      </label>
+      {% endfor %}
+    </div>
+
     <button class="btn full" style="margin-top:20px;" type="submit">Create Team &amp; Enter</button>
   </form>
 </div>

@@ -152,8 +152,12 @@ h3 { font-size: 0.95rem; }
   background: var(--panel-alt);
 }
 .firm-hero-marks { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
-.firm-hero-avatar,
-.firm-hero-badge {
+/* Factory, brand logo and product all render as one row of equal plates --
+   they're three facets of the same identity, so sizing one larger than the
+   others implied a hierarchy that isn't real. */
+.firm-hero-mark {
+  width: 96px;
+  height: 96px;
   object-fit: contain;
   background: var(--bg-base);
   border: 2px solid var(--accent-primary);
@@ -161,8 +165,6 @@ h3 { font-size: 0.95rem; }
   padding: 8px;
   display: block;
 }
-.firm-hero-avatar { width: 112px; height: 112px; }
-.firm-hero-badge { width: 76px; height: 76px; }
 .firm-hero-text { min-width: 0; flex: 1; }
 .firm-hero-label {
   color: var(--text-primary);
@@ -180,8 +182,8 @@ h3 { font-size: 0.95rem; }
 .firm-hero-meta { margin-top: 10px; color: var(--text-primary); font-size: 0.85rem; }
 
 @media (max-width: 640px) {
-  .firm-hero-avatar { width: 84px; height: 84px; }
-  .firm-hero-badge { width: 60px; height: 60px; }
+  .firm-hero-mark { width: 68px; height: 68px; padding: 5px; }
+  .firm-hero-marks { gap: 10px; }
   .firm-hero-name { font-size: 1.2rem; }
 }
 

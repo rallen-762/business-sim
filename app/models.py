@@ -74,12 +74,19 @@ Edge cases considered while designing this schema:
     exactly where the bot left off, which is the whole point of using a
     bot to fill a no-show's slot mid-game rather than a placeholder that
     gets discarded.
-17. `badge` (added for the Headphone Company Simulator asset pack) mirrors
-    `avatar`'s nullable-string, assigned-not-validated-here shape exactly
-    -- a second per-firm icon (a logo/emblem, see app/avatars.py's
-    BADGE_CHOICES) alongside the building/factory `avatar`, auto-assigned
-    at registration/bot-assignment time rather than picked, so it has no
-    picker UI of its own.
+17. `badge` and `product_icon` (added for the Headphone Company Simulator
+    asset pack) mirror `avatar`'s nullable-string,
+    assigned-not-validated-here shape exactly -- the three together are a
+    team's visual identity: factory (`avatar`), logo/emblem (`badge`), and
+    product shot (`product_icon`); see app/avatars.py. All three are the
+    team's own choice at registration; a bot gets all three at random,
+    since nobody is there to pick for it. They stay nullable because a
+    slot has no identity at all until it's claimed, and because a firm
+    registered before a given icon field existed legitimately has none
+    until init-db's icon self-heal backfills it.
+    Not to be confused with app/avatars.py's TIER_ICONS, which are
+    DERIVED from the tier a firm is currently selling rather than stored
+    per firm.
 """
 
 from datetime import datetime, timezone
@@ -131,6 +138,7 @@ class Firm(db.Model):
     password_hash = db.Column(db.String(255), nullable=True)  # null until first-time registration
     avatar = db.Column(db.String(120), nullable=True)  # set at registration; null until then
     badge = db.Column(db.String(120), nullable=True)  # set at registration/bot-assignment; null until then
+    product_icon = db.Column(db.String(120), nullable=True)  # ditto -- the team's chosen product shot
     # One of app.bots.BOT_PROFILES' keys ("underbidder"/"marketing"/"elite"/
     # "random"), or None for a human-controlled firm. A bot-assigned slot
     # also gets a placeholder team_name + unusable password_hash (see
@@ -166,16 +174,17 @@ class Firm(db.Model):
         db.UniqueConstraint("world_id", "slot_number", name="uq_firm_world_slot_number"),
     )
 
-    def register(self, team_name, raw_password, avatar=None, badge=None):
+    def register(self, team_name, raw_password, avatar=None, badge=None, product_icon=None):
         """First-time registration: claims this slot by setting team name,
-        password, avatar, and badge together. Only valid on an unclaimed
-        slot -- callers should check is_registered first
+        password, and all three identity icons together. Only valid on an
+        unclaimed slot -- callers should check is_registered first
         (re-registration/renaming after the fact is a separate,
         not-yet-designed feature)."""
         self.team_name = team_name
         self.password_hash = generate_password_hash(raw_password)
         self.avatar = avatar
         self.badge = badge
+        self.product_icon = product_icon
 
     def set_password(self, raw_password):
         self.password_hash = generate_password_hash(raw_password)

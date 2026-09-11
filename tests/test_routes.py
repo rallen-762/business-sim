@@ -52,12 +52,12 @@ def create_world(client, name="Period 3", slots=2):
         return World.query.filter_by(name=name).first().id
 
 
-def register_firm(client, world_id, slot_number, team_name, password="secret123", avatar="factory-01.png", badge="logo-01.png"):
+def register_firm(client, world_id, slot_number, team_name, password="secret123", avatar="factory-01.png", badge="logo-01.png", product_icon="headphone-01.png"):
     with client.application.app_context():
         firm_id = Firm.query.filter_by(world_id=world_id, slot_number=slot_number).first().id
     client.post(
         f"/register/{world_id}/{firm_id}",
-        data={"team_name": team_name, "password": password, "avatar": avatar, "badge": badge},
+        data={"team_name": team_name, "password": password, "avatar": avatar, "badge": badge, "product_icon": product_icon},
     )
     return firm_id
 
@@ -115,10 +115,45 @@ def test_register_then_redirected_to_firm_dashboard(client):
         firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
     resp = client.post(
         f"/register/{world_id}/{firm_id}",
-        data={"team_name": "Nike", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png"},
+        data={"team_name": "Nike", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png", "product_icon": "headphone-01.png"},
         follow_redirects=True,
     )
     assert b"Nike" in resp.data
+
+
+def test_registration_stores_all_three_identity_icons(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike", avatar="factory-03.png",
+                            badge="logo-05.png", product_icon="headphone-07.png")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert (firm.avatar, firm.badge, firm.product_icon) == (
+            "factory-03.png", "logo-05.png", "headphone-07.png"
+        )
+
+    # ...and all three show in the Firm Dashboard header.
+    body = client.get("/firm").data.decode()
+    assert "img/avatars/factory-03.png" in body
+    assert "img/badges/logo-05.png" in body
+    assert "img/products/headphone-07.png" in body
+
+
+def test_registration_requires_a_product_icon(app, client):
+    # The picker defaults to the first option, so this only trips if the form
+    # is bypassed -- but an unvalidated value would be stored verbatim and
+    # then render as a broken <img> forever.
+    world_id = create_world(client)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
+    resp = client.post(
+        f"/register/{world_id}/{firm_id}",
+        data={"team_name": "Nike", "password": "secret123", "avatar": "factory-01.png",
+              "badge": "logo-01.png", "product_icon": "../../etc/passwd"},
+        follow_redirects=True,
+    )
+    assert b"pick a product" in resp.data
+    with app.app_context():
+        assert not db.session.get(Firm, firm_id).is_registered
 
 
 def test_duplicate_team_name_within_world_rejected(client):
@@ -127,7 +162,7 @@ def test_duplicate_team_name_within_world_rejected(client):
     client.get("/logout")
     resp = client.post(
         f"/register/{world_id}/{2}",
-        data={"team_name": "Nike", "password": "whatever", "avatar": "factory-01.png", "badge": "logo-01.png"},
+        data={"team_name": "Nike", "password": "whatever", "avatar": "factory-01.png", "badge": "logo-01.png", "product_icon": "headphone-01.png"},
         follow_redirects=True,
     )
     # Should redirect back to the register form with a flash, not create a second Nike.

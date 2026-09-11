@@ -110,7 +110,7 @@ def test_init_db_repairs_icons_pointing_at_deleted_files(app):
     # The Headphone Company Simulator asset swap replaced the avatar pool and
     # deleted the old Kenney building PNGs -- every firm registered before it
     # still names one, which renders as a broken <img>, not as "no icon".
-    from app.avatars import AVATAR_CHOICES, BADGE_CHOICES
+    from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
 
     with app.app_context():
         db.create_all()
@@ -118,8 +118,9 @@ def test_init_db_repairs_icons_pointing_at_deleted_files(app):
         db.session.add(world)
         db.session.commit()
 
+        # avatar names a deleted file; badge/product_icon predate their columns.
         stale = Firm(world_id=world.id, slot_number=1, team_name="Nike", cash=1, plant_capacity=1,
-                     avatar="building-k.png", badge=None)
+                     avatar="building-k.png", badge=None, product_icon=None)
         stale.set_password("x")
         unclaimed = Firm(world_id=world.id, slot_number=2, cash=1, plant_capacity=1)
         db.session.add_all([stale, unclaimed])
@@ -132,15 +133,21 @@ def test_init_db_repairs_icons_pointing_at_deleted_files(app):
         fixed = db.session.get(Firm, stale_id)
         assert fixed.avatar in AVATAR_CHOICES
         assert fixed.badge in BADGE_CHOICES
+        assert fixed.product_icon in PRODUCT_CHOICES
         # An unclaimed slot legitimately has no icons -- don't invent any.
         assert db.session.get(Firm, unclaimed_id).avatar is None
+        assert db.session.get(Firm, unclaimed_id).product_icon is None
+
+    def icons_of(firm_id):
+        f = db.session.get(Firm, firm_id)
+        return (f.avatar, f.badge, f.product_icon)
 
     # Stable across re-runs rather than re-rolled on every deploy.
     with app.app_context():
-        first = (db.session.get(Firm, stale_id).avatar, db.session.get(Firm, stale_id).badge)
+        first = icons_of(stale_id)
     assert app.test_cli_runner().invoke(args=["init-db"]).exit_code == 0
     with app.app_context():
-        assert (db.session.get(Firm, stale_id).avatar, db.session.get(Firm, stale_id).badge) == first
+        assert icons_of(stale_id) == first
 
 
 def test_init_db_rewrites_old_track_and_segment_values(app):

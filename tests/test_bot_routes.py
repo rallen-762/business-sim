@@ -88,7 +88,7 @@ def test_assign_bot_refuses_a_human_claimed_slot(app, client):
     world_id = create_world(client)
     firm_id = first_unclaimed_firm_id(app, world_id)
     client.post(f"/register/{world_id}/{firm_id}", data={
-        "team_name": "Real Team", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png",
+        "team_name": "Real Team", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png", "product_icon": "headphone-01.png",
     })
 
     client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot", data={"profile": "elite"})
@@ -187,7 +187,7 @@ def test_bot_auto_submits_every_round_without_any_human_input(app, client):
 
     client.post(f"/teacher/worlds/{world_id}/firms/{bot_firm_id}/bot", data={"profile": "marketing"})
     client.post(f"/register/{world_id}/{other_firm_id}", data={
-        "team_name": "Human Team", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png",
+        "team_name": "Human Team", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png", "product_icon": "headphone-01.png",
     })
     client.post("/firm/decisions", data={
         "price": "90", "production_qty": "10000", "ad_spend": "0", "rd_spend": "0", "track": "Mid",
@@ -226,7 +226,7 @@ def test_removed_bots_slot_can_be_claimed_by_a_real_student_mid_game(app, client
     client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot/remove")
 
     resp = client.post(f"/register/{world_id}/{firm_id}", data={
-        "team_name": "Took Over Team", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png",
+        "team_name": "Took Over Team", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png", "product_icon": "headphone-01.png",
     })
     assert resp.status_code == 302
 

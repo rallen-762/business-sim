@@ -25,7 +25,7 @@ import string
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, is_teacher, log_in_firm, log_in_teacher, log_out
-from app.avatars import AVATAR_CHOICES, BADGE_CHOICES
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
 from app.extensions import db
 from app.models import Firm, World
 
@@ -112,6 +112,7 @@ def register(world_id, firm_id):
         password = request.form.get("password", "")
         avatar = request.form.get("avatar", "")
         badge = request.form.get("badge", "")
+        product_icon = request.form.get("product_icon", "")
 
         error = None
         if not team_name or not password:
@@ -120,22 +121,27 @@ def register(world_id, firm_id):
             error = "Please pick a factory."
         elif badge not in BADGE_CHOICES:
             error = "Please pick a brand logo."
+        elif product_icon not in PRODUCT_CHOICES:
+            error = "Please pick a product."
         elif Firm.query.filter_by(world_id=world_id, team_name=team_name).first():
             error = "That team name is already taken in this class -- pick another."
 
         if error:
             flash(error)
-            return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES, badges=BADGE_CHOICES)
+            return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES,
+                                   badges=BADGE_CHOICES, products=PRODUCT_CHOICES)
 
-        # Both icons are the team's own choice now (the badge used to be
-        # auto-assigned at random) -- bots still get a random one, since
-        # nobody is there to pick for them. See models.py edge case 17.
-        firm.register(team_name, password, avatar=avatar, badge=badge)
+        # All three icons are the team's own choice (badge and product_icon
+        # were each auto-assigned at random before their pickers existed) --
+        # bots still get random ones, since nobody is there to pick for
+        # them. See models.py edge case 17.
+        firm.register(team_name, password, avatar=avatar, badge=badge, product_icon=product_icon)
         db.session.commit()
         log_in_firm(firm)
         return redirect(url_for("firm.dashboard"))
 
-    return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES, badges=BADGE_CHOICES)
+    return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES,
+                           badges=BADGE_CHOICES, products=PRODUCT_CHOICES)
 
 
 @bp.route("/logout")
