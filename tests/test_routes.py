@@ -1089,3 +1089,65 @@ def test_stale_session_pointing_at_an_unclaimed_slot_is_not_logged_in(app, clien
     body = resp.data.decode()
     assert "logged in as None" not in body
     assert "Game Code" in body or "log in" in body.lower()
+
+
+# --------------------------------------------------------------------------- #
+# Role coexistence: one session cookie per browser, two roles
+#
+# Reported: "really annoying how often I get logged out, both as a student and
+# a teacher." Cause: log_in_firm/log_in_teacher/log_out all cleared the WHOLE
+# cookie, so signing into (or out of) either role destroyed the other.
+# Confirmed with the user to let them coexist, with a visible warning on the
+# student dashboard because a leftover teacher session on a SHARED browser
+# would otherwise hand the next student teacher access silently.
+# --------------------------------------------------------------------------- #
+
+def test_signing_in_as_a_team_keeps_the_teacher_session(app, client):
+    world_id = create_world(client)          # leaves client logged in as teacher
+    register_firm(client, world_id, 1, "Nike")
+    with client.session_transaction() as s:
+        assert s.get("is_teacher"), "teacher session was wiped by a team login"
+        assert s.get("firm_id")
+
+
+def test_signing_out_of_one_role_leaves_the_other_alone(app, client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+
+    client.get("/logout")                     # student signs out
+    with client.session_transaction() as s:
+        assert not s.get("firm_id")
+        assert s.get("is_teacher"), "signing out of the team also signed out the teacher"
+
+    client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    client.get("/teacher/logout")             # teacher signs out
+    with client.session_transaction() as s:
+        assert not s.get("is_teacher")
+        assert s.get("firm_id"), "signing out of teacher also signed out the team"
+
+
+def test_student_dashboard_warns_when_teacher_is_also_signed_in(app, client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode()
+    assert "also signed in as the Teacher" in body
+    assert "/teacher/logout" in body
+
+    # ...and the warning is gone once the teacher role is dropped, without
+    # knocking the team off their own dashboard.
+    resp = client.get("/teacher/logout", follow_redirects=True)
+    body = resp.data.decode()
+    assert "also signed in as the Teacher" not in body
+    assert "Nike" in body, "dropping teacher access kicked the team out too"
+
+
+def test_teacher_reset_passwords_never_outlive_the_teacher_session(app, client):
+    # They're plaintext and teacher-only, so they must go with the role.
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/reset-password")
+    with client.session_transaction() as s:
+        assert s.get("reset_passwords")
+    client.get("/teacher/logout")
+    with client.session_transaction() as s:
+        assert not s.get("reset_passwords")

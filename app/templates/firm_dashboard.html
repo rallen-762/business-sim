@@ -23,6 +23,21 @@
   </div>
 </div>
 
+{% if session.get('is_teacher') %}
+{# Roles can coexist in one browser now (see auth.log_in_firm), which means
+   a teacher who checked a student view on a SHARED machine would otherwise
+   leave teacher access behind silently. Make it impossible to miss, and one
+   click to drop. #}
+<div class="card teacher-also-signed-in">
+  <div>
+    <strong>You're also signed in as the Teacher on this browser.</strong>
+    <p class="help-text" style="margin:6px 0 0;">If this is a shared or student device, sign out of the
+      teacher account &mdash; otherwise whoever uses this browser next will have Teacher Dashboard access.</p>
+  </div>
+  <a class="btn" style="flex-shrink:0;" href="{{ url_for('teacher.logout') }}">Sign Out of Teacher</a>
+</div>
+{% endif %}
+
 {% if firm.bankrupt %}
 <div class="card">
   <span class="banner" style="background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);">Bankrupt</span>

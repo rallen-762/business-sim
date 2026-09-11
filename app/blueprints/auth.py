@@ -24,7 +24,7 @@ import string
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 
-from app.auth import current_firm, current_world, is_teacher, log_in_firm, log_in_teacher, log_out
+from app.auth import current_firm, current_world, is_teacher, log_in_firm, log_in_teacher, log_out_firm
 from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
 from app.extensions import db
 from app.models import Firm, World
@@ -146,7 +146,7 @@ def register(world_id, firm_id):
 
 @bp.route("/logout")
 def logout():
-    log_out()
+    log_out_firm()
     return redirect(url_for("auth.game_code_entry"))
 
 

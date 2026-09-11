@@ -32,19 +32,62 @@ from app.models import Firm, World
 
 
 def log_in_firm(firm):
-    session.clear()
+    """Signs in as a TEAM, leaving any teacher session in this browser
+    intact (and vice versa -- see log_in_teacher).
+
+    These both used to session.clear() first, on the reasoning that a person
+    is either a student or the teacher, never both. In practice the teacher
+    is both: they check a student view, and their dashboard session dies --
+    reported as being logged out constantly in both roles. Only the role
+    being signed into is replaced now.
+
+    The trade-off, confirmed with the user: on a SHARED browser a teacher who
+    signs in as a team leaves their teacher access behind for the next
+    person. That's why the student dashboard renders an unmissable "you're
+    also signed in as Teacher" banner with a one-click sign-out -- the
+    leftover access is visible and trivially dropped rather than silent."""
     session.permanent = True
+    for key in FIRM_SESSION_KEYS:
+        session.pop(key, None)
     session["firm_id"] = firm.id
     session["world_id"] = firm.world_id
 
 
 def log_in_teacher():
-    session.clear()
+    """Signs in as the TEACHER, leaving any team session intact. See
+    log_in_firm() for why these no longer clear the whole cookie."""
     session.permanent = True
+    for key in TEACHER_SESSION_KEYS:
+        session.pop(key, None)
     session["is_teacher"] = True
 
 
+FIRM_SESSION_KEYS = ("firm_id", "world_id")
+TEACHER_SESSION_KEYS = ("is_teacher", "reset_passwords")
+
+
+def log_out_firm():
+    """Signs out of the TEAM role only, leaving any teacher session alone.
+
+    Logging out used to clear the whole cookie, so a teacher who had looked
+    at a student view (or shared a browser with one) got signed out of the
+    Teacher Dashboard too, and vice versa -- reported as constantly being
+    logged out in both roles. Dropping only your own role's keys can't grant
+    anyone access they didn't already have in this browser."""
+    for key in FIRM_SESSION_KEYS:
+        session.pop(key, None)
+
+
+def log_out_teacher():
+    """Signs out of the TEACHER role only -- see log_out_firm(). Also drops
+    the session-scoped plaintext reset passwords, which are teacher-only and
+    must never outlive the teacher session that created them."""
+    for key in TEACHER_SESSION_KEYS:
+        session.pop(key, None)
+
+
 def log_out():
+    """Signs out of everything. Still used where a clean slate is the point."""
     session.clear()
 
 

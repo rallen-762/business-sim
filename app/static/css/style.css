@@ -137,6 +137,20 @@ h3 { font-size: 0.95rem; }
 }
 .card h2, .card h3 { margin-top: 0; }
 
+/* --- "You're also signed in as Teacher" notice on the student dashboard ---
+   Amber, the colour already reserved for warnings. Not the punchy red,
+   which stays reserved for loss/bankruptcy states -- this is a caution to
+   act on, not a failure. */
+.card.teacher-also-signed-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  border-color: #FFB020;
+  background: var(--panel-alt);
+}
+
 /* --- Firm Dashboard brand identity hero ---
    The team's factory + logo are the anchor of the student's own screen, not
    a thin strip of chrome above it -- so they get real size, their own

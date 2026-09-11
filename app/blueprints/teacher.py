@@ -37,7 +37,7 @@ import string
 from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import generate_password_hash
 
-from app.auth import log_out, teacher_login_required
+from app.auth import current_firm, log_out_teacher, teacher_login_required
 from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, TIER_ICONS
 from app.bots import BOT_PROFILES
 from app.bots import decide as bot_decide
@@ -548,5 +548,11 @@ def team_lookup(world_id):
 @bp.route("/logout")
 @teacher_login_required
 def logout():
-    log_out()
+    log_out_teacher()
+    # A team can be signed in on this same browser (roles coexist now -- see
+    # auth.log_in_firm). Dropping teacher access shouldn't kick them off
+    # their own dashboard, which is exactly what the student-facing "you're
+    # also signed in as Teacher" banner links here to do.
+    if current_firm():
+        return redirect(url_for("firm.dashboard"))
     return redirect(url_for("auth.game_code_entry"))
