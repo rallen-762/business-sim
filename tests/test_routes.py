@@ -1071,3 +1071,21 @@ def test_export_csv_works_before_any_round_is_processed(client):
     body = resp.data.decode("utf-8")
     lines = body.strip("\r\n").split("\r\n")
     assert len(lines) == 1  # header only, no crash on an empty world
+
+
+def test_stale_session_pointing_at_an_unclaimed_slot_is_not_logged_in(app, client):
+    # Found live: a leftover cookie whose firm_id resolved to an UNCLAIMED
+    # slot passed every "is someone logged in" check and rendered as
+    # "logged in as None", because an unclaimed slot's team_name is NULL.
+    world_id = create_world(client, slots=2)
+    with app.app_context():
+        unclaimed_id = Firm.query.filter_by(world_id=world_id, slot_number=2).first().id
+    client.get("/teacher/logout")
+    with client.session_transaction() as s:
+        s["firm_id"] = unclaimed_id
+        s["world_id"] = world_id
+
+    resp = client.get("/firm", follow_redirects=True)
+    body = resp.data.decode()
+    assert "logged in as None" not in body
+    assert "Game Code" in body or "log in" in body.lower()

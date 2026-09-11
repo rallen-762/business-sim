@@ -52,7 +52,17 @@ def current_firm():
     firm_id = session.get("firm_id")
     if firm_id is None:
         return None
-    return db.session.get(Firm, firm_id)
+    firm = db.session.get(Firm, firm_id)
+    # A session pointing at an UNCLAIMED slot isn't a logged-in team. This
+    # happens with a stale cookie whose firm_id now refers to a since-
+    # unclaimed (or entirely different) row -- it used to sail through every
+    # is-someone-logged-in check and render as "logged in as None", because
+    # an unclaimed slot's team_name is NULL. Every path that calls
+    # log_in_firm() has already registered or password-checked the firm, so
+    # requiring is_registered here never rejects a legitimate session.
+    if firm is None or not firm.is_registered:
+        return None
+    return firm
 
 
 def current_world():
