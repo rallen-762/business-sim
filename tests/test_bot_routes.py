@@ -113,6 +113,25 @@ def test_reassign_bot_updates_profile_and_team_name(app, client):
         assert "Underbidder" not in firm.team_name
 
 
+def test_assign_bot_sets_the_fixed_avatar_for_that_profile(app, client):
+    from app.bots import BOT_AVATARS
+
+    world_id = create_world(client)
+    firm_id = first_unclaimed_firm_id(app, world_id)
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot", data={"profile": "underbidder"})
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert firm.avatar == BOT_AVATARS["underbidder"]
+
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot", data={"profile": "marketing"})
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert firm.avatar == BOT_AVATARS["marketing"]
+        assert BOT_AVATARS["underbidder"] != BOT_AVATARS["marketing"]
+
+
 def test_remove_bot_reverts_to_unclaimed_but_keeps_history(app, client):
     world_id = create_world(client)
     firm_id = first_unclaimed_firm_id(app, world_id)

@@ -8,7 +8,7 @@
 
 {% if firm.bankrupt %}
 <div class="card">
-  <span class="banner" style="background:var(--danger);box-shadow:0 3px 0 #7d241a;">Bankrupt</span>
+  <span class="banner" style="background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);">Bankrupt</span>
   <p>{{ firm.team_name }} is out of the game. Your dashboard is frozen, but you'll stay listed on the standings.</p>
 </div>
 
@@ -21,7 +21,7 @@
 {% elif world.status == "transition" %}
 <div class="card">
   {% if last_result.is_auto %}
-  <div class="card" style="background:#fff8ec;border-color:var(--accent);margin-bottom:16px;">
+  <div class="card" style="background:var(--panel-alt);border-color:var(--accent-primary);margin-bottom:16px;">
     <strong>Emergency Production Directive Issued</strong>
     <p style="margin-bottom:0;">Command was unreachable last cycle. All available capital was redirected to production.</p>
   </div>
@@ -32,10 +32,36 @@
     <div class="stat"><div class="label">Units Sold</div><div class="value">{{ "{:,.0f}".format(last_result.units_sold_total) }}</div></div>
     <div class="stat"><div class="label">Revenue</div><div class="value">{{ "${:,.0f}".format(last_result.revenue) }}</div></div>
     <div class="stat"><div class="label">Profit</div><div class="value {{ 'negative' if last_result.profit < 0 else 'positive' }}">{{ "${:,.0f}".format(last_result.profit) }}</div></div>
-    <div class="stat"><div class="label">Cash</div><div class="value">{{ "${:,.0f}".format(last_result.cash_after) }}</div></div>
+    <div class="stat" id="stat-cash-hero" data-cash-before="{{ last_result.cash_before }}" data-cash-after="{{ last_result.cash_after }}">
+      <div class="label">Cash</div><div class="value" id="stat-cash-value">{{ "${:,.0f}".format(last_result.cash_before) }}</div>
+    </div>
     <div class="stat"><div class="label">Quality Level</div><div class="value">{{ last_result.quality_level }}</div></div>
     <div class="stat"><div class="label">Ad Level</div><div class="value">{{ last_result.ad_level }}</div></div>
   </div>
+  <script>
+    // The one hero moment (per the visual redesign brief): the Cash stat
+    // flashes and counts from last round's cash to this round's, instead
+    // of just appearing already-updated. Runs once on page load; the
+    // starting value is pre-rendered server-side (cash_before) so a
+    // student without JS still sees the correct final number either way.
+    (function () {
+      var el = document.getElementById('stat-cash-hero');
+      var valueEl = document.getElementById('stat-cash-value');
+      var from = parseFloat(el.dataset.cashBefore);
+      var to = parseFloat(el.dataset.cashAfter);
+      el.style.setProperty('--flash-color', to >= from ? 'var(--accent-positive)' : 'var(--accent-danger)');
+      el.classList.add('flash-on-load');
+      var duration = 900, start = null;
+      function step(ts) {
+        if (start === null) start = ts;
+        var progress = Math.min(1, (ts - start) / duration);
+        var current = from + (to - from) * progress;
+        valueEl.textContent = '$' + Math.round(current).toLocaleString();
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    })();
+  </script>
 
   <h3 style="margin-top:20px;">Cumulative Totals (Through Round {{ world.current_round }})</h3>
   <div class="grid grid-3">
@@ -127,7 +153,7 @@
       </div>
       <div>
         <label>Production Quantity <span class="help-text">(auto-calculated)</span></label>
-        <input type="number" id="production_qty" name="production_qty" readonly style="background:#f0f1f3;">
+        <input type="number" id="production_qty" name="production_qty" readonly style="background:var(--panel-alt);">
         <p class="help-text">Capacity this round: {{ "{:,}".format(firm.plant_capacity) }}</p>
       </div>
     </div>

@@ -1,21 +1,59 @@
 /* Business Simulation Game -- dashboard shell.
-   Plain, high-contrast base (per design review: readability wins on every
-   data screen); Kenney-inspired accents (chunky-bevel buttons, banner
-   ribbons, framed avatar tiles) layered on top, never behind text/numbers. */
+   Industrial/factory retro theme (Sept 2026 visual overhaul): near-black
+   backdrop, slate/teal panels, hard offset shadows, zero border-radius, a
+   pixel display font reserved for titles/hero-numbers/buttons only. Old
+   token names (--bg, --surface, --primary, --danger, etc.) are kept as
+   ALIASES to the new named tokens below so every existing template/inline
+   style picks up the new theme automatically -- see each alias's comment. */
+
+/* Press Start 2P, self-hosted (SIL Open Font License -- see
+   static/fonts/OFL.txt) rather than loaded from Google Fonts. This app
+   has never had an external network dependency for anything (per the
+   README: no LLM/API calls anywhere) -- pulling a font from a CDN on
+   every page load would have been the first one. Self-hosting keeps that
+   true and means the pixel font still renders offline/on a flaky
+   classroom connection. */
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("/static/fonts/PressStart2P.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --border: #d8dce3;
-  --text: #1a1d23;
-  --text-muted: #5b6270;
-  --primary: #2159d1;
-  --primary-dark: #163d94;
-  --accent: #ef8a1f;
-  --accent-dark: #b3620e;
-  --success: #1c8a4b;
-  --danger: #c0392b;
-  --radius: 10px;
+  /* --- New industrial/factory palette (source of truth) --- */
+  --bg-base: #14171A;       /* near-black backdrop */
+  --panel: #2E3A40;         /* slate/teal panel background */
+  --panel-alt: #4A5A5E;     /* lighter slate -- secondary panels/hover/borders */
+  --panel-alt-dark: #1D2528; /* darker slate -- shadow offset for panel-alt surfaces */
+  --accent-primary: #6FA8A0;      /* muted teal -- primary actions/highlights */
+  --accent-primary-dark: #4C7B74; /* shadow offset for accent-primary */
+  --accent-positive: #39FF14;     /* punchy green -- cash-up/wins, must pop */
+  --accent-positive-dark: #1E8A0A;
+  --accent-danger: #FF3355;       /* punchy red -- negative-cash/loan states */
+  --accent-danger-dark: #B3253C;
+  --text-primary: #F0F0EC;   /* warm off-white */
+  --text-secondary: #9AA5A8;
+
+  --font-display: "Press Start 2P", monospace; /* titles, hero numbers, button labels ONLY */
+  --shadow-hard: 4px 4px 0 #000; /* the site's one shadow shape -- panels/cards */
+
+  /* --- Old names, aliased -- every var(--bg)/var(--primary)/var(--danger)
+     etc. already in templates or inline styles now resolves through here,
+     so this file is the only place the actual color values live. --- */
+  --bg: var(--bg-base);
+  --surface: var(--panel);
+  --border: var(--panel-alt);
+  --text: var(--text-primary);
+  --text-muted: var(--text-secondary);
+  --primary: var(--accent-primary);
+  --primary-dark: var(--accent-primary-dark);
+  --accent: var(--accent-primary);
+  --accent-dark: var(--accent-primary-dark);
+  --success: var(--accent-positive);
+  --danger: var(--accent-danger);
+  --radius: 0; /* zero border-radius, site-wide, in one place */
 }
 
 * { box-sizing: border-box; }
@@ -35,21 +73,48 @@ a { color: var(--primary); }
   padding: 24px 16px 64px;
 }
 
+/* --- Titles / hero numbers / button labels: the ONE place the pixel
+   display font is allowed. Everything else (body text, tables, help
+   text) stays the readable sans -- Press Start 2P is unreadable at small
+   sizes and in dense text. ---
+   Every element using it also gets explicit font-smoothing: Chrome's
+   default antialiasing softens/doubles this font's blocky strokes at
+   typical UI sizes (most visible as black-on-bright-green button text
+   looking blurry) -- forcing antialiased/grayscale smoothing sharpens it
+   noticeably, a standard fix for pixel/bitmap web fonts. */
+h1, h2, h3,
+.topbar .brand,
+.stat .value,
+.btn,
+.banner,
+.podium-spot .rank-badge {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3 {
+  font-family: var(--font-display);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+h2 { font-size: 1.15rem; }
+h3 { font-size: 0.95rem; }
+
 /* --- Top bar --- */
 .topbar {
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 16px;
+  border-bottom: 3px solid var(--accent-primary);
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .topbar .brand {
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
   color: var(--text);
   text-decoration: none;
-  font-size: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 .topbar nav a {
   margin-left: 16px;
@@ -58,17 +123,28 @@ a { color: var(--primary); }
   font-weight: 600;
   font-size: 0.9rem;
 }
-.topbar nav a:hover { color: var(--primary); }
+.topbar nav a:hover { color: var(--accent-primary); }
 
-/* --- Cards / panels: the plain, high-contrast surface everything sits on --- */
+/* --- Cards / panels: the industrial surface everything sits on --- */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--panel);
+  border: 3px solid var(--accent-primary);
+  border-radius: 0;
   padding: 20px;
   margin-bottom: 20px;
+  box-shadow: var(--shadow-hard);
 }
 .card h2, .card h3 { margin-top: 0; }
+
+/* Sparing texture accent -- ONE key spot (the World Dashboard's header
+   card), not every panel, per the design brief ("so it doesn't get
+   busy"). A dark scrim keeps title text readable over the busy tileset
+   crop underneath it. */
+.card.factory-header {
+  background-image: linear-gradient(rgba(20, 23, 26, 0.82), rgba(20, 23, 26, 0.82)), url("/static/img/theme/factory-header.png");
+  background-size: auto 100%;
+  background-repeat: repeat-x;
+}
 
 .grid {
   display: grid;
@@ -77,88 +153,120 @@ a { color: var(--primary); }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
-/* --- Stat tiles --- */
+/* --- Stat tiles ("hero numbers") --- */
 .stat {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--panel-alt);
+  border: 2px solid var(--accent-primary);
+  border-radius: 0;
   padding: 14px 16px;
+  box-shadow: var(--shadow-hard);
 }
-.stat .label { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.stat .value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+.stat .label { color: var(--text-secondary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat .value {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.7;
+  margin-top: 6px;
+}
 /* Unscoped (not just inside .stat) so the same red/amber/green convention
    also applies to plain table cells -- Firms table, Market Dashboard, and
    Teacher Lookup all already used this exact "value negative"/"value
    positive" class combo on <td> before this rule covered anything outside
-   a .stat card. */
-.value.negative { color: var(--danger); }
-.value.positive { color: var(--success); }
-.value.warning { color: var(--accent-dark); }
+   a .stat card. Table cells stay the readable sans -- see the Tables
+   section below overriding font-family back for <td>. */
+.value.negative { color: var(--accent-danger); }
+.value.positive { color: var(--accent-positive); }
+.value.warning { color: #FFB020; } /* amber -- distinct from both punchy accents */
+
+/* A stat value briefly flashes then counts up/down on the one hero
+   moment (Firm Dashboard cash after a round processes) -- see the inline
+   script on firm_dashboard.html's Round Results view. */
+@keyframes stat-flash {
+  0% { background: var(--panel-alt); }
+  30% { background: var(--flash-color, var(--accent-positive)); color: #0a0a0a; }
+  100% { background: var(--panel-alt); }
+}
+.stat.flash-on-load { animation: stat-flash 900ms ease-out; }
 
 /* --- Forms --- */
-label { display: block; font-weight: 600; margin: 14px 0 4px; font-size: 0.9rem; }
+label { display: block; font-weight: 600; margin: 14px 0 4px; font-size: 0.9rem; color: var(--text); }
 input[type=text], input[type=password], input[type=number], select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 2px solid var(--panel-alt);
+  border-radius: 0;
   font-size: 1rem;
-  background: var(--surface);
+  background: var(--bg-base);
   color: var(--text);
+}
+input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
 }
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .checkbox-row input { width: auto; }
-.help-text { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; }
+.help-text { color: var(--text-secondary); font-size: 0.82rem; margin-top: 4px; }
 
-/* --- Buttons: chunky bevel, Kenney-inspired, recolored to our palette --- */
+/* --- Buttons: hard offset shadow, zero radius, "pressed" collapse on click --- */
 .btn {
   display: inline-block;
-  padding: 11px 20px;
-  border-radius: 10px;
+  padding: 12px 20px;
+  border-radius: 0;
   border: none;
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem; /* Press Start 2P is a blocky/detailed glyph set -- renders noticeably softer below ~13-14px */
   letter-spacing: 0.02em;
+  line-height: 1.6;
   cursor: pointer;
-  color: #fff;
-  background: var(--primary);
-  box-shadow: 0 4px 0 var(--primary-dark);
-  transition: transform 0.05s ease;
+  color: #0a0a0a;
+  background: var(--accent-primary);
+  box-shadow: 4px 4px 0 var(--accent-primary-dark);
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  /* A pixel font that wraps to a 2nd line inside a tightly-padded button
+     (the nav bar's compact buttons, e.g. "Market Dashboard") renders the
+     two lines overlapping/illegible at this line-height -- letting long
+     labels overflow their box instead is the lesser problem. */
+  white-space: nowrap;
 }
-.btn:hover { filter: brightness(1.05); }
-.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--primary-dark); }
-.btn.accent { background: var(--accent); box-shadow: 0 4px 0 var(--accent-dark); }
+.btn:hover { filter: brightness(1.1); }
+.btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--accent-primary-dark); }
+.btn.accent { background: var(--accent-positive); box-shadow: 4px 4px 0 var(--accent-positive-dark); }
+.btn.accent:active { box-shadow: 0 0 0 var(--accent-positive-dark); }
 .btn.full { width: 100%; text-align: center; }
-.btn.secondary { background: #6b7280; box-shadow: 0 4px 0 #464b54; }
+.btn.secondary { background: var(--panel-alt); color: var(--text); box-shadow: 4px 4px 0 var(--panel-alt-dark); }
+.btn.secondary:active { box-shadow: 0 0 0 var(--panel-alt-dark); }
 
 /* --- Banner ribbon (Round Transition Notice, section headers) --- */
 .banner {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 800;
+  background: var(--accent-primary);
+  color: #0a0a0a;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  line-height: 1.6;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 0;
   display: inline-block;
-  box-shadow: 0 3px 0 var(--accent-dark);
+  box-shadow: 4px 4px 0 var(--accent-primary-dark);
   margin-bottom: 14px;
 }
 
 /* --- Flash messages --- */
-.flash { background: #fff4e5; border: 1px solid var(--accent); color: #7a4a10; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+.flash { background: var(--panel-alt); border: 2px solid var(--accent-primary); border-radius: 0; color: var(--text); padding: 10px 14px; margin-bottom: 16px; }
 
-/* --- Tables --- */
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
-th { color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+/* --- Tables: stay the readable sans, per the design brief, even though
+   h1-h3/.stat/.btn/.banner use the pixel display font. --- */
+table { width: 100%; border-collapse: collapse; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--panel-alt); font-size: 0.92rem; }
+th { color: var(--text-secondary); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
 tr.bankrupt { opacity: 0.55; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-.badge.bankrupt { background: #fdecea; color: var(--danger); }
-.badge.ok { background: #e8f7ee; color: var(--success); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 0; font-size: 0.72rem; font-weight: 700; border: 1px solid currentColor; }
+.badge.bankrupt { background: rgba(255, 51, 85, 0.15); color: var(--accent-danger); }
+.badge.ok { background: rgba(57, 255, 20, 0.12); color: var(--accent-positive); }
 /* Informational, not a red/amber/green value judgment -- reuses the
    existing --primary token rather than introducing a new color. */
-.badge.bot { background: #e8edfb; color: var(--primary); margin-left: 6px; }
+.badge.bot { background: rgba(111, 168, 160, 0.18); color: var(--accent-primary); margin-left: 6px; }
 
 /* --- Avatar picker (the one place the pixel-frame accent belongs) --- */
 .avatar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
@@ -186,7 +294,7 @@ tr.bankrupt { opacity: 0.55; }
 .podium { display: flex; align-items: flex-end; justify-content: center; gap: 24px; margin: 10px 0 24px; flex-wrap: wrap; }
 .podium-spot { text-align: center; }
 .podium-spot img { display: block; margin: 0 auto 8px; object-fit: contain; }
-.podium-spot .rank-badge { font-weight: 800; color: var(--text-muted); font-size: 0.8rem; }
+.podium-spot .rank-badge { font-family: var(--font-display); color: var(--text-secondary); font-size: 0.75rem; }
 .podium-spot .name { font-weight: 700; margin-top: 4px; }
 .podium-spot.rank-1 { order: 2; }
 .podium-spot.rank-1 img { width: 120px; height: 120px; }
@@ -197,20 +305,21 @@ tr.bankrupt { opacity: 0.55; }
 
 /* --- Market Dashboard: pie chart + legend --- */
 .pie-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-.pie { width: 180px; height: 180px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
+.pie { width: 180px; height: 180px; border-radius: 50%; border: 2px solid var(--panel-alt); flex-shrink: 0; } /* circle is a shape, not decorative rounding -- kept */
 .pie-legend { list-style: none; margin: 0; padding: 0; }
 .pie-legend li { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.9rem; }
-.pie-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.pie-swatch { width: 12px; height: 12px; border-radius: 0; flex-shrink: 0; }
 
 /* --- Market Dashboard: segment overview cards --- */
-.segment-card .label { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
+.segment-card .label { color: var(--text-secondary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 10px; }
 .segment-card .label:first-child { margin-top: 0; }
 .segment-card .value { font-weight: 700; }
 
 .slot-list { display: grid; gap: 10px; }
 .slot-item {
   display: flex; align-items: center; justify-content: space-between;
-  border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; background: var(--surface);
+  border: 2px solid var(--accent-primary); border-radius: 0; padding: 12px 16px; background: var(--panel-alt);
+  box-shadow: var(--shadow-hard);
 }
 .slot-item .slot-name { font-weight: 700; }
-.slot-item .slot-empty { color: var(--text-muted); font-style: italic; }
+.slot-item .slot-empty { color: var(--text-secondary); font-style: italic; }
