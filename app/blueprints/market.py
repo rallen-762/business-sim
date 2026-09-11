@@ -8,6 +8,7 @@ facing equivalents (same templates, different world lookup).
 from flask import Blueprint, render_template, request
 
 from app.auth import current_world, firm_login_required
+from app.avatars import TIER_ICONS
 from app.market_data import (
     PIE_COLORS,
     build_pie_gradient,
@@ -15,6 +16,7 @@ from app.market_data import (
     cumulative_standings,
     latest_processed_round,
     market_shares_for_round,
+    pie_slices,
     round_totals,
     segment_overview,
 )
@@ -44,7 +46,8 @@ def dashboard():
         "market_dashboard.html", world=world, latest_round=latest_round,
         standings=standings,
         selected_round=selected_round, totals_for_round=totals_for_round,
-        shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS, segments=segments,
+        shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS,
+        pie_slices=pie_slices(shares), segments=segments, tier_icons=TIER_ICONS,
     )
 
 

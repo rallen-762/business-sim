@@ -69,18 +69,32 @@ def create_app(config_overrides=None):
     def init_db_command():
         """Creates any missing tables (db.create_all() -- safe to run
         repeatedly, only adds tables that don't exist yet, never alters or
-        drops existing ones) PLUS one targeted, hand-written ADD COLUMN
-        check for firms.bot_profile -- the one additive schema change made
-        so far that create_all() can't handle on its own, since it only
-        creates missing TABLES, never adds a column to a table that
-        already exists. Still no general migration tool (e.g. Alembic);
-        this isn't trying to become one -- a FUTURE schema change needs
-        its own one-off addition here, following this same pattern, not a
-        reusable system. Safe to run repeatedly: guarded by an inspector
-        check, so it's a no-op once the column exists. Meant to be run
-        once per deploy via Render's Pre-Deploy Command, not on every
-        gunicorn worker boot -- running it from every worker at once could
-        race on the very first deploy."""
+        drops existing ones) PLUS targeted, hand-written ADD COLUMN checks
+        (firms.bot_profile, firms.badge) for additive schema changes that
+        create_all() can't handle on its own, since it only creates missing
+        TABLES, never adds a column to a table that already exists. Still
+        no general migration tool (e.g. Alembic); this isn't trying to
+        become one -- a FUTURE schema change needs its own one-off addition
+        here, following this same pattern, not a reusable system. Safe to
+        run repeatedly: guarded by an inspector check, so it's a no-op once
+        a column exists. Meant to be run once per deploy via Render's
+        Pre-Deploy Command, not on every gunicorn worker boot -- running it
+        from every worker at once could race on the very first deploy.
+
+        Also carries the one-time data rewrite for the Headphone Company
+        Simulator reskin (confirmed with the user: labels only, no
+        numbers/math changed) -- old Track/segment values already
+        persisted from BEFORE the rename (e.g. this world's live Round
+        1-7 history) are rewritten to the new names, everywhere they're
+        stored: firms.last_track, round_decisions.track,
+        segment_round_results.segment, and the segment keys inside
+        round_results.units_sold_by_segment (a JSON column, so that one
+        is rewritten in Python, not SQL). Without this, a firm that
+        doesn't resubmit after the rename would carry forward an old
+        last_track value ("Standard") that no longer exists in
+        constants.TRACK_COST_MULTIPLIER, crashing
+        synthesize_non_submission_decision(). Idempotent: once no row
+        still has an old value, every UPDATE/rewrite here is a no-op."""
         with app.app_context():
             db.create_all()
             inspector = sa.inspect(db.engine)
@@ -91,6 +105,77 @@ def create_app(config_overrides=None):
                         conn.execute(sa.text("ALTER TABLE firms ADD COLUMN bot_profile VARCHAR(20)"))
                         conn.commit()
                     print("Added firms.bot_profile column.")
+                if "badge" not in existing_columns:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text("ALTER TABLE firms ADD COLUMN badge VARCHAR(120)"))
+                        conn.commit()
+                    print("Added firms.badge column.")
+
+            # Old track value -> new tier value, everywhere a track string
+            # is stored. "Premium" is unchanged so it's omitted.
+            track_rename = {"Budget": "Entry", "Standard": "Mid"}
+            with db.engine.connect() as conn:
+                for old, new in track_rename.items():
+                    r1 = conn.execute(sa.text("UPDATE firms SET last_track = :new WHERE last_track = :old"), {"old": old, "new": new})
+                    r2 = conn.execute(sa.text("UPDATE round_decisions SET track = :new WHERE track = :old"), {"old": old, "new": new})
+                    conn.commit()
+                    if r1.rowcount or r2.rowcount:
+                        print(f"Renamed track {old!r} -> {new!r}: {r1.rowcount} firms.last_track, {r2.rowcount} round_decisions.track row(s).")
+
+                r3 = conn.execute(sa.text(
+                    "UPDATE segment_round_results SET segment = 'Athletes' WHERE segment = 'Basketball Players'"
+                ))
+                conn.commit()
+                if r3.rowcount:
+                    print(f"Renamed segment 'Basketball Players' -> 'Athletes': {r3.rowcount} segment_round_results row(s).")
+
+            # Icon self-heal: a firm whose avatar/badge names a file that no
+            # longer ships renders as a broken <img>, not as "no icon". That
+            # is exactly what the Headphone Company Simulator asset swap did
+            # to every firm registered before it -- their avatars still name
+            # the old Kenney building set (building-k.png, detail-tank-*),
+            # which was deleted with the swap. Remap anything not in the
+            # current pools, picking from the firm's own id so a given firm
+            # keeps the same icon across re-runs instead of churning on every
+            # deploy. Registered firms only: an unclaimed slot's NULL avatar
+            # is correct, and the templates already guard for it.
+            from app.avatars import AVATAR_CHOICES, BADGE_CHOICES
+            from app.models import Firm, RoundResult
+
+            fixed_icons = 0
+            for firm in Firm.query.all():
+                if not firm.is_registered:
+                    continue
+                if firm.avatar not in AVATAR_CHOICES:
+                    firm.avatar = AVATAR_CHOICES[firm.id % len(AVATAR_CHOICES)]
+                    fixed_icons += 1
+                if firm.badge not in BADGE_CHOICES:
+                    # x7 so a firm's badge doesn't track its avatar index
+                    # (7 and 10 are coprime, so this still covers the pool).
+                    firm.badge = BADGE_CHOICES[(firm.id * 7) % len(BADGE_CHOICES)]
+                    fixed_icons += 1
+            if fixed_icons:
+                db.session.commit()
+                print(f"Repaired {fixed_icons} missing/stale firm icon reference(s).")
+
+            renamed_json_rows = 0
+            for result in RoundResult.query.all():
+                seg_units = result.units_sold_by_segment
+                if seg_units and "Basketball Players" in seg_units:
+                    # Build a NEW dict rather than mutate-in-place-then-
+                    # reassign -- reassigning the SAME dict object SQLAlchemy
+                    # already has loaded doesn't reliably mark a plain JSON
+                    # column as dirty (no MutableDict wrapper on this
+                    # column), so an in-place .pop()/assignment silently
+                    # fails to persist. A genuinely new object always
+                    # triggers change tracking on attribute assignment.
+                    new_seg_units = {k: v for k, v in seg_units.items() if k != "Basketball Players"}
+                    new_seg_units["Athletes"] = seg_units["Basketball Players"]
+                    result.units_sold_by_segment = new_seg_units
+                    renamed_json_rows += 1
+            if renamed_json_rows:
+                db.session.commit()
+                print(f"Renamed segment 'Basketball Players' -> 'Athletes' in {renamed_json_rows} round_results.units_sold_by_segment row(s).")
         print("Database tables created (or already existed).")
 
     @app.cli.command("simulate-bots")

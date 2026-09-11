@@ -1,4 +1,4 @@
-# Business Simulation — Master Variable Table (V1)
+# Headphone Company Simulator — Master Variable Table (V1)
 
 *Consolidated reference of all locked design decisions. Items still pinned for later are noted at the bottom — they are NOT reflected in these numbers yet.*
 
@@ -11,8 +11,8 @@
 | Starting Cash | $1,000,000 (flat, identical across all 4 worlds, no reset between rounds) |
 | Starting Plant Capacity | 45,000 units |
 | Starting Quality Level | 1 |
-| Base Product | Shoes |
-| Base Unit Cost (Standard track, before multiplier) | $50/unit |
+| Base Product | Headphones |
+| Base Unit Cost (Mid tier, before multiplier) | $50/unit |
 | Rounds per World | 10 |
 
 ---
@@ -23,8 +23,8 @@
 - Production Quantity
 - Advertising Spend
 - R&D Spend
-- Track (Budget / Standard / Premium)
-- Celebrity Endorsement (on/off — separate from Track)
+- Tier (Entry / Mid / Premium)
+- Celebrity Endorsement (on/off — separate from Tier)
 - Plant Investment (pre-packaged capacity toggles)
 
 ---
@@ -35,26 +35,26 @@
 |---|---|---|
 | Available Cash | $1,000,000 | Rolls forward; can go negative → triggers loan |
 | Plant Capacity | 45,000 units | 1-round lag on new investment; no decay |
-| Quality Index (1–10) | 1 | Driven purely by cumulative R&D spend; NOT capped by Track |
+| Quality Index (1–10) | 1 | Driven purely by cumulative R&D spend; NOT capped by Tier |
 | Loan Outstanding | $0 | See Section 8 |
 
 ---
 
-## 4. Track Economics
+## 4. Tier Economics
 
 ### 4a. Cost Multiplier (flat, no economies of scale, no quality effect)
 
-| Track | Multiplier | Cost/Unit |
+| Tier | Multiplier | Cost/Unit |
 |---|---|---|
-| Budget | 0.75× | $37.50 |
-| Standard | 1.00× | $50.00 |
+| Entry | 0.75× | $37.50 |
+| Mid | 1.00× | $50.00 |
 | Premium | 1.40× | $70.00 |
 
 ### 4b. [REMOVED — superseded by Section 12 segment model]
 
-*This generic Track/Quality demand multiplier table has been retired. Quality's effect on demand is now handled entirely by each segment's own Quality Weight (Section 12), multiplied by that segment's Track Preference Multiplier. Keeping both would have double-counted quality's impact on demand. See Section 12 for the current, locked mechanism.*
+*This generic Tier/Quality demand multiplier table has been retired. Quality's effect on demand is now handled entirely by each segment's own Quality Weight (Section 12), multiplied by that segment's Tier Preference Multiplier. Keeping both would have double-counted quality's impact on demand. See Section 12 for the current, locked mechanism.*
 
-### 4c. Quality Descriptor Labels (combine with Track name)
+### 4c. Quality Descriptor Labels (combine with Tier name)
 
 | Quality Level | Descriptor |
 |---|---|
@@ -64,7 +64,7 @@
 | 7–8 | High |
 | 9–10 | Elite |
 
-*Example label: "Solid Quality Standard" or "Elite Quality Premium."*
+*Example label: "Solid Quality Mid" or "Elite Quality Premium."*
 
 ---
 
@@ -83,7 +83,7 @@
 | 9 | $600,000 | $100,000 |
 | 10 | $700,000 | $100,000 |
 
-No per-round spending cap — the price itself is the constraint. Quality stock persists even across Track switches.
+No per-round spending cap — the price itself is the constraint. Quality stock persists even across Tier switches.
 
 ---
 
@@ -144,7 +144,7 @@ Any units a firm produces but does not sell in a round are **destroyed/scrapped*
 ## 9. Non-Submission Handling
 
 If a firm fails to submit a round's decisions:
-- Price and Track carry forward unchanged from prior round.
+- Price and Tier carry forward unchanged from prior round.
 - 100% of available cash defaults to Production (up to capacity limit).
 - $0 goes to R&D, Advertising, or Plant Investment that round.
 - Firm dashboard shows a stylized in-universe status card (e.g., "Emergency Production Directive Issued") rather than an explicit error/warning.
@@ -155,7 +155,7 @@ If a firm fails to submit a round's decisions:
 
 **Visible for every firm:**
 - Price
-- Track
+- Tier
 - Quality Level
 - Advertising Spend
 - Units Sold
@@ -185,7 +185,7 @@ If a firm fails to submit a round's decisions:
 |---|---|---|
 | Low Income | 2,500 | 127,500 |
 | NBA Fans | 1,500 | 76,500 |
-| Basketball Players | 1,000 | 51,000 |
+| Athletes | 1,000 | 51,000 |
 | Wealthy | 800 | 40,800 |
 | Casual/Fashion | 2,200 | 112,200 |
 | **Total** | **8,000** | **408,000** |
@@ -194,25 +194,25 @@ With 7 firms at 45,000 units capacity each (315,000 industry capacity), the buye
 
 **Demand-pull mechanic (REVISED Sept 2026 — individual buyer willingness-to-pay model).** Each firm generates a relative attractiveness *score* per segment — termed **Firm's Demand Pull per Segment** — not an actual buyer count. This is now a TWO-STEP allocation, not a single proportional split of the whole segment:
 
-1. **Affordability gate.** Every buyer in a segment has their own willingness-to-pay ceiling, which varies by TRACK (Budget/Standard/Premium — see the table below), not one flat ceiling per buyer. A buyer can only ever be served by a firm whose price is at or below that buyer's ceiling for that firm's track. A buyer who can't afford any competing firm simply doesn't buy this round — this replaces the old rule that the full segment headcount always gets divided up among competitors regardless of price. A firm can now genuinely lose ALL demand in a segment by pricing too high, not just lose relative share.
-2. **Preference scoring among only the affordable firms.** Among the firms a given buyer CAN afford, the existing Demand Pull score (Track Preference × Quality Weight × Advertising × Celebrity — see below) decides which one they actually buy from, exactly as before. Buyers are maximizing personal consumer surplus (their own ceiling minus the price paid), not simply picking the cheapest affordable option.
+1. **Affordability gate.** Every buyer in a segment has their own willingness-to-pay ceiling, which varies by TRACK (Entry/Mid/Premium — see the table below), not one flat ceiling per buyer. A buyer can only ever be served by a firm whose price is at or below that buyer's ceiling for that firm's tier. A buyer who can't afford any competing firm simply doesn't buy this round — this replaces the old rule that the full segment headcount always gets divided up among competitors regardless of price. A firm can now genuinely lose ALL demand in a segment by pricing too high, not just lose relative share.
+2. **Preference scoring among only the affordable firms.** Among the firms a given buyer CAN afford, the existing Demand Pull score (Tier Preference × Quality Weight × Advertising × Celebrity — see below) decides which one they actually buy from, exactly as before. Buyers are maximizing personal consumer surplus (their own ceiling minus the price paid), not simply picking the cheapest affordable option.
 
 Price no longer appears in the Demand Pull score itself — the old Price Elasticity multiplier is GONE (see the willingness-to-pay table replacing old Section 12.4 below). Keeping both a smooth elasticity penalty AND the new affordability gate would double-penalize higher prices.
 
 **Advertising note (LOCKED):** Advertising Multiplier is flat and applies identically across all 5 segments — pulled straight from the Advertising Ladder (Section 6), no per-segment variation. Decided to keep the model simpler.
 
 **Formulas for student guide (LOCKED terminology):**
-- Firm's Demand Pull per Segment = Track Preference Multiplier × Quality Weight × Advertising Multiplier × Celebrity Multiplier (price is NOT a factor here anymore)
-- A buyer at willingness-to-pay percentile r can afford a firm iff that firm's price ≤ that buyer's ceiling for the firm's track
+- Firm's Demand Pull per Segment = Tier Preference Multiplier × Quality Weight × Advertising Multiplier × Celebrity Multiplier (price is NOT a factor here anymore)
+- A buyer at willingness-to-pay percentile r can afford a firm iff that firm's price ≤ that buyer's ceiling for the firm's tier
 - Units Sold (Firm, Segment) = Σ, over every slice of the buyer population where this firm is among the affordable set, of (this firm's Demand Pull ÷ Σ affordable firms' Demand Pull in that slice) × that slice's buyer count
 
-**1. Track Preference Multiplier**
+**1. Tier Preference Multiplier**
 
-| Segment | Budget | Standard | Premium |
+| Segment | Entry | Mid | Premium |
 |---|---|---|---|
 | Low Income | 1.3 | 0.9 | 0.5 |
 | NBA Fans | 0.5 | 0.9 | 1.4 |
-| Basketball Players | 0.7 | 1.0 | 1.2 |
+| Athletes | 0.7 | 1.0 | 1.2 |
 | Wealthy | 0.4 | 0.8 | 1.5 |
 | Casual/Fashion | 0.8 | 1.3 | 0.9 |
 
@@ -222,7 +222,7 @@ Price no longer appears in the Demand Pull score itself — the old Price Elasti
 |---|---|---|
 | Low Income | 1.0 | 1.0 *(flat — doesn't care)* |
 | NBA Fans | 0.9 | 1.3 |
-| Basketball Players | 0.7 | 1.8 *(steepest — dominant factor)* |
+| Athletes | 0.7 | 1.8 *(steepest — dominant factor)* |
 | Wealthy | 0.8 | 1.6 |
 | Casual/Fashion | 0.95 | 1.05 *(nearly flat)* |
 
@@ -232,7 +232,7 @@ Price no longer appears in the Demand Pull score itself — the old Price Elasti
 |---|---|
 | Low Income | 1.0 |
 | NBA Fans | 1.5 *(primary driver)* |
-| Basketball Players | 1.1 |
+| Athletes | 1.1 |
 | Wealthy | 1.2 |
 | Casual/Fashion | 1.0 |
 
@@ -240,32 +240,32 @@ Price no longer appears in the Demand Pull score itself — the old Price Elasti
 
 Each buyer's maximum willingness-to-pay ceiling varies by TRACK, not one flat number per buyer. Baseline centers:
 
-| Segment | Budget Ceiling | Standard Ceiling | Premium Ceiling |
+| Segment | Entry Ceiling | Mid Ceiling | Premium Ceiling |
 |---|---|---|---|
 | Low Income | $65 | $68 | $70 |
 | NBA Fans | $90 | $105 | $120 |
-| Basketball Players | $35 | $75 | $130 |
+| Athletes | $35 | $75 | $130 |
 | Wealthy | $50 | $140 | $230 |
 | Casual/Fashion | $75 | $85 | $90 |
 
-**Spread (platform choice, not given by the original design docs):** each buyer's actual ceiling for a track is uniformly spread ±20% around that track's center for their segment (e.g. Wealthy/Premium ranges $184–$276) — not every buyer in a segment is identical. A single buyer's Budget/Standard/Premium ceilings are correlated (driven by one underlying "how willing to pay is this buyer, generally" draw), not three independent random numbers, since every segment's Budget < Standard < Premium ordering above means a buyer generally willing to pay more is willing to pay more across every track, not randomly more generous on one track and less on another.
+**Spread (platform choice, not given by the original design docs):** each buyer's actual ceiling for a tier is uniformly spread ±20% around that tier's center for their segment (e.g. Wealthy/Premium ranges $184–$276) — not every buyer in a segment is identical. A single buyer's Entry/Mid/Premium ceilings are correlated (driven by one underlying "how willing to pay is this buyer, generally" draw), not three independent random numbers, since every segment's Entry < Mid < Premium ordering above means a buyer generally willing to pay more is willing to pay more across every tier, not randomly more generous on one tier and less on another.
 
 **Wealthy segment $250 hard ceiling (LOCKED, kept from the pre-redesign model):** regardless of the willingness-to-pay curve above, a firm priced above $250 is excluded from the Wealthy segment entirely — this is a simple exclusion rule now, not a smooth taper curve (the old $200–$250 piecewise taper is gone along with the rest of the elasticity formula).
 
-*Note (RESOLVED): Section 4b's generic Track/Quality table has been removed. Quality Weight (this section) is now the sole quality-effect layer, applied together with the Track Preference Multiplier — no double-counting.*
+*Note (RESOLVED): Section 4b's generic Tier/Quality table has been removed. Quality Weight (this section) is now the sole quality-effect layer, applied together with the Tier Preference Multiplier — no double-counting.*
 
 ## 13. Pricing Guidance Tool (Firm Dashboard, LOCKED mechanism)
 
 **⚠️ FLAGGED Sept 2026 — needs revision before this tool is ever built.** This section still describes the PRE-redesign price elasticity model (see Section 12's replacement). Not yet implemented anywhere in the codebase as of this note, so there's no live code conflict today, but the mechanism below is now wrong on two counts:
-1. **Round 1 fallback** ("assumes an even split of the buyer pool... at a flat $50 baseline price") — there's no more "even split" under the willingness-to-pay model; a buyer either can or can't afford a given price on a given track.
+1. **Round 1 fallback** ("assumes an even split of the buyer pool... at a flat $50 baseline price") — there's no more "even split" under the willingness-to-pay model; a buyer either can or can't afford a given price on a given tier.
 2. **Round 2+ elasticity projection** ("applies the firm's own price elasticity... to project units-sold if only price changes") assumed a smooth, continuous curve. Under the willingness-to-pay ceiling model, raising price can hit a CLIFF — a chunk of buyers falls off all at once at their ceiling, not a smooth taper — so a projection built on the old smooth-elasticity assumption could mislead a student badly, especially in a segment with a tight buyer-to-buyer spread. Whoever builds this tool needs a new projection mechanism (e.g. estimating where the firm's own price sits against typical ceilings) before shipping it, not just a formula swap.
 
-Purpose: help students reason about price changes without exposing the hidden segment formulas (willingness-to-pay ceilings, quality weights, track multipliers all stay secret forever).
+Purpose: help students reason about price changes without exposing the hidden segment formulas (willingness-to-pay ceilings, quality weights, tier multipliers all stay secret forever).
 
 **Mechanism:**
 - Baseline = the firm's own actual result from last round (actual price, actual units sold). Real numbers the firm already has and trusts.
 - Toggle lets the firm enter a hypothetical new price for the upcoming round.
-- Tool applies the firm's own price elasticity (given their current quality/track) to that baseline and projects an estimated units-sold range if only price changes — everything else (competitor behavior, own quality, own track, own ads) assumed to hold as it did last round.
+- Tool applies the firm's own price elasticity (given their current quality/tier) to that baseline and projects an estimated units-sold range if only price changes — everything else (competitor behavior, own quality, own tier, own ads) assumed to hold as it did last round.
 - Output framed as a plain comparison, e.g., "Last round you sold approximately 9,000 units at $70. At $90, we estimate approximately 6,000 units, assuming similar competitor behavior."
 - Explicitly labeled as an estimate with the "assumes similar competitor behavior" caveat shown to the student — the tool does not, and should not, react live to hypothetical competitor moves or this round's in-progress decisions.
 - **Round 1 fallback (LOCKED):** no prior-round baseline exists yet, so the tool shows a generic neutral starting projection instead (e.g., assumes an even split of the buyer pool relative to industry capacity at a flat $50 baseline price), clearly flagged with a message like "Round 1 has no prior results yet — this is a generic starting estimate." From Round 2 onward, the tool always uses the firm's own actual prior-round results as normal.
@@ -276,7 +276,7 @@ Purpose: help students reason about price changes without exposing the hidden se
 
 *Note: the advertising diminishing-returns explanation moved out of "pinned" — it now belongs in the separate Teacher Reference Guide (not the dashboard itself). See that document for the full write-up.*
 4. **Teacher dashboard segment-breakdown tab** — revenue/units by segment, agreed conceptually, not yet designed in detail.
-5. **Student user guide** — segment/customer profiles (qualitative only, no hidden numbers), plus a clear explanation of the three Track price/cost points ($37.50 Budget / $50 Standard / $70 Premium).
+5. **Student user guide** — segment/customer profiles (qualitative only, no hidden numbers), plus a clear explanation of the three Tier price/cost points ($37.50 Entry / $50 Mid / $70 Premium).
 
 ---
 
@@ -301,5 +301,5 @@ Purpose: help students reason about price changes without exposing the hidden se
 
 **End-of-Game Export (LOCKED, new requirement):**
 - Once a world's 10-round game is complete, the Teacher Dashboard must offer a CSV export of that world's full game history.
-- Shape: one row per firm per round, covering all 10 rounds for all firms in that world — every submitted decision (Price, Production Qty, Ad Spend, R&D Spend, Track, Celebrity toggle, Plant Investment) plus every resulting output (Units Sold, Revenue, Cost, Profit, Cash on Hand, Quality Level, Loan status) for that firm in that round.
+- Shape: one row per firm per round, covering all 10 rounds for all firms in that world — every submitted decision (Price, Production Qty, Ad Spend, R&D Spend, Tier, Celebrity toggle, Plant Investment) plus every resulting output (Units Sold, Revenue, Cost, Profit, Cash on Hand, Quality Level, Loan status) for that firm in that round.
 - Purpose: teacher-facing review/grading only. Not connected to any LLM/API inside the app — the teacher will run their own analysis externally (e.g., uploading the CSV to an LLM themselves) if desired. The app's only job is to produce a clean, complete export.

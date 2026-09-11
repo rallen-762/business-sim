@@ -152,11 +152,11 @@ def test_one_decision_per_firm_per_round_enforced(app):
     w = make_world()
     f = make_firm(w)
     db.session.add(RoundDecision(
-        firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Standard",
+        firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Mid",
     ))
     db.session.commit()
     db.session.add(RoundDecision(
-        firm_id=f.id, round_number=1, price=60, production_qty=40_000, track="Standard",
+        firm_id=f.id, round_number=1, price=60, production_qty=40_000, track="Mid",
     ))
     with pytest.raises(IntegrityError):
         db.session.commit()
@@ -165,8 +165,8 @@ def test_one_decision_per_firm_per_round_enforced(app):
 def test_same_firm_can_have_decisions_across_different_rounds(app):
     w = make_world()
     f = make_firm(w)
-    db.session.add(RoundDecision(firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Standard"))
-    db.session.add(RoundDecision(firm_id=f.id, round_number=2, price=55, production_qty=45_000, track="Standard"))
+    db.session.add(RoundDecision(firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Mid"))
+    db.session.add(RoundDecision(firm_id=f.id, round_number=2, price=55, production_qty=45_000, track="Mid"))
     db.session.commit()
     assert f.decisions.count() == 2
 
@@ -175,7 +175,7 @@ def test_auto_decision_flag_records_non_submission(app):
     w = make_world()
     f = make_firm(w)
     d = RoundDecision(
-        firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Standard", is_auto=True,
+        firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Mid", is_auto=True,
     )
     db.session.add(d)
     db.session.commit()
@@ -185,7 +185,7 @@ def test_auto_decision_flag_records_non_submission(app):
 def test_deleting_firm_cascades_to_decisions_and_results(app):
     w = make_world()
     f = make_firm(w)
-    db.session.add(RoundDecision(firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Standard"))
+    db.session.add(RoundDecision(firm_id=f.id, round_number=1, price=50, production_qty=45_000, track="Mid"))
     db.session.add(RoundResult(
         firm_id=f.id, round_number=1, units_sold_by_segment={"Low Income": 100}, units_sold_total=100,
         revenue=5000, production_cost=2500, fixed_cost=100_000, ad_cost=0, rd_cost=0, celebrity_cost=0,
@@ -222,7 +222,7 @@ def test_one_result_per_firm_per_round_enforced(app):
 def test_units_sold_by_segment_round_trips_as_json(app):
     w = make_world()
     f = make_firm(w)
-    segment_units = {"Low Income": 1234, "NBA Fans": 56, "Basketball Players": 7, "Wealthy": 8, "Casual/Fashion": 9}
+    segment_units = {"Low Income": 1234, "NBA Fans": 56, "Athletes": 7, "Wealthy": 8, "Casual/Fashion": 9}
     r = RoundResult(
         firm_id=f.id, round_number=1, units_sold_by_segment=segment_units, units_sold_total=1314,
         revenue=1, production_cost=1, fixed_cost=1, ad_cost=0, rd_cost=0, celebrity_cost=0,

@@ -221,8 +221,8 @@ ELITE_CELEBRITY_START_ROUND = 7
 
 
 def _decide_elite(round_number, cash, capacity, cumulative_rd_spend, loan_outstanding, rng):
-    # Rounds 1-3: Standard (mid tier). Rounds 4+: Premium (top tier).
-    track = "Standard" if round_number <= 3 else "Premium"
+    # Rounds 1-3: Mid tier. Rounds 4+: Premium tier.
+    track = "Mid" if round_number <= 3 else "Premium"
 
     # R&D ramps toward the Level-10 cumulative threshold roughly evenly
     # across all 10 rounds -- NOT front-loaded in Round 1 -- and every

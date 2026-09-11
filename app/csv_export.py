@@ -37,7 +37,7 @@ from app.models import Firm, RoundDecision, RoundResult
 
 FIELDNAMES = (
     ["Firm Slot", "Team Name", "Round", "Bankrupt This Round"]
-    + ["Price", "Track", "Production Qty", "R&D Spend", "Ad Spend",
+    + ["Price", "Tier", "Production Qty", "R&D Spend", "Ad Spend",
        "Celebrity On", "Plant Investment", "Auto (Non-Submission)"]
     + [f"Units Sold - {seg}" for seg in SEGMENTS]
     + ["Units Sold Total", "Revenue", "Production Cost",
@@ -81,7 +81,7 @@ def build_export_rows(world):
             "Round": r.round_number,
             "Bankrupt This Round": r.is_bankrupt,
             "Price": d.price if d else "",
-            "Track": d.track if d else "",
+            "Tier": d.track if d else "",
             "Production Qty": d.production_qty if d else "",
             "R&D Spend": d.rd_spend if d else "",
             "Ad Spend": d.ad_spend if d else "",

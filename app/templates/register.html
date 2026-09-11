@@ -11,12 +11,22 @@
     <input type="password" id="password" name="password" required>
     <p class="help-text">Everyone on your team will use this to log back in -- write it down.</p>
 
-    <label>Choose Your Avatar</label>
+    <label>Choose Your Factory</label>
     <div class="avatar-grid">
       {% for filename in avatars %}
       <label class="avatar-choice">
         <input type="radio" name="avatar" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
         <span class="avatar-frame"><img src="{{ url_for('static', filename='img/avatars/' ~ filename) }}" alt=""></span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <label style="margin-top:18px;">Choose Your Brand Logo</label>
+    <div class="avatar-grid">
+      {% for filename in badges %}
+      <label class="avatar-choice">
+        <input type="radio" name="badge" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
+        <span class="avatar-frame"><img src="{{ url_for('static', filename='img/badges/' ~ filename) }}" alt=""></span>
       </label>
       {% endfor %}
     </div>

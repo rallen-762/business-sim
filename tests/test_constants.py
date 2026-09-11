@@ -12,8 +12,8 @@ from app import constants as c
 # --------------------------------------------------------------------------- #
 
 def test_track_unit_cost():
-    assert c.track_unit_cost("Budget") == 37.5
-    assert c.track_unit_cost("Standard") == 50.0
+    assert c.track_unit_cost("Entry") == 37.5
+    assert c.track_unit_cost("Mid") == 50.0
     assert c.track_unit_cost("Premium") == 70.0
 
 
@@ -103,16 +103,16 @@ def test_ad_spend_presets_empty_once_at_level_10():
 # --------------------------------------------------------------------------- #
 
 def test_quality_weight_endpoints():
-    assert c.quality_weight("Basketball Players", 1) == 0.7
-    assert c.quality_weight("Basketball Players", 10) == 1.8
+    assert c.quality_weight("Athletes", 1) == 0.7
+    assert c.quality_weight("Athletes", 10) == 1.8
     assert c.quality_weight("Low Income", 1) == 1.0
     assert c.quality_weight("Low Income", 10) == 1.0  # flat, doesn't care
 
 
 def test_quality_weight_midpoint_interpolation():
-    # Basketball Players: 0.7 at Q1, 1.8 at Q10 -> at Q5: 0.7 + 1.1*(4/9)
+    # Athletes: 0.7 at Q1, 1.8 at Q10 -> at Q5: 0.7 + 1.1*(4/9)
     expected = 0.7 + (1.8 - 0.7) * (5 - 1) / 9
-    assert math.isclose(c.quality_weight("Basketball Players", 5), expected)
+    assert math.isclose(c.quality_weight("Athletes", 5), expected)
 
 
 # --------------------------------------------------------------------------- #
@@ -133,15 +133,15 @@ def test_fixed_cost_matches_given_examples():
 # --------------------------------------------------------------------------- #
 
 def test_wtp_threshold_r_at_the_low_end_of_the_spread_is_zero():
-    # Standard/Low Income center is $68; the low end of a +/-20% spread is
+    # Mid/Low Income center is $68; the low end of a +/-20% spread is
     # exactly $68 * 0.8 = $54.40 -- priced there, even the LEAST generous
     # buyer can afford it (r == 0, i.e. the entire population affords it).
-    r = c.wtp_threshold_r("Low Income", "Standard", 68 * c.WTP_SPREAD_LOW)
+    r = c.wtp_threshold_r("Low Income", "Mid", 68 * c.WTP_SPREAD_LOW)
     assert math.isclose(r, 0.0, abs_tol=1e-9)
 
 
 def test_wtp_threshold_r_at_the_high_end_of_the_spread_is_one():
-    r = c.wtp_threshold_r("Low Income", "Standard", 68 * c.WTP_SPREAD_HIGH)
+    r = c.wtp_threshold_r("Low Income", "Mid", 68 * c.WTP_SPREAD_HIGH)
     assert math.isclose(r, 1.0, abs_tol=1e-9)
 
 
@@ -156,26 +156,26 @@ def test_wtp_threshold_r_above_the_spread_exceeds_one_nobody_affords_it():
 
 
 def test_wtp_ceiling_at_r_is_the_inverse_of_wtp_threshold_r():
-    for segment, track, price in [("NBA Fans", "Premium", 110), ("Casual/Fashion", "Budget", 78)]:
+    for segment, track, price in [("NBA Fans", "Premium", 110), ("Casual/Fashion", "Entry", 78)]:
         r = c.wtp_threshold_r(segment, track, price)
         assert math.isclose(c.wtp_ceiling_at_r(segment, track, r), price)
 
 
 def test_a_single_buyers_three_ceilings_are_always_ordered_budget_to_premium():
-    # Every segment's Budget < Standard < Premium center means a buyer's own
+    # Every segment's Entry < Mid < Premium center means a buyer's own
     # three ceilings stay consistently ordered regardless of r (locked
     # design property, not just true at the centers).
     for segment in c.SEGMENTS:
         for r in (0.0, 0.37, 1.0):
-            budget = c.wtp_ceiling_at_r(segment, "Budget", r)
-            standard = c.wtp_ceiling_at_r(segment, "Standard", r)
+            budget = c.wtp_ceiling_at_r(segment, "Entry", r)
+            standard = c.wtp_ceiling_at_r(segment, "Mid", r)
             premium = c.wtp_ceiling_at_r(segment, "Premium", r)
             assert budget < standard < premium
 
 
 def test_wtp_ceiling_centers_match_the_locked_baseline_table():
-    assert c.WTP_CEILING_CENTER["Wealthy"] == {"Budget": 50, "Standard": 140, "Premium": 230}
-    assert c.WTP_CEILING_CENTER["Basketball Players"] == {"Budget": 35, "Standard": 75, "Premium": 130}
+    assert c.WTP_CEILING_CENTER["Wealthy"] == {"Entry": 50, "Mid": 140, "Premium": 230}
+    assert c.WTP_CEILING_CENTER["Athletes"] == {"Entry": 35, "Mid": 75, "Premium": 130}
 
 
 def test_price_multiplier_and_elasticity_coefficient_are_gone():

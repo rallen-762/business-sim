@@ -70,7 +70,14 @@ def firm_login_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):
         if current_firm() is None:
-            flash("Please log in first.")
+            # Spell out the teacher case rather than saying "please log in"
+            # to someone who IS logged in -- this is the state a student hits
+            # when a teacher login elsewhere in the same browser replaced
+            # their session (one session cookie per browser, not per tab).
+            if is_teacher():
+                flash("This browser is logged in as the teacher, not a team. Log out to join as a team.")
+            else:
+                flash("Please log in first.")
             return redirect(url_for("auth.game_code_entry"))
         return view(*args, **kwargs)
     return wrapped

@@ -21,7 +21,7 @@ from __future__ import annotations
 STARTING_CASH = 1_000_000
 STARTING_PLANT_CAPACITY = 45_000
 STARTING_QUALITY_LEVEL = 1
-BASE_UNIT_COST = 50.00  # Standard track, before track multiplier
+BASE_UNIT_COST = 50.00  # Mid tier, before tier multiplier
 ROUNDS_PER_WORLD = 10
 FIRMS_PER_WORLD_MIN = 7
 FIRMS_PER_WORLD_MAX = 8
@@ -36,17 +36,26 @@ FIRMS_PER_WORLD_MAX = 8
 # separate, so it's never mistaken for something the source docs specified.
 # --------------------------------------------------------------------------- #
 BOOTSTRAP_DEFAULT_PRICE = 80.00
-BOOTSTRAP_DEFAULT_TRACK = "Standard"
+BOOTSTRAP_DEFAULT_TRACK = "Mid"
 
 # --------------------------------------------------------------------------- #
-# Section 4a: Track cost multipliers
+# Section 4a: Track/Tier cost multipliers
+#
+# Headphone Company Simulator reskin (confirmed with the user): this is a
+# pure label swap -- Budget/Standard/Premium became Entry/Mid/Premium, same
+# 3 tiers, same multipliers/WTP ceilings/preference weights below, nothing
+# renumbered. The Python identifier names here (TRACKS, track_unit_cost(),
+# etc.) deliberately keep the word "track" -- the user asked to flag rather
+# than silently rename anything where "track" is embedded in a variable/
+# field name (this is also the literal DB column name on RoundDecision/Firm),
+# so only the STRING VALUES changed, not the identifiers that hold them.
 # --------------------------------------------------------------------------- #
 
-TRACKS = ("Budget", "Standard", "Premium")
+TRACKS = ("Entry", "Mid", "Premium")
 
 TRACK_COST_MULTIPLIER = {
-    "Budget": 0.75,
-    "Standard": 1.00,
+    "Entry": 0.75,
+    "Mid": 1.00,
     "Premium": 1.40,
 }
 
@@ -220,12 +229,17 @@ CELEBRITY_COST_PER_ROUND = 50_000
 BUYER_POOL_BASE = 8_000
 BUYER_POOL_SCALE_FACTOR = 51
 
-SEGMENTS = ("Low Income", "NBA Fans", "Basketball Players", "Wealthy", "Casual/Fashion")
+SEGMENTS = ("Low Income", "NBA Fans", "Athletes", "Wealthy", "Casual/Fashion")
 
+# "Basketball Players" -> "Athletes" (confirmed as part of the basketball-
+# terminology sweep). Same segment, same buyer counts/weights/ceilings
+# below -- just a label swap. "NBA Fans" was left as-is: it isn't one of
+# the words the user asked to sweep (shoe/sneaker/basketball/track/title),
+# and "NBA Fans buying headphones" still reads fine as a segment identity.
 SEGMENT_BASE_COUNT = {
     "Low Income": 2_500,
     "NBA Fans": 1_500,
-    "Basketball Players": 1_000,
+    "Athletes": 1_000,
     "Wealthy": 800,
     "Casual/Fashion": 2_200,
 }
@@ -233,18 +247,18 @@ SEGMENT_BASE_COUNT = {
 SEGMENT_BUYER_COUNT = {seg: count * BUYER_POOL_SCALE_FACTOR for seg, count in SEGMENT_BASE_COUNT.items()}
 
 TRACK_PREFERENCE_MULTIPLIER = {
-    "Low Income":         {"Budget": 1.3, "Standard": 0.9, "Premium": 0.5},
-    "NBA Fans":           {"Budget": 0.5, "Standard": 0.9, "Premium": 1.4},
-    "Basketball Players": {"Budget": 0.7, "Standard": 1.0, "Premium": 1.2},
-    "Wealthy":            {"Budget": 0.4, "Standard": 0.8, "Premium": 1.5},
-    "Casual/Fashion":     {"Budget": 0.8, "Standard": 1.3, "Premium": 0.9},
+    "Low Income":     {"Entry": 1.3, "Mid": 0.9, "Premium": 0.5},
+    "NBA Fans":       {"Entry": 0.5, "Mid": 0.9, "Premium": 1.4},
+    "Athletes":       {"Entry": 0.7, "Mid": 1.0, "Premium": 1.2},
+    "Wealthy":        {"Entry": 0.4, "Mid": 0.8, "Premium": 1.5},
+    "Casual/Fashion": {"Entry": 0.8, "Mid": 1.3, "Premium": 0.9},
 }
 
 # (weight at Quality 1, weight at Quality 10) -- linearly interpolated between.
 QUALITY_WEIGHT_ENDPOINTS = {
     "Low Income": (1.0, 1.0),
     "NBA Fans": (0.9, 1.3),
-    "Basketball Players": (0.7, 1.8),
+    "Athletes": (0.7, 1.8),
     "Wealthy": (0.8, 1.6),
     "Casual/Fashion": (0.95, 1.05),
 }
@@ -259,7 +273,7 @@ def quality_weight(segment: str, quality_level: int) -> float:
 CELEBRITY_MULTIPLIER = {
     "Low Income": 1.0,
     "NBA Fans": 1.5,
-    "Basketball Players": 1.1,
+    "Athletes": 1.1,
     "Wealthy": 1.2,
     "Casual/Fashion": 1.0,
 }
@@ -295,11 +309,11 @@ WEALTHY_CEILING_PRICE = 250  # absolute hard rule: priced above this, excluded f
 # --------------------------------------------------------------------------- #
 
 WTP_CEILING_CENTER = {
-    "Low Income":         {"Budget": 65, "Standard": 68, "Premium": 70},
-    "NBA Fans":           {"Budget": 90, "Standard": 105, "Premium": 120},
-    "Basketball Players": {"Budget": 35, "Standard": 75, "Premium": 130},
-    "Wealthy":            {"Budget": 50, "Standard": 140, "Premium": 230},
-    "Casual/Fashion":     {"Budget": 75, "Standard": 85, "Premium": 90},
+    "Low Income":     {"Entry": 65, "Mid": 68, "Premium": 70},
+    "NBA Fans":       {"Entry": 90, "Mid": 105, "Premium": 120},
+    "Athletes":       {"Entry": 35, "Mid": 75, "Premium": 130},
+    "Wealthy":        {"Entry": 50, "Mid": 140, "Premium": 230},
+    "Casual/Fashion": {"Entry": 75, "Mid": 85, "Premium": 90},
 }
 
 # +/-20% uniform spread around each center above -- confirmed with the user

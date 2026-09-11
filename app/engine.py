@@ -82,8 +82,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.constants import (
+    BOOTSTRAP_DEFAULT_PRICE,
+    BOOTSTRAP_DEFAULT_TRACK,
     CELEBRITY_COST_PER_ROUND,
     CELEBRITY_MULTIPLIER,
+    TRACK_COST_MULTIPLIER,
     LOAN_AMOUNT,
     LOAN_INTEREST_RATE,
     LOAN_REPAYMENT_PRINCIPAL,
@@ -210,7 +213,23 @@ def synthesize_non_submission_decision(
 ) -> FirmDecision:
     """Price/Track carry forward unchanged. 100% of available cash goes to
     Production (up to capacity). $0 to R&D/Advertising/Plant Investment.
-    Celebrity Endorsement is forced OFF regardless of its prior state."""
+    Celebrity Endorsement is forced OFF regardless of its prior state.
+
+    Defensive fallback on last_price/last_track: every real slot gets the
+    BOOTSTRAP defaults at world creation, so these should always be set --
+    but an unset or no-longer-valid value used to raise straight out of
+    track_unit_cost() (KeyError), and this runs inside the teacher's
+    round-advance, so one bad row would 500 the round for the WHOLE class
+    mid-lesson. A stale tier name is a live possibility right after the
+    Track -> Tier rename (a database that hasn't had init-db's rename step
+    run against it yet), which is exactly when a hard failure would be
+    worst. Falling back to the platform defaults keeps the round
+    processable; the firm just gets the same deal a never-submitted slot
+    would have gotten anyway."""
+    if last_track not in TRACK_COST_MULTIPLIER:
+        last_track = BOOTSTRAP_DEFAULT_TRACK
+    if last_price is None:
+        last_price = BOOTSTRAP_DEFAULT_PRICE
     unit_cost = track_unit_cost(last_track)
     max_affordable_units = int(cash // unit_cost) if unit_cost > 0 and cash > 0 else 0
     production_qty = max(0, min(max_affordable_units, plant_capacity))

@@ -153,7 +153,7 @@ def test_marketing_skips_celebrity_while_indebted():
 def test_elite_stays_at_mid_tier_through_round_three():
     for round_number in (1, 2, 3):
         d = _decide("elite", round_number=round_number)
-        assert d.track == "Standard"
+        assert d.track == "Mid"
 
 
 def test_elite_moves_to_top_tier_from_round_four():

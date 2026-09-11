@@ -1,6 +1,6 @@
-# Basketball Shoe Market Simulator
+# Headphone Company Simulator
 
-A classroom economics simulation: teams of students run competing shoe
+A classroom economics simulation: teams of students run competing headphone
 companies over 10 rounds per class period ("World"), with a teacher
 controlling round pacing from a Teacher Dashboard.
 

@@ -34,11 +34,11 @@ import random
 import secrets
 import string
 
-from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import generate_password_hash
 
 from app.auth import log_out, teacher_login_required
-from app.avatars import AVATAR_CHOICES
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, TIER_ICONS
 from app.bots import BOT_PROFILES
 from app.bots import decide as bot_decide
 from app.constants import (
@@ -59,6 +59,7 @@ from app.market_data import (
     cumulative_standings,
     latest_processed_round,
     market_shares_for_round,
+    pie_slices,
     round_totals,
     segment_overview,
 )
@@ -75,6 +76,24 @@ def _generate_game_code(length=6):
         if not World.query.filter_by(game_code=code).first():
             return code
     raise RuntimeError("Could not generate a unique game code after 50 attempts")
+
+
+# Common, easy-to-read/spell words (all lowercase, no ambiguous-looking
+# pairs) for reset passwords -- confirmed with the user: a teacher has to
+# read this aloud or type it out to relay to a team on a Chromebook, so
+# real words beat a random hex token here.
+_RESET_PASSWORD_WORDS = (
+    "river", "cloud", "tiger", "apple", "mango", "eagle", "coral", "amber",
+    "ocean", "maple", "robin", "pearl", "delta", "comet", "lemon", "olive",
+    "otter", "panda", "quartz", "ruby", "sunny", "trail", "violet", "willow",
+)
+
+
+def _generate_reset_password():
+    """Two distinct words + one digit, hyphen-separated (e.g.
+    "river-tiger-4")."""
+    word1, word2 = random.sample(_RESET_PASSWORD_WORDS, 2)
+    return f"{word1}-{word2}-{random.randint(0, 9)}"
 
 
 @bp.route("/")
@@ -145,32 +164,23 @@ def view_world(world_id):
         .filter(Firm.world_id == world.id, RoundResult.round_number == selected_round)
     }
 
-    # Running totals through the SELECTED round specifically -- viewing a
-    # past round must show totals as of THAT round, not the world's current
-    # round, even though more rounds may have been played since.
-    cumulative_rows = (
-        db.session.query(
-            RoundResult.firm_id,
-            db.func.sum(RoundResult.revenue).label("cum_revenue"),
-            db.func.sum(RoundResult.profit).label("cum_profit"),
-            db.func.sum(RoundResult.units_sold_total).label("cum_units"),
-        )
-        .join(Firm, Firm.id == RoundResult.firm_id)
-        .filter(Firm.world_id == world.id, RoundResult.round_number <= selected_round)
-        .group_by(RoundResult.firm_id)
-        .all()
-    )
-    cumulative_by_firm = {row.firm_id: row for row in cumulative_rows}
+    # Consumer surplus and the Scouting Report both intentionally use the
+    # LATEST PROCESSED round, not the Firms table's selected_round toggle
+    # above -- the two controls looked related (they used to share the
+    # same round) but weren't, which read as confusing/broken. Each card
+    # now shows its own round explicitly in its title instead.
+    scouting_round = latest_processed_round(world)
 
     return render_template(
         "teacher_world.html", world=world, firms=firms,
         submitted_count=submitted_count, registered_count=registered_count,
         rounds_per_world=ROUNDS_PER_WORLD, selected_round=selected_round,
         decisions_by_firm=decisions_by_firm, results_by_firm=results_by_firm,
-        cumulative_by_firm=cumulative_by_firm,
-        scouting_report=build_scouting_report(world),
+        scouting_report=build_scouting_report(world), scouting_round=scouting_round,
         bot_profiles=BOT_PROFILES,
-        consumer_surplus=consumer_surplus_by_segment(world, selected_round),
+        consumer_surplus=consumer_surplus_by_segment(world, scouting_round),
+        consumer_surplus_round=scouting_round,
+        reset_passwords=session.get("reset_passwords", {}),
     )
 
 
@@ -196,7 +206,8 @@ def market(world_id):
         "market_dashboard.html", world=world, latest_round=latest_round,
         standings=standings,
         selected_round=selected_round, totals_for_round=totals_for_round,
-        shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS, segments=segments,
+        shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS,
+        pie_slices=pie_slices(shares), segments=segments, tier_icons=TIER_ICONS,
     )
 
 
@@ -250,6 +261,7 @@ def assign_bot(world_id, firm_id):
         # (like a human team's avatar, it's the slot's look, not the
         # strategy's).
         firm.avatar = random.choice(AVATAR_CHOICES)
+        firm.badge = random.choice(BADGE_CHOICES)  # same "own random icon" rationale, see above
         # Placeholder password so is_registered is True and this slot
         # participates in process_round like any other firm -- never
         # actually used for anything (bots don't log in), just needs to be
@@ -281,6 +293,40 @@ def remove_bot(world_id, firm_id):
     firm.password_hash = None
     db.session.commit()
     flash(f"Bot removed from Firm {firm.slot_number} -- that slot is unclaimed again.")
+    return redirect(url_for("teacher.view_world", world_id=world_id))
+
+
+@bp.route("/worlds/<int:world_id>/firms/<int:firm_id>/reset-password", methods=["POST"])
+@teacher_login_required
+def reset_firm_password(world_id, firm_id):
+    """Generates a new random password for a human-registered team and
+    reveals it once via the Game Management section. Passwords are stored
+    as one-way hashes (see Firm.check_password) -- there's no way to
+    recover and display a team's EXISTING password, only ever verify a
+    guess against it. Confirmed with the user: rather than switch to
+    plaintext storage (a real security regression) just to support an
+    always-available "show the current password" lookup, a reset
+    generates a brand new password and shows THAT once. The plaintext is
+    kept only in this teacher's Flask session (signed cookie, server-side
+    for the session's lifetime) under reset_passwords[firm_id] -- never
+    written to the database -- so "Show Password" in the template can
+    keep displaying it across page loads for the rest of this login, but
+    it's gone once the teacher logs out, and it was never the team's
+    original self-chosen password to begin with."""
+    firm = Firm.query.filter_by(id=firm_id, world_id=world_id).first_or_404()
+    if not firm.is_registered or firm.bot_profile:
+        flash(f"Firm {firm.slot_number} isn't a real team -- nothing to reset.")
+        return redirect(url_for("teacher.view_world", world_id=world_id))
+
+    new_password = _generate_reset_password()
+    firm.set_password(new_password)
+    db.session.commit()
+
+    reset_passwords = session.get("reset_passwords", {})
+    reset_passwords[str(firm.id)] = new_password
+    session["reset_passwords"] = reset_passwords
+
+    flash(f"Password reset for {firm.team_name}: {new_password}")
     return redirect(url_for("teacher.view_world", world_id=world_id))
 
 

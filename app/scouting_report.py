@@ -84,11 +84,15 @@ def _leading_segment_for_firm(firm_id, segment_shares):
 
 
 def _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares):
+    """Returns a list of bullet-point strings (not one joined paragraph) --
+    each fact (price, R&D, ads, celebrity, plant investment, leading
+    segment) is its own point, per the user's request to read as a bulleted
+    list rather than flowing prose."""
     if decision is None:
-        return (
+        return [
             f"{firm.team_name} didn't submit a decision last round, but still ranks "
             f"among the top performers on cumulative results."
-        )
+        ]
 
     parts = []
 
@@ -96,11 +100,11 @@ def _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares):
     if price_diff is not None and abs(price_diff) >= 1:
         direction = "above" if price_diff > 0 else "below"
         parts.append(
-            f"Priced at ${decision.price:,.2f} on the {decision.track} track, "
+            f"Priced at ${decision.price:,.2f} on the {decision.track} tier, "
             f"{abs(price_diff):.0f}% {direction} the field average of ${avg_price:,.2f}."
         )
     else:
-        parts.append(f"Priced at ${decision.price:,.2f} on the {decision.track} track, in line with the field average.")
+        parts.append(f"Priced at ${decision.price:,.2f} on the {decision.track} tier, in line with the field average.")
 
     rd_diff = _pct_diff(decision.rd_spend, avg_rd)
     if rd_diff is not None and rd_diff > 10:
@@ -125,13 +129,14 @@ def _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares):
         seg_name, share = leading
         parts.append(f"Their strongest segment was {seg_name}, capturing {share:.0f}% of that segment's sales.")
 
-    return " ".join(parts)
+    return parts
 
 
 def build_scouting_report(world):
     """Returns up to 3 dicts (top firms by cumulative Revenue, cumulative
     Profit as tiebreak), each: rank, team_name, cum_revenue, cum_profit,
-    summary. Returns [] if no round has been processed yet."""
+    cum_units, summary_points (a list of bullet-point strings, not one
+    joined paragraph). Returns [] if no round has been processed yet."""
     from app.market_data import cumulative_standings, latest_processed_round
 
     latest_round = latest_processed_round(world)
@@ -173,6 +178,7 @@ def build_scouting_report(world):
             "team_name": firm.team_name,
             "cum_revenue": row["cum_revenue"],
             "cum_profit": row["cum_profit"],
-            "summary": _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares),
+            "cum_units": row["cum_units"],
+            "summary_points": _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares),
         })
     return report

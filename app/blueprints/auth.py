@@ -25,7 +25,7 @@ import string
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, is_teacher, log_in_firm, log_in_teacher, log_out
-from app.avatars import AVATAR_CHOICES
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES
 from app.extensions import db
 from app.models import Firm, World
 
@@ -58,8 +58,15 @@ def game_code_entry():
     # underneath, if this was the URL revisited/bookmarked instead of "/".
     if current_firm():
         return redirect(url_for("firm.dashboard"))
-    if is_teacher():
-        return redirect(url_for("teacher.dashboard"))
+    # Deliberately does NOT forward a TEACHER session on to the Teacher
+    # Dashboard, even though index() does. This is a student-facing page,
+    # and firm_login_required() redirects here whenever a student page is
+    # hit without a firm session -- so forwarding teachers from here turned
+    # "student's session went stale on a student page" into "student is now
+    # looking at the Teacher Dashboard with teacher access" (reported bug:
+    # clicking Market Dashboard after Round 1 Results logged them in as
+    # teacher). A teacher who wants their dashboard still gets forwarded by
+    # "/" (index) or can go to /teacher/ directly.
     if request.method == "POST":
         code = request.form.get("game_code", "").strip().upper()
         world = World.query.filter_by(game_code=code).first()
@@ -104,25 +111,31 @@ def register(world_id, firm_id):
         team_name = request.form.get("team_name", "").strip()
         password = request.form.get("password", "")
         avatar = request.form.get("avatar", "")
+        badge = request.form.get("badge", "")
 
         error = None
         if not team_name or not password:
             error = "Team name and password are both required."
         elif avatar not in AVATAR_CHOICES:
-            error = "Please pick an avatar."
+            error = "Please pick a factory."
+        elif badge not in BADGE_CHOICES:
+            error = "Please pick a brand logo."
         elif Firm.query.filter_by(world_id=world_id, team_name=team_name).first():
             error = "That team name is already taken in this class -- pick another."
 
         if error:
             flash(error)
-            return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES)
+            return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES, badges=BADGE_CHOICES)
 
-        firm.register(team_name, password, avatar=avatar)
+        # Both icons are the team's own choice now (the badge used to be
+        # auto-assigned at random) -- bots still get a random one, since
+        # nobody is there to pick for them. See models.py edge case 17.
+        firm.register(team_name, password, avatar=avatar, badge=badge)
         db.session.commit()
         log_in_firm(firm)
         return redirect(url_for("firm.dashboard"))
 
-    return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES)
+    return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES, badges=BADGE_CHOICES)
 
 
 @bp.route("/logout")
@@ -135,12 +148,25 @@ def logout():
 def teacher_login():
     if is_teacher():
         return redirect(url_for("teacher.dashboard"))
-    if current_app.config["IS_LOCAL_DEV"]:
-        # Local dev only (never true on Render -- see IS_LOCAL_DEV in
-        # create_app): skip the password gate entirely rather than ask for
-        # it every time this page is hit.
-        log_in_teacher()
-        return redirect(url_for("teacher.dashboard"))
+
+    # Local dev only (never true on Render -- see IS_LOCAL_DEV in
+    # create_app): skip the password gate rather than ask for it every time
+    # this page is hit -- BUT never silently when a team is logged in on
+    # this browser. log_in_teacher() calls session.clear(), so an auto-login
+    # here destroys that student's session and hands the browser teacher
+    # access. Every teacher_login_required view redirects here on a miss, so
+    # one stray /teacher/* hit (another tab, a bookmark, the back button)
+    # was enough to trigger it -- the reported "student clicked Market
+    # Dashboard and got logged in as teacher" bug. Switching roles out from
+    # under a logged-in team now takes a deliberate ?force=1, never a bare
+    # GET. A real password POST below is deliberate by definition, so it is
+    # never gated this way.
+    if current_app.config["IS_LOCAL_DEV"] and request.method == "GET":
+        if current_firm() is None or request.args.get("force") == "1":
+            log_in_teacher()
+            return redirect(url_for("teacher.dashboard"))
+        return render_template("teacher_login.html", logged_in_firm=current_firm())
+
     if request.method == "POST":
         password = request.form.get("password", "")
         if password and password == current_app.config["TEACHER_PASSWORD"]:

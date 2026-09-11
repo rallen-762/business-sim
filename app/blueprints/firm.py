@@ -36,6 +36,7 @@ Edge cases considered:
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, firm_login_required
+from app.avatars import TIER_ICONS
 from app.constants import (
     CELEBRITY_COST_PER_ROUND,
     LOAN_INTEREST_RATE,
@@ -99,14 +100,14 @@ def dashboard():
         "firm_dashboard.html",
         firm=firm, world=world, decision=decision, last_result=last_result,
         cumulative=cumulative, rounds_per_world=ROUNDS_PER_WORLD,
-        track_unit_costs=track_unit_costs, tracks=TRACKS,
+        track_unit_costs=track_unit_costs, tracks=TRACKS, tier_icons=TIER_ICONS,
         rd_presets=rd_spend_presets(firm.cumulative_rd_spend),
         ad_presets=ad_spend_presets(firm.cumulative_ad_spend),
         celebrity_cost=CELEBRITY_COST_PER_ROUND,
         quality_level=quality_level,
         # Descriptor ONLY (e.g. "Elite Quality"), not quality_track_label's
-        # combined "Elite Quality Standard" -- the Current Track stat right
-        # next to this one already shows the track name; showing it twice
+        # combined "Elite Quality Mid" -- the Current Tier stat right
+        # next to this one already shows the tier name; showing it twice
         # was confusing, not informative.
         quality_label=f"{quality_descriptor(quality_level)} Quality",
         projected_loan_interest=projected_loan_interest,
@@ -144,8 +145,8 @@ def submit_decision():
         flash("That form had an invalid value -- please check your entries and try again.")
         return redirect(url_for("firm.dashboard"))
 
-    if track not in ("Budget", "Standard", "Premium"):
-        flash("Please choose a valid track.")
+    if track not in TRACKS:
+        flash("Please choose a valid tier.")
         return redirect(url_for("firm.dashboard"))
     if price < 0 or production_qty < 0 or ad_spend < 0 or rd_spend < 0:
         flash("Values can't be negative.")

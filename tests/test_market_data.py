@@ -9,11 +9,14 @@ from app import create_app
 from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS
 from app.extensions import db
 from app.market_data import (
+    PIE_COLORS,
+    PIE_TEXT_COLORS,
     build_pie_gradient,
     competitive_intel_rows,
     consumer_surplus_by_segment,
     cumulative_standings,
     market_shares_for_round,
+    pie_slices,
     round_totals,
     segment_overview,
 )
@@ -37,7 +40,7 @@ def make_world(planned_firm_slots=3, **overrides):
     return w
 
 
-def make_firm(world, slot_number, team_name, avatar="building-a.png", **overrides):
+def make_firm(world, slot_number, team_name, avatar="factory-01.png", **overrides):
     f = Firm(
         world_id=world.id, slot_number=slot_number, team_name=team_name, avatar=avatar,
         cash=1_000_000, plant_capacity=45_000, **overrides,
@@ -49,7 +52,7 @@ def make_firm(world, slot_number, team_name, avatar="building-a.png", **override
 
 
 def make_decision(firm, round_number, **overrides):
-    base = dict(price=80.0, production_qty=45_000, ad_spend=0, rd_spend=0, track="Standard", is_auto=False)
+    base = dict(price=80.0, production_qty=45_000, ad_spend=0, rd_spend=0, track="Mid", is_auto=False)
     base.update(overrides)
     d = RoundDecision(firm_id=firm.id, round_number=round_number, **base)
     db.session.add(d)
@@ -308,6 +311,39 @@ def test_pie_gradient_handles_empty_list():
 
 
 # --------------------------------------------------------------------------- #
+# pie_slices -- on-chart label positions/colors for the Market Share pie
+# --------------------------------------------------------------------------- #
+
+def test_pie_slices_skips_slivers_under_4_percent():
+    # A label crammed into a few-px-wide sliver is illegible clutter, not
+    # information -- that firm still gets a full row in the legend, just no
+    # on-chart label.
+    slices = pie_slices([{"share_pct": 97}, {"share_pct": 3}])
+    assert len(slices) == 1
+    assert slices[0]["share_pct"] == 97
+
+
+def test_pie_slices_mid_deg_is_the_angular_midpoint():
+    # Two even halves: first slice's midpoint is 25% of the way around
+    # (90deg), second is 75% of the way around (270deg).
+    slices = pie_slices([{"share_pct": 50}, {"share_pct": 50}])
+    assert slices[0]["mid_deg"] == pytest.approx(90)
+    assert slices[1]["mid_deg"] == pytest.approx(270)
+
+
+def test_pie_slices_colors_come_from_the_same_palette_as_the_gradient():
+    slices = pie_slices([{"share_pct": 60}, {"share_pct": 40}])
+    assert slices[0]["color"] == PIE_COLORS[0]
+    assert slices[1]["color"] == PIE_COLORS[1]
+    assert slices[0]["text_color"] == PIE_TEXT_COLORS[0]
+    assert slices[1]["text_color"] == PIE_TEXT_COLORS[1]
+
+
+def test_pie_slices_empty_for_no_shares():
+    assert pie_slices([]) == []
+
+
+# --------------------------------------------------------------------------- #
 # segment_overview
 # --------------------------------------------------------------------------- #
 
@@ -332,21 +368,21 @@ def test_segment_overview_leading_track_picks_highest_selling_track(app):
     world = make_world()
     budget_firm = make_firm(world, 1, "BudgetCo")
     premium_firm = make_firm(world, 2, "PremiumCo")
-    make_decision(budget_firm, 1, track="Budget")
+    make_decision(budget_firm, 1, track="Entry")
     make_result(budget_firm, 1, segment_units={"Low Income": 200})
     make_decision(premium_firm, 1, track="Premium")
     make_result(premium_firm, 1, segment_units={"Low Income": 50})
 
     overview = segment_overview(world, 1)
     low_income = next(s for s in overview if s["name"] == "Low Income")
-    assert low_income["leading_track"] == "Budget"
+    assert low_income["leading_track"] == "Entry"
     assert low_income["units_sold_this_round"] == 250
 
 
 def test_segment_overview_no_leading_track_when_segment_had_zero_sales(app):
     world = make_world()
     firm = make_firm(world, 1, "Nike")
-    make_decision(firm, 1, track="Standard")
+    make_decision(firm, 1, track="Mid")
     make_result(firm, 1, segment_units={"Low Income": 100, "Wealthy": 0})
 
     overview = segment_overview(world, 1)
@@ -366,7 +402,7 @@ def test_segment_overview_before_any_round_has_no_consumer_surplus_data(app):
 def test_segment_overview_merges_in_consumer_surplus_data(app):
     world = make_world()
     firm = make_firm(world, 1, "Nike")
-    make_decision(firm, 1, track="Standard")
+    make_decision(firm, 1, track="Mid")
     make_result(firm, 1, segment_units={"Low Income": 100})
     make_segment_result(world, 1, "Low Income", avg_consumer_surplus=12.5, unsold_buyers_pct=30.0)
     make_segment_result(world, 1, "Wealthy", avg_consumer_surplus=None, unsold_buyers_pct=100.0)

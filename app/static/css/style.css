@@ -137,6 +137,54 @@ h3 { font-size: 0.95rem; }
 }
 .card h2, .card h3 { margin-top: 0; }
 
+/* --- Firm Dashboard brand identity hero ---
+   The team's factory + logo are the anchor of the student's own screen, not
+   a thin strip of chrome above it -- so they get real size, their own
+   framed plates, and the panel-alt surface to sit the whole block forward
+   of the page. Shown on both the round-decision and Round Results views
+   (it lives above firm_dashboard.html's status branch, so it never
+   disappears mid-game). */
+.card.firm-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: var(--panel-alt);
+}
+.firm-hero-marks { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.firm-hero-avatar,
+.firm-hero-badge {
+  object-fit: contain;
+  background: var(--bg-base);
+  border: 2px solid var(--accent-primary);
+  box-shadow: var(--shadow-hard);
+  padding: 8px;
+  display: block;
+}
+.firm-hero-avatar { width: 112px; height: 112px; }
+.firm-hero-badge { width: 76px; height: 76px; }
+.firm-hero-text { min-width: 0; flex: 1; }
+.firm-hero-label {
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+.firm-hero-name {
+  margin: 10px 0 0;
+  font-size: 1.7rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.firm-hero-meta { margin-top: 10px; color: var(--text-primary); font-size: 0.85rem; }
+
+@media (max-width: 640px) {
+  .firm-hero-avatar { width: 84px; height: 84px; }
+  .firm-hero-badge { width: 60px; height: 60px; }
+  .firm-hero-name { font-size: 1.2rem; }
+}
+
 /* The factory-tileset texture accent on the World Dashboard's header card
    (previously .card.factory-header) was removed -- it read as broken/
    misplaced content (stray grey bars in empty card space) rather than a
@@ -257,6 +305,11 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 table { width: 100%; border-collapse: collapse; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--panel-alt); font-size: 0.92rem; }
 th { color: var(--text-secondary); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+/* Tighter padding/font for wide, many-column tables (e.g. Teacher
+   Dashboard's Firm Decisions by Round) so every column fits without a
+   horizontal scrollbar on a typical laptop screen. */
+table.compact th, table.compact td { padding: 6px 7px; font-size: 0.82rem; white-space: nowrap; }
+table.compact th { font-size: 0.66rem; }
 tr.bankrupt { opacity: 0.55; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 0; font-size: 0.72rem; font-weight: 700; border: 1px solid currentColor; }
 .badge.bankrupt { background: rgba(255, 51, 85, 0.15); color: var(--accent-danger); }
@@ -338,7 +391,25 @@ tr.bankrupt { opacity: 0.55; }
 
 /* --- Market Dashboard: pie chart + legend --- */
 .pie-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-.pie { width: 180px; height: 180px; border-radius: 50%; border: 2px solid var(--panel-alt); flex-shrink: 0; } /* circle is a shape, not decorative rounding -- kept */
+.pie { width: 180px; height: 180px; border-radius: 50%; border: 2px solid var(--panel-alt); flex-shrink: 0; position: relative; } /* circle is a shape, not decorative rounding -- kept */
+/* On-chart slice labels (percentage only -- team names stay in the
+   external legend to avoid crowding a slice a few px wide). Positioned by
+   app/market_data.py's pie_slices()/mid_deg via a rotate/translate/
+   rotate-back transform (see that function's docstring) rather than
+   fixed x/y, so it works for any number of slices at any angle. Color is
+   picked per-slice from PIE_TEXT_COLORS for contrast against that exact
+   slice's background -- never a single hardcoded text color that might
+   wash out against some of the palette. */
+.pie-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+  font-weight: 700;
+  font-size: 0.78rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .pie-legend { list-style: none; margin: 0; padding: 0; }
 .pie-legend li { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.9rem; }
 .pie-swatch { width: 12px; height: 12px; border-radius: 0; flex-shrink: 0; }

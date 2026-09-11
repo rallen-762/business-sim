@@ -40,7 +40,7 @@ def make_firm(world, slot_number, team_name, **overrides):
 
 
 def make_decision(firm, round_number, **overrides):
-    base = dict(price=80.0, production_qty=45_000, ad_spend=0, rd_spend=0, track="Standard", is_auto=False)
+    base = dict(price=80.0, production_qty=45_000, ad_spend=0, rd_spend=0, track="Mid", is_auto=False)
     base.update(overrides)
     d = RoundDecision(firm_id=firm.id, round_number=round_number, **base)
     db.session.add(d)
@@ -85,7 +85,7 @@ def test_single_result_row_has_expected_fields(app):
     assert row["Firm Slot"] == 1
     assert row["Round"] == 1
     assert row["Price"] == 85.0
-    assert row["Track"] == "Premium"
+    assert row["Tier"] == "Premium"
     assert row["Revenue"] == 8500
     assert row["Profit"] == -100
     assert row["Units Sold - Low Income"] == 100
@@ -135,7 +135,7 @@ def test_result_without_matching_decision_does_not_crash(app):
     make_result(firm, 1)
     rows = build_export_rows(world)
     assert rows[0]["Price"] == ""
-    assert rows[0]["Track"] == ""
+    assert rows[0]["Tier"] == ""
 
 
 # --------------------------------------------------------------------------- #

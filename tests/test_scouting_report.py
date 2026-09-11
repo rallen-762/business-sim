@@ -40,7 +40,7 @@ def make_firm(world, slot_number, team_name, **overrides):
 
 
 def make_decision(firm, round_number, **overrides):
-    base = dict(price=80.0, production_qty=15_000, ad_spend=0, rd_spend=0, track="Standard", celebrity_on=False, plant_investment=0, is_auto=False)
+    base = dict(price=80.0, production_qty=15_000, ad_spend=0, rd_spend=0, track="Mid", celebrity_on=False, plant_investment=0, is_auto=False)
     base.update(overrides)
     d = RoundDecision(firm_id=firm.id, round_number=round_number, **base)
     db.session.add(d)
@@ -116,7 +116,8 @@ def test_unregistered_firm_excluded_from_report_and_field_average(app):
 
     report = build_scouting_report(world)
     assert len(report) == 1
-    assert "field average of $100.00" not in report[0]["summary"]  # only firm -> no meaningful "average", in-line-with wording
+    # only firm -> no meaningful "average", in-line-with wording
+    assert not any("field average of $100.00" in point for point in report[0]["summary_points"])
 
 
 def test_summary_mentions_price_above_average(app):
@@ -130,7 +131,7 @@ def test_summary_mentions_price_above_average(app):
 
     report = build_scouting_report(world)
     nike_entry = next(r for r in report if r["team_name"] == "Nike")
-    assert "above the field average" in nike_entry["summary"]
+    assert any("above the field average" in point for point in nike_entry["summary_points"])
 
 
 def test_summary_mentions_celebrity_and_plant_investment(app):
@@ -140,8 +141,9 @@ def test_summary_mentions_celebrity_and_plant_investment(app):
     make_result(nike, 1, revenue=5000, profit=1000)
 
     report = build_scouting_report(world)
-    assert "Celebrity Endorsement" in report[0]["summary"]
-    assert "expanding plant capacity" in report[0]["summary"]
+    points = report[0]["summary_points"]
+    assert any("Celebrity Endorsement" in point for point in points)
+    assert any("expanding plant capacity" in point for point in points)
 
 
 def test_summary_credits_leading_segment(app):
@@ -155,7 +157,7 @@ def test_summary_credits_leading_segment(app):
 
     report = build_scouting_report(world)
     nike_entry = next(r for r in report if r["team_name"] == "Nike")
-    assert "Low Income" in nike_entry["summary"]
+    assert any("Low Income" in point for point in nike_entry["summary_points"])
 
 
 def test_tied_segment_share_credits_no_one(app):
@@ -169,7 +171,7 @@ def test_tied_segment_share_credits_no_one(app):
 
     report = build_scouting_report(world)
     nike_entry = next(r for r in report if r["team_name"] == "Nike")
-    assert "Low Income" not in nike_entry["summary"]
+    assert not any("Low Income" in point for point in nike_entry["summary_points"])
 
 
 def test_firm_with_no_decision_gets_fallback_sentence_not_a_crash(app):
@@ -180,4 +182,14 @@ def test_firm_with_no_decision_gets_fallback_sentence_not_a_crash(app):
 
     report = build_scouting_report(world)
     assert len(report) == 1
-    assert "didn't submit" in report[0]["summary"]
+    assert any("didn't submit" in point for point in report[0]["summary_points"])
+
+
+def test_report_includes_cumulative_units(app):
+    world = make_world()
+    nike = make_firm(world, 1, "Nike")
+    make_decision(nike, 1)
+    make_result(nike, 1, revenue=5000, profit=1000, units_sold_total=250)
+
+    report = build_scouting_report(world)
+    assert report[0]["cum_units"] == 250

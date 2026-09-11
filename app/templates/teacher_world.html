@@ -33,44 +33,80 @@
 </div>
 
 <div class="card">
-  <h3>Firms</h3>
-
-  <form method="get" style="margin-bottom:14px;">
-    <label for="round" style="display:inline;margin-right:8px;">Viewing Round:</label>
-    <select id="round" name="round" onchange="this.form.submit()" style="width:auto;display:inline-block;">
-      {% for n in range(1, world.current_round + 1) %}
-      <option value="{{ n }}" {% if n == selected_round %}selected{% endif %}>{{ n }}</option>
-      {% endfor %}
-    </select>
-    <span class="help-text">Cumulative totals below reflect rounds 1&ndash;{{ selected_round }} only.</span>
-  </form>
+  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+    <h3 style="margin:0;">Firm Decisions by Round</h3>
+    <form method="get" style="display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;">
+      (Round:
+      <select id="round" name="round" onchange="this.form.submit()" style="width:auto;display:inline-block;padding:4px 8px;">
+        {% for n in range(1, world.current_round + 1) %}
+        <option value="{{ n }}" {% if n == selected_round %}selected{% endif %}>{{ n }}</option>
+        {% endfor %}
+      </select>)
+    </form>
+  </div>
 
   <div style="overflow-x:auto;">
-  <table>
+  <table class="compact">
     <thead>
       <tr>
-        <th>Status</th><th>Team</th>
-        <th>Price</th><th>Track</th><th>Production</th><th>Ad Spend</th><th>R&amp;D Spend</th><th>Celeb.</th><th>Plant Inv.</th>
-        <th>Units Sold</th><th>Revenue</th><th>Total Cost</th><th>Profit</th><th>Cash</th><th>Loan Outst.</th><th>Quality Lvl</th>
-        <th>Cum. Revenue</th><th>Cum. Profit</th><th>Cum. Units</th>
+        <th>Team</th>
+        <th>Price</th><th>Tier</th><th>Production</th><th>Ad Spend</th><th>R&amp;D Spend</th><th>Celeb.</th><th>Plant Inv.</th>
+        <th>Units Sold</th><th>Revenue</th><th>Total Cost</th><th>Profit</th>
       </tr>
     </thead>
     <tbody>
       {% for firm in firms %}
       {% set d = decisions_by_firm.get(firm.id) %}
       {% set r = results_by_firm.get(firm.id) %}
-      {% set c = cumulative_by_firm.get(firm.id) %}
       {% set is_bankrupt_this_round = r.is_bankrupt if r else firm.bankrupt %}
       <tr class="{{ 'bankrupt' if is_bankrupt_this_round }}">
+        <td>{{ firm.team_name or "(unclaimed)" }}{% if firm.bot_profile %} <span class="badge bot">BOT</span>{% endif %}{% if is_bankrupt_this_round %} <span class="badge bankrupt">Bankrupt</span>{% endif %}</td>
+        <td>{{ "${:,.2f}".format(d.price) if d else "—" }}</td>
+        <td>{{ d.track if d else "—" }}</td>
+        <td>{{ "{:,}".format(d.production_qty) if d else "—" }}</td>
+        <td>{{ "${:,.0f}".format(d.ad_spend) if d else "—" }}</td>
+        <td>{{ "${:,.0f}".format(d.rd_spend) if d else "—" }}</td>
+        <td>{{ ("Yes" if d.celebrity_on else "No") if d else "—" }}</td>
+        <td>{{ "${:,.0f}".format(d.plant_investment) if d else "—" }}</td>
+        <td>{{ "{:,.0f}".format(r.units_sold_total) if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(r.revenue) if r else "—" }}</td>
+        <td>{{ "${:,.0f}".format(r.total_cost) if r else "—" }}</td>
+        <td class="{{ 'value negative' if r and r.profit < 0 else 'value positive' if r else '' }}">{{ "${:,.0f}".format(r.profit) if r else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="help-text">"—" means this firm hasn't submitted/been processed for Round {{ selected_round }} yet.
+    <span class="value negative">Red</span> = Profit is negative.
+    Status and bot Reassign/Remove controls now live in Game Management below.
+    Cumulative Revenue/Profit/Units per firm are in the Scouting Report below.
+  </p>
+</div>
+
+<div class="card">
+  <h3>Game Management</h3>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead><tr><th>Status</th><th>Team</th><th>Bot Controls</th><th>Reset Password</th><th>Password</th></tr></thead>
+    <tbody>
+      {% for firm in firms %}
+      <tr>
         <td>
           {% if not firm.is_registered %}<span class="badge">Unclaimed</span>
-          {% elif is_bankrupt_this_round %}<span class="badge bankrupt">Bankrupt</span>
+          {% elif firm.bankrupt %}<span class="badge bankrupt">Bankrupt</span>
           {% else %}<span class="badge ok">Active</span>{% endif %}
         </td>
-        <td style="min-width:170px;">
-          <div>{{ firm.team_name or "(unclaimed)" }}{% if firm.bot_profile %} <span class="badge bot">BOT</span>{% endif %}</div>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            {% if firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;">{% endif %}
+            {% if firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0;">{% endif %}
+            <span>{{ firm.team_name or "(unclaimed)" }}{% if firm.bot_profile %} <span class="badge bot">BOT</span>{% endif %}</span>
+          </div>
+        </td>
+        <td>
           {% if firm.bot_profile %}
-          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
             <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="display:flex;gap:6px;">
               <select name="profile" style="width:auto;padding:3px 6px;font-size:0.78rem;">
                 {% for key, label in bot_profiles.items() %}
@@ -85,7 +121,7 @@
             </form>
           </div>
           {% elif not firm.is_registered %}
-          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="display:flex;gap:6px;margin-top:6px;">
+          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="display:flex;gap:6px;">
             <select name="profile" style="width:auto;padding:3px 6px;font-size:0.78rem;">
               <option value="">Add Bot...</option>
               {% for key, label in bot_profiles.items() %}
@@ -94,34 +130,38 @@
             </select>
             <button class="btn" style="padding:4px 8px;font-size:0.75rem;" type="submit">Add</button>
           </form>
+          {% else %}
+          <span class="help-text">&mdash;</span>
           {% endif %}
         </td>
-        <td>{{ "${:,.2f}".format(d.price) if d else "—" }}</td>
-        <td>{{ d.track if d else "—" }}</td>
-        <td>{{ "{:,}".format(d.production_qty) if d else "—" }}</td>
-        <td>{{ "${:,.0f}".format(d.ad_spend) if d else "—" }}</td>
-        <td>{{ "${:,.0f}".format(d.rd_spend) if d else "—" }}</td>
-        <td>{{ ("Yes" if d.celebrity_on else "No") if d else "—" }}</td>
-        <td>{{ "${:,.0f}".format(d.plant_investment) if d else "—" }}</td>
-        <td>{{ "{:,.0f}".format(r.units_sold_total) if r else "—" }}</td>
-        <td>{{ "${:,.0f}".format(r.revenue) if r else "—" }}</td>
-        <td>{{ "${:,.0f}".format(r.total_cost) if r else "—" }}</td>
-        <td class="{{ 'value negative' if r and r.profit < 0 else 'value positive' if r else '' }}">{{ "${:,.0f}".format(r.profit) if r else "—" }}</td>
-        <td>{{ "${:,.0f}".format(r.cash_after) if r else "—" }}</td>
-        <td class="{{ 'value warning' if r and r.loan_outstanding_after > 0 else '' }}">{{ "${:,.0f}".format(r.loan_outstanding_after) if r else "—" }}</td>
-        <td>{{ r.quality_level if r else "—" }}</td>
-        <td>{{ "${:,.0f}".format(c.cum_revenue) if c else "$0" }}</td>
-        <td class="{{ 'value negative' if c and c.cum_profit < 0 else 'value positive' if c else '' }}">{{ "${:,.0f}".format(c.cum_profit) if c else "$0" }}</td>
-        <td>{{ "{:,.0f}".format(c.cum_units) if c else "0" }}</td>
+        <td>
+          {% if firm.is_registered and not firm.bot_profile %}
+          <form method="post" action="{{ url_for('teacher.reset_firm_password', world_id=world.id, firm_id=firm.id) }}"
+                onsubmit="return confirm('Reset the password for ' + {{ firm.team_name|tojson }} + '? Their current password stops working immediately.');">
+            <button class="btn secondary" style="padding:4px 8px;font-size:0.75rem;" type="submit">Reset Password</button>
+          </form>
+          {% else %}
+          <span class="help-text">&mdash;</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if firm.is_registered and not firm.bot_profile and reset_passwords.get(firm.id|string) %}
+          <details>
+            <summary style="cursor:pointer;">Show Password</summary>
+            {{ reset_passwords[firm.id|string] }}
+          </details>
+          {% elif firm.is_registered and not firm.bot_profile %}
+          <span class="help-text">Not reset this session</span>
+          {% else %}
+          <span class="help-text">&mdash;</span>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  <p class="help-text">"—" means this firm hasn't submitted/been processed for Round {{ selected_round }} yet.
-    <span class="value negative">Red</span> = Profit/Cum. Profit is negative.
-    <span class="value warning">Amber</span> = Loan Outstanding &gt; $0 (this firm has used its one lifetime bailout loan &mdash; a second cash shortfall means bankruptcy, not another loan).
-  </p>
+  <p class="help-text">"Reset Password" generates a brand new password and shows it here -- a team's ORIGINAL self-chosen password can never be recovered/shown (only ever verified, not stored in readable form). Shown passwords are only kept for this login session.</p>
 </div>
 
 <div class="card">
@@ -129,13 +169,21 @@
   {% if not scouting_report %}
     <p class="help-text">Scouting Report will appear after Round 1 is processed.</p>
   {% else %}
-    <p class="help-text">Top firms ranked by cumulative revenue (ties broken by cumulative profit), with a plain-language breakdown of what's driving their results this round -- fully rule-based, not AI-generated.</p>
+    <p class="help-text">Top firms ranked by cumulative revenue (ties broken by cumulative profit), with a plain-language breakdown of what's driving their results this round -- fully rule-based, not AI-generated. Cumulative totals below reflect rounds 1&ndash;{{ scouting_round }} only.</p>
     <div class="grid grid-3">
       {% for entry in scouting_report %}
       <div class="stat">
         <div class="label">#{{ entry.rank }} -- {{ entry.team_name }}</div>
         <div class="value {{ 'negative' if entry.cum_profit < 0 else 'positive' }}" style="font-size:1.1rem;">{{ "${:,.0f}".format(entry.cum_revenue) }} revenue</div>
-        <p style="margin:8px 0 0;font-size:0.9rem;">{{ entry.summary }}</p>
+        <p style="margin:6px 0 0;font-size:0.82rem;color:var(--text-primary);">
+          Cum. Profit: <span class="value {{ 'negative' if entry.cum_profit < 0 else 'positive' }}" style="font-size:0.82rem;">{{ "${:,.0f}".format(entry.cum_profit) }}</span>
+          &middot; Cum. Units: {{ "{:,.0f}".format(entry.cum_units) }}
+        </p>
+        <ul style="margin:8px 0 0;padding-left:18px;font-size:0.9rem;">
+          {% for point in entry.summary_points %}
+          <li style="margin-bottom:4px;">{{ point }}</li>
+          {% endfor %}
+        </ul>
       </div>
       {% endfor %}
     </div>
@@ -143,11 +191,11 @@
 </div>
 
 <div class="card">
-  <h3>Average Consumer Surplus by Segment</h3>
+  <h3>Average Consumer Surplus by Segment &mdash; Round {{ consumer_surplus_round }}</h3>
   {% if not consumer_surplus %}
     <p class="help-text">Consumer surplus will appear after Round 1 is processed.</p>
   {% else %}
-    <p class="help-text">Average (willingness-to-pay ceiling &minus; price paid) across buyers who actually purchased in Round {{ selected_round }}, per segment. Buyers who couldn't afford anyone that round are excluded from the average but shown alongside it.</p>
+    <p class="help-text">Average (willingness-to-pay ceiling &minus; price paid) across buyers who actually purchased in Round {{ consumer_surplus_round }} (the most recently completed round), per segment. Buyers who couldn't afford anyone that round are excluded from the average but shown alongside it.</p>
     <div class="grid grid-3">
       {% for row in consumer_surplus %}
       <div class="stat">

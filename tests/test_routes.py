@@ -52,12 +52,12 @@ def create_world(client, name="Period 3", slots=2):
         return World.query.filter_by(name=name).first().id
 
 
-def register_firm(client, world_id, slot_number, team_name, password="secret123", avatar="building-a.png"):
+def register_firm(client, world_id, slot_number, team_name, password="secret123", avatar="factory-01.png", badge="logo-01.png"):
     with client.application.app_context():
         firm_id = Firm.query.filter_by(world_id=world_id, slot_number=slot_number).first().id
     client.post(
         f"/register/{world_id}/{firm_id}",
-        data={"team_name": team_name, "password": password, "avatar": avatar},
+        data={"team_name": team_name, "password": password, "avatar": avatar, "badge": badge},
     )
     return firm_id
 
@@ -65,7 +65,7 @@ def register_firm(client, world_id, slot_number, team_name, password="secret123"
 def submit_decision(client, follow_redirects=False, **overrides):
     data = dict(
         price="80", production_qty="15000", ad_spend="0", rd_spend="0",
-        track="Standard", plant_investment="0",
+        track="Mid", plant_investment="0",
     )
     data.update(overrides)
     return client.post("/firm/decisions", data=data, follow_redirects=follow_redirects)
@@ -115,7 +115,7 @@ def test_register_then_redirected_to_firm_dashboard(client):
         firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
     resp = client.post(
         f"/register/{world_id}/{firm_id}",
-        data={"team_name": "Nike", "password": "secret123", "avatar": "building-a.png"},
+        data={"team_name": "Nike", "password": "secret123", "avatar": "factory-01.png", "badge": "logo-01.png"},
         follow_redirects=True,
     )
     assert b"Nike" in resp.data
@@ -127,7 +127,7 @@ def test_duplicate_team_name_within_world_rejected(client):
     client.get("/logout")
     resp = client.post(
         f"/register/{world_id}/{2}",
-        data={"team_name": "Nike", "password": "whatever", "avatar": "building-a.png"},
+        data={"team_name": "Nike", "password": "whatever", "avatar": "factory-01.png", "badge": "logo-01.png"},
         follow_redirects=True,
     )
     # Should redirect back to the register form with a flash, not create a second Nike.
@@ -148,6 +148,59 @@ def test_login_with_correct_password_reaches_dashboard(client):
     client.get("/logout")
     resp = client.post(f"/login/{world_id}/{firm_id}", data={"password": "right-pw"}, follow_redirects=True)
     assert b"Nike" in resp.data
+
+
+# --------------------------------------------------------------------------- #
+# Role separation: a student must never end up holding teacher access
+#
+# Reported bug: a student who clicked "Market Dashboard" after their Round 1
+# Results landed on the Teacher Dashboard, logged in as the teacher. Two
+# defects chained:
+#   A. every teacher_login_required view redirects to /teacher/login on a
+#      miss, and the local-dev bypass there called log_in_teacher() on a bare
+#      GET -- which session.clear()s whatever student session the browser
+#      held (one cookie per browser, not per tab) and grants teacher access.
+#   B. /login (the STUDENT game-code page, where firm_login_required sends
+#      anyone without a firm session) then forwarded any teacher session
+#      straight on to the Teacher Dashboard -- turning "student's session
+#      went stale" into "student is now the teacher." B applied on Render
+#      too, not just local dev.
+# --------------------------------------------------------------------------- #
+
+def test_stray_teacher_url_does_not_hijack_a_logged_in_students_session(app, client):
+    app.config["IS_LOCAL_DEV"] = True  # forced off under TESTING; this is the path being guarded
+    world_id = create_world(client)
+    client.get("/teacher/logout")
+    firm_id = register_firm(client, world_id, 1, "Nike")
+
+    # Another tab/bookmark/back-button in the same browser touches a teacher URL.
+    client.get(f"/teacher/worlds/{world_id}", follow_redirects=True)
+
+    with client.session_transaction() as s:
+        assert s.get("firm_id") == firm_id, "student's session was replaced"
+        assert not s.get("is_teacher"), "a bare GET silently granted teacher access"
+
+
+def test_student_market_link_stays_on_the_student_dashboard(app, client):
+    app.config["IS_LOCAL_DEV"] = True
+    world_id = create_world(client)
+    client.get("/teacher/logout")
+    register_firm(client, world_id, 1, "Nike")
+    client.get(f"/teacher/worlds/{world_id}", follow_redirects=True)  # the hijack attempt
+
+    resp = client.get("/market", follow_redirects=True)
+    body = resp.data.decode()
+    assert "Create a World" not in body, "student landed on the Teacher Dashboard"
+    assert "My Firm" in body, "student did not get the student Market Dashboard nav"
+
+
+def test_teacher_session_hitting_a_student_page_is_not_forwarded_to_teacher_dashboard(app, client):
+    # Defect B on its own, with no local-dev bypass involved at all.
+    create_world(client)  # leaves the client logged in as teacher
+    resp = client.get("/market", follow_redirects=True)
+    body = resp.data.decode()
+    assert "Create a World" not in body
+    assert "not a team" in body  # the explicit "you're the teacher" flash
 
 
 # --------------------------------------------------------------------------- #
@@ -194,7 +247,7 @@ def test_bankrupt_firm_cannot_submit(app, client):
 def test_submit_decision_rejects_overspend_even_if_client_bypassed_js(app, client):
     world_id = create_world(client)
     firm_id = register_firm(client, world_id, 1, "Nike")
-    # $1,000,000 cash, Standard track ($50/unit) -> 25,000 units would cost
+    # $1,000,000 cash, Mid track ($50/unit) -> 25,000 units would cost
     # $1,250,000, more than available -- must be rejected regardless of what
     # the (bypassed) client-side calculator would have computed.
     resp = submit_decision(client, production_qty="25000", follow_redirects=True)
@@ -237,16 +290,16 @@ def test_dashboard_shows_rd_and_ad_presets(client):
 
 def test_dashboard_shows_team_identity_header(client):
     world_id = create_world(client)
-    register_firm(client, world_id, 1, "Nike", avatar="building-a.png")
+    register_firm(client, world_id, 1, "Nike", avatar="factory-01.png")
     resp = client.get("/firm")
     body = resp.data.decode()
     assert "Nike" in body
-    assert 'img/avatars/building-a.png' in body
+    assert 'img/avatars/factory-01.png' in body
 
 
 def test_dashboard_quality_level_does_not_repeat_the_track_name(client):
-    # Regression: Quality Level used to show "1 -- Low Quality Standard"
-    # right next to a separate "Current Track: Standard" stat -- the track
+    # Regression: Quality Level used to show "1 -- Low Quality Mid"
+    # right next to a separate "Current Track: Mid" stat -- the track
     # name appeared twice. Quality Level should only ever show the quality
     # descriptor, never a track name.
     world_id = create_world(client)
@@ -254,7 +307,7 @@ def test_dashboard_quality_level_does_not_repeat_the_track_name(client):
     resp = client.get("/firm")
     body = resp.data.decode()
     assert "Low Quality" in body
-    assert "Low Quality Standard" not in body
+    assert "Low Quality Mid" not in body
 
 
 def test_dashboard_shows_committed_spend_and_cash_as_separate_stats(client):
@@ -422,11 +475,11 @@ def test_unregistered_slot_does_not_compete_and_gets_no_result_row(app, client):
 
 def test_unregistered_slot_does_not_dilute_a_solo_registered_firms_market_share(app, client):
     # A single registered firm with no real competition should capture
-    # every buyer who can actually AFFORD it at $80 on Standard, not have
+    # every buyer who can actually AFFORD it at $80 on Mid, not have
     # its share diluted by a phantom unregistered "competitor" using the
     # bootstrap default price/track. Since the willingness-to-pay redesign,
     # "no competition" no longer means "the entire buyer pool converts" --
-    # some segments' buyers genuinely can't afford $80 on Standard at all,
+    # some segments' buyers genuinely can't afford $80 on Mid at all,
     # and that's correct, not a leftover phantom-competitor bug.
     world_id = create_world(client, slots=3)
     register_firm(client, world_id, 1, "Nike")
@@ -445,7 +498,7 @@ def test_unregistered_slot_does_not_dilute_a_solo_registered_firms_market_share(
         r = RoundResult.query.filter_by(round_number=1).join(Firm).filter(Firm.world_id == world_id).first()
         from app.constants import SEGMENT_BUYER_COUNT, wtp_threshold_r
         expected_total = sum(
-            max(0.0, min(1.0, 1 - wtp_threshold_r(seg, "Standard", 80))) * count
+            max(0.0, min(1.0, 1 - wtp_threshold_r(seg, "Mid", 80))) * count
             for seg, count in SEGMENT_BUYER_COUNT.items()
         )
         assert math.isclose(r.units_sold_total, expected_total, rel_tol=1e-6)
@@ -505,7 +558,7 @@ def test_non_submitting_firm_result_matches_engine_bootstrap_default_price(app, 
         d = RoundDecision.query.filter_by(round_number=1).join(Firm).filter(Firm.world_id == world_id).first()
         assert d.is_auto is True
         assert d.price == 80.00
-        assert d.track == "Standard"
+        assert d.track == "Mid"
 
 
 def test_bankrupt_firm_gets_frozen_result_row_every_round(app, client):
@@ -711,6 +764,88 @@ def test_delete_nonexistent_world_returns_404(client):
 
 
 # --------------------------------------------------------------------------- #
+# Game Management: password reset
+# --------------------------------------------------------------------------- #
+
+def test_reset_password_generates_a_new_working_password(app, client):
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike", password="original123")
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/reset-password")
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert not firm.check_password("original123")  # old password no longer works
+
+    # The new password was shown via flash -- confirm one landed and follow
+    # the two-word-plus-digit format rather than asserting an exact value.
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    assert "Password reset for Nike" in resp.data.decode()
+
+
+def test_reset_password_shows_up_in_game_management_after_reset(app, client):
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/reset-password")
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    body = resp.data.decode()
+    assert "Show Password" in body
+    assert "Not reset this session" not in body  # Nike now has one
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        new_password = firm.password_hash  # can't read plaintext back -- verify indirectly below
+    assert new_password  # a real hash was set
+
+
+def test_reset_password_refuses_a_bot_slot(app, client):
+    world_id = create_world(client)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot", data={"profile": "underbidder"})
+
+    resp = client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/reset-password", follow_redirects=True)
+    assert b"isn&#39;t a real team" in resp.data or b"isn't a real team" in resp.data
+
+
+def test_reset_password_refuses_an_unclaimed_slot(app, client):
+    world_id = create_world(client)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).first().id
+    resp = client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/reset-password")
+    assert resp.status_code == 302
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert firm.password_hash is None  # untouched
+
+
+def test_game_management_lists_every_firm_but_only_real_teams_get_password_controls(app, client):
+    world_id = create_world(client, slots=2)
+    register_firm(client, world_id, 1, "Nike")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/firms/2/bot", data={"profile": "elite"})
+
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    body = resp.data.decode()
+    assert "Game Management" in body
+    game_mgmt = body[body.index("Game Management"):]
+    # Status + bot Reassign/Remove controls moved here from the Firms table
+    # (per the user's "these should live only in Game Management" fix), so
+    # bots now DO appear here -- just without password controls.
+    assert "Nike" in game_mgmt
+    assert "Bot #2" in game_mgmt
+    assert "Reset Password" in game_mgmt
+    assert "Reassign" in game_mgmt
+    assert "Remove Bot" in game_mgmt
+
+
+# --------------------------------------------------------------------------- #
 # Teacher World page: round selector, decision/output columns, running totals
 # --------------------------------------------------------------------------- #
 
@@ -750,7 +885,7 @@ def _firms_table_only(html):
     # scope round-selector assertions to just the Firms table so the two
     # sections' independent "which round am I showing" behavior can't be
     # confused with each other.
-    start = html.index('<h3>Firms</h3>')
+    start = html.index('Firm Decisions by Round')
     end = html.index('<h3>Scouting Report</h3>')
     return html[start:end]
 

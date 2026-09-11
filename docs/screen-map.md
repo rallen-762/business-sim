@@ -38,7 +38,7 @@ RIGHT SIDE — Persistent Stats / Current State (read-only display)
 - Cash on hand
 - Plant Capacity (current units)
 - Quality Level (numeric + descriptor label)
-- Track (Budget / Standard / Premium)
+- Tier (Entry / Mid / Premium)
 - Celebrity Endorsement status (on/off)
 - Loan Outstanding (if any)
 - Loan Interest Expense (this round) — permanent line item shown from Round 1 onward, displays $0 when no loan is outstanding (per master doc Section 8)
@@ -49,13 +49,13 @@ LEFT SIDE — This Round's Decision Inputs (editable, per Section 2 of master do
 - Production Quantity
 - Advertising Spend
 - R&D Spend
-- Track selection
+- Tier selection
 - Celebrity Endorsement toggle
 - Plant Investment amount
 
 Live Cost Calculator (hard-block, per master doc Section 11):
 
-A running total displayed just above the Lock In button, recalculating live as any input changes: Total Planned Spend (Production cost at current Track's cost/unit x quantity, plus Advertising Spend, plus R&D Spend, plus Plant Investment amount, plus Celebrity Endorsement cost if toggled on) vs. Available Cash.
+A running total displayed just above the Lock In button, recalculating live as any input changes: Total Planned Spend (Production cost at current Tier's cost/unit x quantity, plus Advertising Spend, plus R&D Spend, plus Plant Investment amount, plus Celebrity Endorsement cost if toggled on) vs. Available Cash.
 
 All spend types count toward the same total, including Plant Investment and Celebrity Endorsement — anything that pulls cash out this round.
 
@@ -69,10 +69,10 @@ BOTTOM — Running Ledger
 
 Own-Firm Segment Breakdown Table (per round, sits alongside the ledger):
 
-- Shows this firm's own units sold broken out across all 5 segments (Low Income, NBA Fans, Basketball Players, Wealthy, Casual/Fashion) for the most recently completed round.
+- Shows this firm's own units sold broken out across all 5 segments (Low Income, NBA Fans, Athletes, Wealthy, Casual/Fashion) for the most recently completed round.
 - Table format, consistent with the Running Ledger above it — not a chart.
-- Reveals results only (this firm's actual units sold per segment), never the underlying formulas (elasticity coefficients, quality weights, track multipliers stay hidden forever per Section 12).
-- Intentional design choice: lets sharp students reverse-engineer segment behavior over multiple rounds by observing how their own mix shifts when they change price/track/etc. — treated as a teaching feature, not a leak.
+- Reveals results only (this firm's actual units sold per segment), never the underlying formulas (elasticity coefficients, quality weights, tier multipliers stay hidden forever per Section 12).
+- Intentional design choice: lets sharp students reverse-engineer segment behavior over multiple rounds by observing how their own mix shifts when they change price/tier/etc. — treated as a teaching feature, not a leak.
 
 Team-ranking box explicitly does NOT go here — it lives on the Market Dashboard instead.
 
@@ -118,9 +118,9 @@ Competitive Intelligence Report:
 
 Customer Segment Overview (all 5 segments):
 
-- One panel/card per segment (Low Income, NBA Fans, Basketball Players, Wealthy, Casual/Fashion) — visual treatment TBD, no hidden-formula numbers exposed.
-- Per segment, shows: Segment Name; Relative Size (as a share of total buyer pool, not a raw headcount, so it reads intuitively); Units Sold This Round (total across the whole market into that segment); Leading Track (whichever of Budget/Standard/Premium is currently capturing the most sales in that segment).
-- Purpose: gives students a directional signal on where demand is moving without leaking the underlying elasticity/track/quality formulas.
+- One panel/card per segment (Low Income, NBA Fans, Athletes, Wealthy, Casual/Fashion) — visual treatment TBD, no hidden-formula numbers exposed.
+- Per segment, shows: Segment Name; Relative Size (as a share of total buyer pool, not a raw headcount, so it reads intuitively); Units Sold This Round (total across the whole market into that segment); Leading Tier (whichever of Entry/Mid/Premium is currently capturing the most sales in that segment).
+- Purpose: gives students a directional signal on where demand is moving without leaking the underlying elasticity/tier/quality formulas.
 
 
 ## 4. Teacher Dashboard
@@ -138,7 +138,7 @@ Firms Decision Table (with Round Selector)
 
 - Round selector (dropdown or numbered tabs, Round 1 through Round 10) sits directly above the table, defaulting to whichever round is currently live/active.
 - One row per firm in this world
-- Columns — every variable for that firm/round, both submitted decisions AND resulting outputs, side by side: status icon, firm name, Price, Production Qty, Ad Spend, R&D Spend, Track, Celebrity toggle, Plant Investment, Units Sold, Revenue, Total Cost, Profit, Cash on Hand, Loan Outstanding, Quality Level.
+- Columns — every variable for that firm/round, both submitted decisions AND resulting outputs, side by side: status icon, firm name, Price, Production Qty, Ad Spend, R&D Spend, Tier, Celebrity toggle, Plant Investment, Units Sold, Revenue, Total Cost, Profit, Cash on Hand, Loan Outstanding, Quality Level.
 - Status icon per row: a green checkmark for firms that submitted normally that round, or an "Auto" badge for firms that were auto-handled by the Non-Submission mechanism — every row gets one or the other, so the teacher can read submission status for the whole class at a glance without a separate count anywhere else
 - Running Total row/column: in addition to the selected round's per-round figures, the table also shows each firm's cumulative running totals across all rounds played so far (at minimum: cumulative Revenue, cumulative Profit, cumulative Units Sold — cumulative Cost optional if it fits cleanly). This lets the teacher see both "how did this round go" and "how's this firm doing overall" without leaving the table.
 - Selecting a past (completed) round loads that round's historical decision and output data into the same table — same columns, same status icons, just read-only/historical instead of live. Running totals shown alongside a past round reflect the cumulative total through that round, not through the current live round. This stays on the single continuous Teacher Dashboard screen rather than becoming a separate page, keeping the "no tabs" philosophy intact.
@@ -146,8 +146,8 @@ Firms Decision Table (with Round Selector)
 Segment Breakdown — Bar Chart (not a table)
 
 - One bar per customer segment (5 total), showing units sold into that segment this round
-- Leading track within each segment indicated via color/pattern coding on the bar
-- Gives the teacher a fast visual read on which segments are hot and which track is winning them, more detail than the Market Dashboard's segment cards since this view is teacher-facing
+- Leading tier within each segment indicated via color/pattern coding on the bar
+- Gives the teacher a fast visual read on which segments are hot and which tier is winning them, more detail than the Market Dashboard's segment cards since this view is teacher-facing
 
 End-of-Game Export (appears once this world's 10 rounds are complete):
 

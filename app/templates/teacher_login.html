@@ -3,10 +3,18 @@
 {% block content %}
 <div class="card" style="max-width:420px;margin:40px auto;">
   <h2>Teacher Login</h2>
+  {% if logged_in_firm %}
+    <p class="help-text">This browser is currently logged in as
+      <strong>{{ logged_in_firm.team_name }}</strong>. Continuing will log that team out.</p>
+    <a class="btn full" style="margin-top:12px;" href="{{ url_for('auth.teacher_login', force=1) }}">Continue as Teacher</a>
+    <p class="help-text" style="margin-top:14px;">If you're a student, this isn't your screen &mdash;
+      <a href="{{ url_for('firm.dashboard') }}">go back to your team's dashboard</a>.</p>
+  {% else %}
   <form method="post">
     <label for="password">Password</label>
     <input type="password" id="password" name="password" required autofocus>
     <button class="btn full" style="margin-top:18px;" type="submit">Log In</button>
   </form>
+  {% endif %}
 </div>
 {% endblock %}

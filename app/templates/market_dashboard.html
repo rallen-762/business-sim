@@ -2,7 +2,7 @@
 {% block title %}Market Dashboard{% endblock %}
 {% block nav %}
   {% if session.get('is_teacher') %}
-    <a href="{{ url_for('teacher.view_world', world_id=world.id) }}">&larr; {{ world.name }}</a>
+    <a href="{{ url_for('teacher.view_world', world_id=world.id) }}">&larr; Teacher Dashboard &mdash; {{ world.name }}</a>
     <a href="{{ url_for('teacher.logout') }}">Log Out</a>
   {% else %}
     <a href="{{ url_for('firm.dashboard') }}">My Firm</a>
@@ -24,7 +24,10 @@
       <div class="standings-avatar">
         {% if row.firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ row.firm.avatar) }}" alt="">{% endif %}
       </div>
-      <div class="standings-name">{{ row.firm.team_name }}{% if row.firm.bankrupt %} <span class="badge bankrupt">Bankrupt</span>{% endif %}</div>
+      <div class="standings-name">
+        {% if row.firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ row.firm.badge) }}" alt="" style="width:18px;height:18px;object-fit:contain;vertical-align:-3px;margin-right:4px;">{% endif %}
+        {{ row.firm.team_name }}{% if row.firm.bankrupt %} <span class="badge bankrupt">Bankrupt</span>{% endif %}
+      </div>
       <div class="standings-bar-track">
         <div class="standings-bar-fill {{ 'negative' if row.cum_profit < 0 else 'positive' }}" style="--bar-pct: {{ row.bar_pct }}%; animation-delay: {{ loop.index0 * 80 }}ms;"></div>
       </div>
@@ -94,7 +97,11 @@
 <div class="card">
   <h3>Market Share -- Round {{ latest_round }}</h3>
   <div class="pie-wrap">
-    <div class="pie" style="background: {{ pie_gradient }};"></div>
+    <div class="pie" style="background: {{ pie_gradient }};">
+      {% for slice in pie_slices %}
+      <span class="pie-label" style="color: {{ slice.text_color }}; transform: translate(-50%, -50%) rotate({{ slice.mid_deg }}deg) translate(0, -54px) rotate(-{{ slice.mid_deg }}deg);">{{ "%.0f"|format(slice.share_pct) }}%</span>
+      {% endfor %}
+    </div>
     <ul class="pie-legend">
       {% for row in shares %}
       <li>
@@ -117,8 +124,11 @@
       <div class="value">{{ "%.0f"|format(seg.relative_size_pct) }}% of buyers</div>
       <div class="label">Units Sold This Round</div>
       <div class="value">{{ "{:,.0f}".format(seg.units_sold_this_round) }}</div>
-      <div class="label">Leading Track</div>
-      <div class="value">{{ seg.leading_track or "—" }}</div>
+      <div class="label">Leading Tier</div>
+      <div class="value">
+        {% if seg.leading_track in tier_icons %}<img src="{{ url_for('static', filename='img/tiers/' ~ tier_icons[seg.leading_track]) }}" alt="" style="width:18px;height:18px;object-fit:contain;vertical-align:-3px;margin-right:4px;">{% endif %}
+        {{ seg.leading_track or "—" }}
+      </div>
       <div class="label">Avg. Consumer Surplus</div>
       <div class="value">{{ "${:,.2f}".format(seg.avg_consumer_surplus) if seg.avg_consumer_surplus is not none else "No buyers" }}</div>
       <div class="label">Unsold Buyers</div>

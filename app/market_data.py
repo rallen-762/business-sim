@@ -42,16 +42,17 @@ Edge cases considered:
     locked spec's "no dollar amount shown, just a flag."
 """
 
-from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS
+from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS, TRACKS
 from app.extensions import db
 from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult
 
 # 8 muted, industrial-palette hues -- distinguishable enough for up to 8
 # firms in a pie legend, but no bright saturated defaults (the old set was
 # literally a charting library's stock blue/orange/green/red/purple/cyan/
-# yellow/pink). Single source of truth: both the pie itself
-# (build_pie_gradient) and its legend swatches (market_dashboard.html) use
-# this same tuple -- no second hardcoded copy to drift out of sync.
+# yellow/pink). Single source of truth: the pie itself (build_pie_gradient),
+# its on-chart percentage labels, and its legend swatches (all in
+# market_dashboard.html, via pie_slices() below) use this same tuple -- no
+# second hardcoded copy to drift out of sync.
 PIE_COLORS = (
     "#6FA8A0",  # accent-primary teal
     "#C9A227",  # muted gold
@@ -61,6 +62,22 @@ PIE_COLORS = (
     "#A85C7A",  # dusty rose
     "#4A5A5E",  # panel-alt slate
     "#D9A05B",  # warm tan
+)
+
+# Text color for a label drawn ON TOP of the matching PIE_COLORS entry
+# (same index) -- computed once from each color's relative luminance
+# (standard 0.2126R+0.7152G+0.0722B sRGB weighting) rather than guessed, so
+# every on-chart label stays readable against its own slice regardless of
+# whether that slice's color happens to be light or dark.
+PIE_TEXT_COLORS = (
+    "#14171A",  # on #6FA8A0 (bg-base -- dark text, that teal is fairly light)
+    "#14171A",  # on #C9A227
+    "#14171A",  # on #8FBF8F
+    "#F0F0EC",  # on #B5651D (text-primary -- light text, that rust is darker)
+    "#14171A",  # on #7A8FA6
+    "#F0F0EC",  # on #A85C7A
+    "#F0F0EC",  # on #4A5A5E
+    "#14171A",  # on #D9A05B
 )
 
 
@@ -231,6 +248,36 @@ def build_pie_gradient(shares):
     return "conic-gradient(" + ", ".join(stops) + ")"
 
 
+def pie_slices(shares):
+    """Takes the same [{"firm":.., "share_pct":..}, ...] as
+    build_pie_gradient/market_shares_for_round and returns one dict per
+    slice with everything the template needs to draw an on-chart
+    percentage label directly on top of the pie (not just in the separate
+    legend list) -- color/text_color (paired for contrast, see
+    PIE_TEXT_COLORS), and mid_deg: the angle, in degrees clockwise from 12
+    o'clock, at this slice's midpoint. A label is positioned at that angle
+    with a single CSS transform -- rotate(mid_deg) translate(0, -R)
+    rotate(-mid_deg) -- rotate to the angle, push outward along it, rotate
+    back so the text itself stays upright; no trig needed in the template.
+    Skips slices under min_pct (default 4%) entirely -- a label crammed
+    into a sliver a few px wide is illegible clutter, not information; that
+    firm is still fully represented in the external legend list."""
+    slices = []
+    cursor = 0.0
+    for i, row in enumerate(shares):
+        start = cursor
+        cursor += row["share_pct"]
+        if row["share_pct"] >= 4:
+            slices.append({
+                "firm": row.get("firm"),
+                "share_pct": row["share_pct"],
+                "color": PIE_COLORS[i % len(PIE_COLORS)],
+                "text_color": PIE_TEXT_COLORS[i % len(PIE_TEXT_COLORS)],
+                "mid_deg": (start + row["share_pct"] / 2) / 100 * 360,
+            })
+    return slices
+
+
 def segment_overview(world, round_number):
     """Returns a list of dicts, one per SEGMENTS entry (in SEGMENTS order):
     name, relative_size_pct (static -- a segment's fixed share of the total
@@ -272,7 +319,7 @@ def segment_overview(world, round_number):
     }
 
     for seg in SEGMENTS:
-        units_by_track = {"Budget": 0.0, "Standard": 0.0, "Premium": 0.0}
+        units_by_track = {t: 0.0 for t in TRACKS}
         total_units = 0.0
         for r in results:
             if not r.firm.is_registered:
@@ -286,7 +333,7 @@ def segment_overview(world, round_number):
         leading_track = None
         best = max(units_by_track.values()) if units_by_track else 0
         if best > 0:
-            for track in ("Budget", "Standard", "Premium"):  # deterministic tie-break order
+            for track in TRACKS:  # deterministic tie-break order
                 if units_by_track[track] == best:
                     leading_track = track
                     break

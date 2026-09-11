@@ -6,6 +6,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.engine import FirmDecision, FirmState, process_round, synthesize_non_submission_decision
 from app.constants import (
+    BOOTSTRAP_DEFAULT_PRICE,
+    BOOTSTRAP_DEFAULT_TRACK,
     SEGMENT_BUYER_COUNT,
     STARTING_CASH,
     STARTING_PLANT_CAPACITY,
@@ -13,6 +15,24 @@ from app.constants import (
     WTP_SPREAD_LOW,
     wtp_threshold_r,
 )
+
+
+def test_non_submission_falls_back_instead_of_crashing_on_an_unset_or_stale_tier():
+    # This runs inside the teacher's round-advance, so a KeyError here 500s
+    # the round for the WHOLE class mid-lesson. A stale tier name is a live
+    # possibility on a database that hasn't had init-db's Track -> Tier
+    # rename run against it yet.
+    for bad_track in (None, "Standard", "Budget", ""):
+        d = synthesize_non_submission_decision(
+            1, last_price=65, last_track=bad_track, cash=1_000_000, plant_capacity=45_000
+        )
+        assert d.track == BOOTSTRAP_DEFAULT_TRACK
+        assert d.production_qty > 0
+
+    d = synthesize_non_submission_decision(
+        1, last_price=None, last_track=None, cash=1_000_000, plant_capacity=45_000
+    )
+    assert d.price == BOOTSTRAP_DEFAULT_PRICE
 
 
 def make_state(firm_id, **overrides):
@@ -38,7 +58,7 @@ def make_decision(firm_id, **overrides):
         production_qty=45_000,
         ad_spend=0,
         rd_spend=0,
-        track="Standard",
+        track="Mid",
         celebrity_on=False,
         plant_investment=0,
     )
@@ -84,8 +104,8 @@ def test_higher_quality_firm_outsells_lower_quality_firm_in_quality_sensitive_se
     }
     decisions = {1: make_decision(1, production_qty=1_000_000), 2: make_decision(2, production_qty=1_000_000)}
     results = process_round(states, decisions)
-    # Basketball Players is the steepest quality-sensitive segment.
-    assert results[1].units_sold_by_segment["Basketball Players"] > results[2].units_sold_by_segment["Basketball Players"]
+    # Athletes is the steepest quality-sensitive segment.
+    assert results[1].units_sold_by_segment["Athletes"] > results[2].units_sold_by_segment["Athletes"]
     # Low Income is flat on quality (weight 1.0 at both Q1 and Q10) -- with no
     # capacity constraint binding, its raw per-segment share should be equal.
     assert math.isclose(
@@ -153,7 +173,7 @@ def test_production_cost_is_charged_even_for_unsold_units():
     states = {1: make_state(1, cash=1_000_000_000, plant_capacity=1_000_000)}
     decisions = {1: make_decision(1, production_qty=1_000_000)}
     results = process_round(states, decisions)
-    expected_cost = 1_000_000 * 50.0  # Standard track unit cost x full production qty
+    expected_cost = 1_000_000 * 50.0  # Mid track unit cost x full production qty
     assert math.isclose(results[1].production_cost, expected_cost)
     assert results[1].units_sold_total < 1_000_000  # confirms overproduction actually happened
 
@@ -318,25 +338,25 @@ def test_non_submission_carries_forward_price_and_track():
 
 
 def test_non_submission_forces_celebrity_off():
-    d = synthesize_non_submission_decision(1, last_price=50, last_track="Standard", cash=1_000_000, plant_capacity=45_000)
+    d = synthesize_non_submission_decision(1, last_price=50, last_track="Mid", cash=1_000_000, plant_capacity=45_000)
     assert d.celebrity_on is False
 
 
 def test_non_submission_puts_100_percent_cash_into_production_capped_by_capacity():
     # Cheap track, huge cash -> would want more units than capacity allows.
-    d = synthesize_non_submission_decision(1, last_price=50, last_track="Budget", cash=100_000_000, plant_capacity=45_000)
+    d = synthesize_non_submission_decision(1, last_price=50, last_track="Entry", cash=100_000_000, plant_capacity=45_000)
     assert d.production_qty == 45_000  # capped at capacity, not cash-derived overflow
 
 
 def test_non_submission_spends_zero_on_rd_ads_and_plant():
-    d = synthesize_non_submission_decision(1, last_price=50, last_track="Standard", cash=1_000_000, plant_capacity=45_000)
+    d = synthesize_non_submission_decision(1, last_price=50, last_track="Mid", cash=1_000_000, plant_capacity=45_000)
     assert d.ad_spend == 0
     assert d.rd_spend == 0
     assert d.plant_investment == 0
 
 
 def test_non_submission_with_negative_or_zero_cash_produces_nothing():
-    d = synthesize_non_submission_decision(1, last_price=50, last_track="Standard", cash=0, plant_capacity=45_000)
+    d = synthesize_non_submission_decision(1, last_price=50, last_track="Mid", cash=0, plant_capacity=45_000)
     assert d.production_qty == 0
 
 
@@ -349,7 +369,7 @@ def test_non_submission_with_negative_or_zero_cash_produces_nothing():
 # --------------------------------------------------------------------------- #
 
 def test_underpriced_monopoly_captures_the_full_segment_with_computed_surplus():
-    # Low Income/Standard center is $68; the low end of the +/-20% spread is
+    # Low Income/Mid center is $68; the low end of the +/-20% spread is
     # exactly $54.40 -- priced there, even the least-generous buyer affords
     # it, so this monopoly should capture the ENTIRE segment, 0% unsold.
     price = 68 * WTP_SPREAD_LOW
@@ -392,7 +412,7 @@ def test_only_the_cheaper_firm_reaches_the_least_willing_buyers():
     }
     results = process_round(states, decisions)
 
-    r_b = max(0.0, min(1.0, wtp_threshold_r("Low Income", "Standard", expensive_price)))
+    r_b = max(0.0, min(1.0, wtp_threshold_r("Low Income", "Mid", expensive_price)))
     expected_b_share = (1 - r_b) / 2  # only the interval above r_b, split 50/50 (identical otherwise)
     expected_b_units = expected_b_share * SEGMENT_BUYER_COUNT["Low Income"]
 

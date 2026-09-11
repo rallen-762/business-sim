@@ -4,7 +4,7 @@ FINAL PER-SEGMENT DEMAND FORMULA (post quality-merge, post elasticity lock)
 For a given Firm, in a given Segment:
 
     Firm's Demand Pull per Segment
-        =   Track Preference Multiplier (segment, track)
+        =   Tier Preference Multiplier (segment, tier)
           x Quality Weight (segment, quality level)
           x Price Multiplier (segment, price)
           x Advertising Multiplier (ad level)
@@ -25,7 +25,7 @@ Then, to get actual units sold to that segment:
 PRICE MULTIPLIER — detail
 ----------------------------------------------------------------------------
 
-STANDARD SEGMENTS (Low Income, NBA Fans, Basketball Players, Casual/Fashion):
+STANDARD SEGMENTS (Low Income, NBA Fans, Athletes, Casual/Fashion):
 
     % above base  =  (Price - 50) / 50
 
@@ -34,7 +34,7 @@ STANDARD SEGMENTS (Low Income, NBA Fans, Basketball Players, Casual/Fashion):
     Elasticity Coefficients (LOCKED):
         Low Income          1.4
         Casual/Fashion      1.0
-        Basketball Players  0.7
+        Athletes  0.7
         NBA Fans            0.3
 
 
