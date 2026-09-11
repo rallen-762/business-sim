@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ firm.team_name }} -- Dashboard{% endblock %}
 {% block nav %}
-  <a class="btn accent" style="padding:6px 14px;" href="{{ url_for('market.dashboard') }}">Market Dashboard</a>
+  <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('market.dashboard') }}">Market Dashboard</a>
   <a href="{{ url_for('auth.logout') }}">Log Out</a>
 {% endblock %}
 {% block content %}
+
+<div class="card" style="display:flex;align-items:center;gap:14px;">
+  {% if firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="" style="width:48px;height:48px;object-fit:contain;flex-shrink:0;">{% endif %}
+  <h2 style="margin:0;">{{ firm.team_name }}</h2>
+</div>
 
 {% if firm.bankrupt %}
 <div class="card">
@@ -168,12 +173,13 @@
       <div class="grid grid-3">
         <div class="stat"><div class="label">Cost Per Unit</div><div class="value" id="unit-cost-display">$0.00</div></div>
         <div class="stat"><div class="label">Total Production Cost</div><div class="value" id="production-cost-display">$0</div></div>
-        <div class="stat"><div class="label">Committed Spend / Cash</div><div class="value" id="committed-spend-display">$0 / $0</div></div>
+        <div class="stat"><div class="label">Committed Spend (R&amp;D + Ad + Plant + Celeb.)</div><div class="value" id="committed-spend-display">$0</div></div>
+        <div class="stat"><div class="label">Cash on Hand</div><div class="value">{{ "${:,.0f}".format(firm.cash) }}</div></div>
       </div>
       <p class="help-text" id="overspend-message" hidden style="color:var(--danger);font-weight:700;">Reduce spending to submit -- planned spend exceeds available cash.</p>
     </div>
 
-    <button class="btn accent full" style="margin-top:20px;" type="submit" id="submit-btn">Submit Decision</button>
+    <button class="btn full" style="margin-top:20px;" type="submit" id="submit-btn">Submit Decision</button>
     <p class="help-text" style="text-align:center;">You cannot edit this after submitting.</p>
   </form>
 </div>
@@ -212,8 +218,7 @@
     productionEl.value = production;
     document.getElementById('unit-cost-display').textContent = '$' + unitCost.toFixed(2);
     document.getElementById('production-cost-display').textContent = '$' + Math.round(productionCost).toLocaleString();
-    document.getElementById('committed-spend-display').textContent =
-      '$' + Math.round(committed).toLocaleString() + ' / $' + Math.round(FIRM_CASH).toLocaleString();
+    document.getElementById('committed-spend-display').textContent = '$' + Math.round(committed).toLocaleString();
 
     if (committed > FIRM_CASH) {
       overspendMsg.hidden = false;

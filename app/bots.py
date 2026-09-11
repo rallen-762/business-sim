@@ -74,21 +74,6 @@ BOT_PROFILES = {
     "random": "Random",
 }
 
-# One fixed avatar per profile (from the EXISTING app/static/img/avatars/
-# set -- see app/avatars.py -- rather than the newly downloaded Kenney
-# UI pack / factory tileset, since neither of those actually contains
-# character/robot icons; this set already does and is already this app's
-# established visual identity). Same icon every time a given profile is
-# assigned, so a teacher can recognize a strategy at a glance in the
-# Scouting Report without reading the BOT badge text -- deliberately NOT
-# drawn from the "building-*" files real student teams also pick from, so
-# a bot's avatar alone is already a visual tell, not just the badge.
-BOT_AVATARS = {
-    "underbidder": "chimney-basic.png",   # bare-bones, no-frills
-    "marketing": "windmill.png",          # visible, spinning, attention-grabbing
-    "elite": "water-tower.png",           # tall, dominant, premium
-    "random": "detail-tank.png",          # generic industrial grab-bag
-}
 
 _AD_LEVEL_9_THRESHOLD = next(threshold for level, threshold, _ in AD_LADDER if level == 9)  # 1,350,000
 _RD_LEVEL_10_THRESHOLD = QUALITY_LADDER[-1][1]  # 700,000

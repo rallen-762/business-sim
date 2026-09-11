@@ -1,31 +1,31 @@
 {% extends "base.html" %}
 {% block title %}{{ world.name }}{% endblock %}
 {% block nav %}
-  <a class="btn accent" style="padding:6px 14px;" href="{{ url_for('teacher.market', world_id=world.id) }}">Market Dashboard</a>
+  <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('teacher.market', world_id=world.id) }}">Market Dashboard</a>
   <a href="{{ url_for('teacher.team_lookup', world_id=world.id) }}">Team Lookup</a>
   <a href="{{ url_for('teacher.dashboard') }}">All Worlds</a>
   <a href="{{ url_for('teacher.logout') }}">Log Out</a>
 {% endblock %}
 {% block content %}
-<div class="card factory-header">
-  <h2>{{ world.name }}</h2>
+<div class="card">
+  <h2>Teacher Dashboard &mdash; {{ world.name }}</h2>
   <p>Game Code: <code>{{ world.game_code }}</code> &middot; Round {{ world.current_round }} of {{ rounds_per_world }} &middot; Status: <strong>{{ world.status }}</strong></p>
   <a class="btn secondary" href="{{ url_for('teacher.export_csv', world_id=world.id) }}">Export CSV</a>
   <form method="post" action="{{ url_for('teacher.delete_world', world_id=world.id) }}" style="display:inline;"
         onsubmit="return confirm('Delete this World and ALL its data? This cannot be undone.');">
-    <button class="btn" style="background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);" type="submit">Delete This World</button>
+    <button class="btn" type="submit">Delete This World</button>
   </form>
 
   {% if world.status == "collecting" %}
     <p>{{ submitted_count }} / {{ registered_count }} registered firms have submitted for this round.</p>
     <form method="post" action="{{ url_for('teacher.advance_round', world_id=world.id) }}">
-      <button class="btn accent" type="submit">Process Round {{ world.current_round }}</button>
+      <button class="btn" type="submit">Process Round {{ world.current_round }}</button>
     </form>
   {% elif world.status == "transition" %}
     <span class="banner">Round {{ world.current_round }} Processed</span>
     <p>Students are seeing their Round Transition Notice. When ready, open the next round.</p>
     <form method="post" action="{{ url_for('teacher.advance_round', world_id=world.id) }}">
-      <button class="btn accent" type="submit">Open Round {{ world.current_round + 1 }}</button>
+      <button class="btn" type="submit">Open Round {{ world.current_round + 1 }}</button>
     </form>
   {% else %}
     <span class="banner">Game Complete</span>
@@ -67,31 +67,32 @@
           {% elif is_bankrupt_this_round %}<span class="badge bankrupt">Bankrupt</span>
           {% else %}<span class="badge ok">Active</span>{% endif %}
         </td>
-        <td>
-          {{ firm.team_name or "(unclaimed)" }}
-          {% if firm.bot_profile %}<span class="badge bot">BOT</span>{% endif %}
+        <td style="min-width:170px;">
+          <div>{{ firm.team_name or "(unclaimed)" }}{% if firm.bot_profile %} <span class="badge bot">BOT</span>{% endif %}</div>
           {% if firm.bot_profile %}
-          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="margin-top:4px;">
-            <select name="profile" style="width:auto;display:inline-block;padding:3px 6px;font-size:0.78rem;">
-              {% for key, label in bot_profiles.items() %}
-              <option value="{{ key }}" {% if key == firm.bot_profile %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            <button class="btn secondary" style="padding:4px 8px;font-size:0.75rem;" type="submit">Reassign</button>
-          </form>
-          <form method="post" action="{{ url_for('teacher.remove_bot', world_id=world.id, firm_id=firm.id) }}" style="display:inline;"
-                onsubmit="return confirm('Remove this bot? The slot will become unclaimed again (its cash/history stays intact for whoever claims it next).');">
-            <button class="btn" style="padding:4px 8px;font-size:0.75rem;background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);" type="submit">Remove Bot</button>
-          </form>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;">
+            <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="display:flex;gap:6px;">
+              <select name="profile" style="width:auto;padding:3px 6px;font-size:0.78rem;">
+                {% for key, label in bot_profiles.items() %}
+                <option value="{{ key }}" {% if key == firm.bot_profile %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn secondary" style="padding:4px 8px;font-size:0.75rem;" type="submit">Reassign</button>
+            </form>
+            <form method="post" action="{{ url_for('teacher.remove_bot', world_id=world.id, firm_id=firm.id) }}"
+                  onsubmit="return confirm('Remove this bot? The slot will become unclaimed again (its cash/history stays intact for whoever claims it next).');">
+              <button class="btn" style="padding:4px 8px;font-size:0.75rem;" type="submit">Remove Bot</button>
+            </form>
+          </div>
           {% elif not firm.is_registered %}
-          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="margin-top:4px;">
-            <select name="profile" style="width:auto;display:inline-block;padding:3px 6px;font-size:0.78rem;">
+          <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="display:flex;gap:6px;margin-top:6px;">
+            <select name="profile" style="width:auto;padding:3px 6px;font-size:0.78rem;">
               <option value="">Add Bot...</option>
               {% for key, label in bot_profiles.items() %}
               <option value="{{ key }}">{{ label }}</option>
               {% endfor %}
             </select>
-            <button class="btn accent" style="padding:4px 8px;font-size:0.75rem;" type="submit">Add</button>
+            <button class="btn" style="padding:4px 8px;font-size:0.75rem;" type="submit">Add</button>
           </form>
           {% endif %}
         </td>

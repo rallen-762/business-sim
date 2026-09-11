@@ -9,6 +9,7 @@ from flask import Blueprint, render_template, request
 
 from app.auth import current_world, firm_login_required
 from app.market_data import (
+    PIE_COLORS,
     build_pie_gradient,
     competitive_intel_rows,
     cumulative_standings,
@@ -28,7 +29,6 @@ def dashboard():
     latest_round = latest_processed_round(world)
 
     standings = cumulative_standings(world)
-    podium = standings[:3]
 
     selected_round = request.args.get("round", type=int)
     if latest_round is not None:
@@ -42,9 +42,9 @@ def dashboard():
 
     return render_template(
         "market_dashboard.html", world=world, latest_round=latest_round,
-        standings=standings, podium=podium,
+        standings=standings,
         selected_round=selected_round, totals_for_round=totals_for_round,
-        shares=shares, pie_gradient=pie_gradient, segments=segments,
+        shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS, segments=segments,
     )
 
 

@@ -156,6 +156,46 @@ def test_cumulative_standings_sums_across_multiple_rounds(app):
     assert standings[0]["cum_units"] == 110
 
 
+def test_cumulative_standings_bar_pct_scales_to_the_biggest_firm(app):
+    world = make_world()
+    nike = make_firm(world, 1, "Nike")
+    adidas = make_firm(world, 2, "Adidas")
+    make_decision(nike, 1)
+    make_result(nike, 1, profit=1000)
+    make_decision(adidas, 1)
+    make_result(adidas, 1, profit=4000)
+
+    standings = cumulative_standings(world)
+    adidas_row = next(r for r in standings if r["firm"].team_name == "Adidas")
+    nike_row = next(r for r in standings if r["firm"].team_name == "Nike")
+    assert adidas_row["bar_pct"] == 100.0  # the biggest |profit| always fills the bar
+    assert nike_row["bar_pct"] == 25.0
+
+
+def test_cumulative_standings_bar_pct_uses_magnitude_for_a_losing_firm(app):
+    world = make_world()
+    nike = make_firm(world, 1, "Nike")
+    adidas = make_firm(world, 2, "Adidas")
+    make_decision(nike, 1)
+    make_result(nike, 1, profit=-2000)
+    make_decision(adidas, 1)
+    make_result(adidas, 1, profit=1000)
+
+    standings = cumulative_standings(world)
+    nike_row = next(r for r in standings if r["firm"].team_name == "Nike")
+    assert nike_row["bar_pct"] == 100.0  # -2000 has the largest MAGNITUDE, even though it's a loss
+
+
+def test_cumulative_standings_bar_pct_is_zero_when_everyone_is_at_zero(app):
+    world = make_world()
+    nike = make_firm(world, 1, "Nike")
+    make_decision(nike, 1)
+    make_result(nike, 1, profit=0)
+
+    standings = cumulative_standings(world)
+    assert standings[0]["bar_pct"] == 0  # no divide-by-zero
+
+
 def test_cumulative_standings_price_is_latest_snapshot_not_summed(app):
     world = make_world()
     nike = make_firm(world, 1, "Nike")
@@ -260,11 +300,11 @@ def test_pie_gradient_has_one_stop_per_share():
 
 def test_pie_gradient_handles_all_zero_shares():
     gradient = build_pie_gradient([{"share_pct": 0}, {"share_pct": 0}])
-    assert gradient == "conic-gradient(#d8dce3 0% 100%)"
+    assert gradient == "conic-gradient(#4A5A5E 0% 100%)"
 
 
 def test_pie_gradient_handles_empty_list():
-    assert build_pie_gradient([]) == "conic-gradient(#d8dce3 0% 100%)"
+    assert build_pie_gradient([]) == "conic-gradient(#4A5A5E 0% 100%)"
 
 
 # --------------------------------------------------------------------------- #

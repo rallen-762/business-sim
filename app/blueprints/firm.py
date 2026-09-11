@@ -43,8 +43,8 @@ from app.constants import (
     ROUNDS_PER_WORLD,
     TRACKS,
     ad_spend_presets,
+    quality_descriptor,
     quality_level_from_cumulative_rd,
-    quality_track_label,
     rd_spend_presets,
     track_unit_cost,
 )
@@ -104,7 +104,11 @@ def dashboard():
         ad_presets=ad_spend_presets(firm.cumulative_ad_spend),
         celebrity_cost=CELEBRITY_COST_PER_ROUND,
         quality_level=quality_level,
-        quality_label=quality_track_label(quality_level, firm.last_track),
+        # Descriptor ONLY (e.g. "Elite Quality"), not quality_track_label's
+        # combined "Elite Quality Standard" -- the Current Track stat right
+        # next to this one already shows the track name; showing it twice
+        # was confusing, not informative.
+        quality_label=f"{quality_descriptor(quality_level)} Quality",
         projected_loan_interest=projected_loan_interest,
     )
 

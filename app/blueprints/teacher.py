@@ -38,7 +38,8 @@ from flask import Blueprint, Response, flash, redirect, render_template, request
 from werkzeug.security import generate_password_hash
 
 from app.auth import log_out, teacher_login_required
-from app.bots import BOT_AVATARS, BOT_PROFILES
+from app.avatars import AVATAR_CHOICES
+from app.bots import BOT_PROFILES
 from app.bots import decide as bot_decide
 from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
@@ -51,6 +52,7 @@ from app.csv_export import build_export_rows, export_filename, rows_to_csv_strin
 from app.engine import FirmDecision, FirmState, process_round, synthesize_non_submission_decision
 from app.extensions import db
 from app.market_data import (
+    PIE_COLORS,
     build_pie_gradient,
     competitive_intel_rows,
     consumer_surplus_by_segment,
@@ -179,7 +181,6 @@ def market(world_id):
     latest_round = latest_processed_round(world)
 
     standings = cumulative_standings(world)
-    podium = standings[:3]
 
     selected_round = request.args.get("round", type=int)
     if latest_round is not None:
@@ -193,9 +194,9 @@ def market(world_id):
 
     return render_template(
         "market_dashboard.html", world=world, latest_round=latest_round,
-        standings=standings, podium=podium,
+        standings=standings,
         selected_round=selected_round, totals_for_round=totals_for_round,
-        shares=shares, pie_gradient=pie_gradient, segments=segments,
+        shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS, segments=segments,
     )
 
 
@@ -234,14 +235,21 @@ def assign_bot(world_id, firm_id):
 
     is_new_assignment = firm.bot_profile is None
     firm.bot_profile = profile
-    # Team name and avatar always reflect the CURRENT profile -- refreshed
-    # on a reassignment too, not just first assignment, so neither goes
-    # stale (e.g. still showing "Underbidder"'s name/icon after being
-    # switched to Elite). Slot number keeps the name unique within the
-    # world even if the same profile is assigned to multiple slots.
+    # Team name always reflects the CURRENT profile -- refreshed on a
+    # reassignment too, not just first assignment, so it never goes stale
+    # (e.g. still showing "Underbidder" after being switched to Elite).
+    # Slot number keeps the name unique within the world even if the same
+    # profile is assigned to multiple slots.
     firm.team_name = f"Bot #{firm.slot_number} ({BOT_PROFILES[profile]})"
-    firm.avatar = BOT_AVATARS[profile]
     if is_new_assignment:
+        # Random avatar from the same pool real teams pick from (not a
+        # fixed one per profile) -- confirmed with the user: each bot
+        # instance gets its own random icon so multiple bots of the same
+        # profile still look distinct in the Market Dashboard standings.
+        # Rolled once at first assignment and left alone on reassignment
+        # (like a human team's avatar, it's the slot's look, not the
+        # strategy's).
+        firm.avatar = random.choice(AVATAR_CHOICES)
         # Placeholder password so is_registered is True and this slot
         # participates in process_round like any other firm -- never
         # actually used for anything (bots don't log in), just needs to be

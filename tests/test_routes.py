@@ -97,6 +97,14 @@ def test_created_world_starts_in_collecting_status_round_1(app, client):
         assert world.current_round == 1
 
 
+def test_world_page_title_shows_teacher_dashboard_and_world_name(client):
+    world_id = create_world(client, name="Period 3")
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    body = resp.data.decode()
+    assert "Teacher Dashboard" in body
+    assert "Period 3" in body
+
+
 # --------------------------------------------------------------------------- #
 # Student registration / login
 # --------------------------------------------------------------------------- #
@@ -225,6 +233,38 @@ def test_dashboard_shows_rd_and_ad_presets(client):
     assert "$50,000" in body
     assert "reach Ad Level 2" in body
     assert "$125,000" in body
+
+
+def test_dashboard_shows_team_identity_header(client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike", avatar="building-a.png")
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    assert "Nike" in body
+    assert 'img/avatars/building-a.png' in body
+
+
+def test_dashboard_quality_level_does_not_repeat_the_track_name(client):
+    # Regression: Quality Level used to show "1 -- Low Quality Standard"
+    # right next to a separate "Current Track: Standard" stat -- the track
+    # name appeared twice. Quality Level should only ever show the quality
+    # descriptor, never a track name.
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    assert "Low Quality" in body
+    assert "Low Quality Standard" not in body
+
+
+def test_dashboard_shows_committed_spend_and_cash_as_separate_stats(client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    resp = client.get("/firm")
+    body = resp.data.decode()
+    assert "Committed Spend" in body
+    assert "Cash on Hand" in body
+    assert "$1,000,000" in body  # starting cash, rendered server-side now
 
 
 def test_dashboard_shows_projected_loan_interest_for_existing_balance(app, client):
@@ -512,7 +552,7 @@ def test_market_dashboard_shows_latest_round_after_processing(client):
     assert b"Nike" in resp.data
 
 
-def test_market_dashboard_shows_podium_ranking_pie_and_segments(client):
+def test_market_dashboard_shows_standings_ranking_pie_and_segments(client):
     world_id = create_world(client, slots=1)
     register_firm(client, world_id, 1, "Nike")
     submit_decision(client)
@@ -525,12 +565,56 @@ def test_market_dashboard_shows_podium_ranking_pie_and_segments(client):
     client.post(f"/login/{world_id}/1", data={"password": "secret123"})
     resp = client.get("/market")
     body = resp.data.decode()
-    assert 'class="podium"' in body
+    assert 'class="standings-bars"' in body
+    assert "standings-bar-fill" in body
     assert "Round Totals" in body
     assert "Market Share" in body
     assert "Customer Segments" in body
     assert "Low Income" in body and "Casual/Fashion" in body
     assert "View Competitive Intelligence Report" in body
+
+
+def test_market_dashboard_pie_legend_uses_the_shared_theme_palette(client):
+    # Regression: the legend swatches used to hardcode their OWN copy of a
+    # bright charting-library-default color array, separate from (and
+    # different than) market_data.PIE_COLORS -- clashing with the muted
+    # theme and able to drift out of sync with the pie itself.
+    from app.market_data import PIE_COLORS
+
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    resp = client.get(f"/teacher/worlds/{world_id}/market")
+    body = resp.data.decode()
+    assert PIE_COLORS[0] in body
+    assert "#2159d1" not in body  # the old hardcoded default-blue swatch
+
+
+def test_market_dashboard_standings_row_stays_aligned_without_an_avatar(app, client):
+    # Regression: the avatar <img> used to be entirely OMITTED for a firm
+    # with no avatar set (e.g. a legacy bot from before bot avatars
+    # existed), which shifted every later CSS Grid column in that row left
+    # by one track -- name/bar/value all rendered in the wrong-sized
+    # column. The avatar slot must always be present as an element, empty
+    # or not.
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.avatar = None
+        db.session.commit()
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    resp = client.get(f"/teacher/worlds/{world_id}/market")
+    body = resp.data.decode()
+    assert body.count('class="standings-avatar"') == body.count('class="standings-row"')
+    assert "Nike" in body
 
 
 def test_market_dashboard_market_link_reaches_intel_report(client):

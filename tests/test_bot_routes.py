@@ -113,8 +113,8 @@ def test_reassign_bot_updates_profile_and_team_name(app, client):
         assert "Underbidder" not in firm.team_name
 
 
-def test_assign_bot_sets_the_fixed_avatar_for_that_profile(app, client):
-    from app.bots import BOT_AVATARS
+def test_assign_bot_gives_it_a_random_avatar_from_the_real_pool(app, client):
+    from app.avatars import AVATAR_CHOICES
 
     world_id = create_world(client)
     firm_id = first_unclaimed_firm_id(app, world_id)
@@ -122,14 +122,22 @@ def test_assign_bot_sets_the_fixed_avatar_for_that_profile(app, client):
 
     with app.app_context():
         firm = db.session.get(Firm, firm_id)
-        assert firm.avatar == BOT_AVATARS["underbidder"]
+        assert firm.avatar in AVATAR_CHOICES
+
+
+def test_reassigning_a_bot_keeps_its_original_avatar(app, client):
+    world_id = create_world(client)
+    firm_id = first_unclaimed_firm_id(app, world_id)
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot", data={"profile": "underbidder"})
+
+    with app.app_context():
+        original_avatar = db.session.get(Firm, firm_id).avatar
 
     client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot", data={"profile": "marketing"})
 
     with app.app_context():
         firm = db.session.get(Firm, firm_id)
-        assert firm.avatar == BOT_AVATARS["marketing"]
-        assert BOT_AVATARS["underbidder"] != BOT_AVATARS["marketing"]
+        assert firm.avatar == original_avatar  # rolled once, not re-rolled on reassignment
 
 
 def test_remove_bot_reverts_to_unclaimed_but_keeps_history(app, client):

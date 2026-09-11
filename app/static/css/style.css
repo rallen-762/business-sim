@@ -87,7 +87,8 @@ h1, h2, h3,
 .stat .value,
 .btn,
 .banner,
-.podium-spot .rank-badge {
+.standings-rank,
+.standings-value {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -136,15 +137,11 @@ h3 { font-size: 0.95rem; }
 }
 .card h2, .card h3 { margin-top: 0; }
 
-/* Sparing texture accent -- ONE key spot (the World Dashboard's header
-   card), not every panel, per the design brief ("so it doesn't get
-   busy"). A dark scrim keeps title text readable over the busy tileset
-   crop underneath it. */
-.card.factory-header {
-  background-image: linear-gradient(rgba(20, 23, 26, 0.82), rgba(20, 23, 26, 0.82)), url("/static/img/theme/factory-header.png");
-  background-size: auto 100%;
-  background-repeat: repeat-x;
-}
+/* The factory-tileset texture accent on the World Dashboard's header card
+   (previously .card.factory-header) was removed -- it read as broken/
+   misplaced content (stray grey bars in empty card space) rather than a
+   subtle accent. app/static/img/theme/factory-header.png is left in place
+   unused in case a better-fitted crop/treatment replaces it later. */
 
 .grid {
   display: grid;
@@ -290,18 +287,54 @@ tr.bankrupt { opacity: 0.55; }
 }
 .avatar-thumb { width: 40px; height: 40px; object-fit: contain; }
 
-/* --- Market Dashboard: podium --- */
-.podium { display: flex; align-items: flex-end; justify-content: center; gap: 24px; margin: 10px 0 24px; flex-wrap: wrap; }
-.podium-spot { text-align: center; }
-.podium-spot img { display: block; margin: 0 auto 8px; object-fit: contain; }
-.podium-spot .rank-badge { font-family: var(--font-display); color: var(--text-secondary); font-size: 0.75rem; }
-.podium-spot .name { font-weight: 700; margin-top: 4px; }
-.podium-spot.rank-1 { order: 2; }
-.podium-spot.rank-1 img { width: 120px; height: 120px; }
-.podium-spot.rank-2 { order: 1; }
-.podium-spot.rank-2 img { width: 90px; height: 90px; }
-.podium-spot.rank-3 { order: 3; }
-.podium-spot.rank-3 img { width: 68px; height: 68px; }
+/* --- Market Dashboard: dynamic standings bar chart (replaces the old
+   static top-3-only podium). Every registered firm, ranked; each bar
+   grows in on page load to a width proportional to its share of the
+   field's single largest |cumulative profit| (bar_pct, computed once in
+   market_data.cumulative_standings so both the teacher and firm routes
+   agree on it). A losing firm still gets a visible red bar sized by the
+   MAGNITUDE of its loss -- not hidden at zero width just for being
+   negative -- so a big loser is exactly as visually prominent as a big
+   winner, just in red instead of green. Rows stagger in (80ms apart, via
+   the inline --bar-pct/animation-delay set per row in the template) so
+   the whole board reads as one animated reveal rather than everything
+   snapping in at once. */
+.standings-bars { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 24px; }
+.standings-row {
+  display: grid;
+  grid-template-columns: 2.4rem 36px minmax(170px, 1fr) minmax(90px, 3fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.standings-rank { font-size: 0.8rem; color: var(--text-secondary); }
+/* Always a grid cell (even with no avatar image inside) -- an `{% if %}`
+   that omitted the element entirely for an avatar-less firm shifted every
+   later column left by one grid track, misaligning the whole row. */
+.standings-avatar { width: 36px; height: 36px; }
+.standings-avatar img { width: 100%; height: 100%; object-fit: contain; }
+.standings-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.standings-bar-track {
+  background: var(--bg-base);
+  border: 2px solid var(--panel-alt);
+  height: 22px;
+  position: relative;
+  overflow: hidden;
+}
+.standings-bar-fill {
+  height: 100%;
+  width: 0;
+  animation-name: standings-bar-grow;
+  animation-duration: 700ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+.standings-bar-fill.positive { background: var(--accent-positive); }
+.standings-bar-fill.negative { background: var(--accent-danger); }
+@keyframes standings-bar-grow {
+  from { width: 0; }
+  to { width: var(--bar-pct); }
+}
+.standings-value { font-size: 0.8rem; text-align: right; min-width: 90px; }
 
 /* --- Market Dashboard: pie chart + legend --- */
 .pie-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }

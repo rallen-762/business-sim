@@ -3,7 +3,8 @@
 {% block nav %}<a href="{{ url_for('teacher.logout') }}">Log Out</a>{% endblock %}
 {% block content %}
 <div class="card">
-  <h2>Create a World</h2>
+  <h2>Teacher Dashboard</h2>
+  <h3>Create a World</h3>
   <form method="post" action="{{ url_for('teacher.create_world') }}">
     <div class="grid grid-2">
       <div>
@@ -15,12 +16,12 @@
         <input type="number" id="planned_firm_slots" name="planned_firm_slots" min="1" max="8" value="7" required>
       </div>
     </div>
-    <button class="btn accent" style="margin-top:18px;" type="submit">Create World</button>
+    <button class="btn" style="margin-top:18px;" type="submit">Create World</button>
   </form>
 </div>
 
 <div class="card">
-  <h2>Your Worlds</h2>
+  <h3>Your Worlds</h3>
   {% if not worlds %}
     <p class="help-text">No worlds yet -- create one above.</p>
   {% else %}

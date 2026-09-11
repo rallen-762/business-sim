@@ -46,9 +46,21 @@ from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS
 from app.extensions import db
 from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult
 
+# 8 muted, industrial-palette hues -- distinguishable enough for up to 8
+# firms in a pie legend, but no bright saturated defaults (the old set was
+# literally a charting library's stock blue/orange/green/red/purple/cyan/
+# yellow/pink). Single source of truth: both the pie itself
+# (build_pie_gradient) and its legend swatches (market_dashboard.html) use
+# this same tuple -- no second hardcoded copy to drift out of sync.
 PIE_COLORS = (
-    "#2159d1", "#ef8a1f", "#1c8a4b", "#c0392b",
-    "#8e44ad", "#16a2b8", "#d4a017", "#e91e8c",
+    "#6FA8A0",  # accent-primary teal
+    "#C9A227",  # muted gold
+    "#8FBF8F",  # sage green
+    "#B5651D",  # rust orange
+    "#7A8FA6",  # steel blue-grey
+    "#A85C7A",  # dusty rose
+    "#4A5A5E",  # panel-alt slate
+    "#D9A05B",  # warm tan
 )
 
 
@@ -82,7 +94,10 @@ def cumulative_standings(world):
     """Returns a list of dicts, one per REGISTERED firm that has played at
     least one round, sorted by cumulative profit descending (ties broken
     by slot_number). Each dict: firm, latest_price, cum_units, cum_revenue,
-    cum_profit. Empty list if no round has been processed yet."""
+    cum_profit, bar_pct (0-100, this firm's |cum_profit| as a percentage of
+    the largest |cum_profit| across all firms -- for the Market Dashboard's
+    animated standings bar chart; 0 for every firm if the whole field is at
+    exactly $0). Empty list if no round has been processed yet."""
     latest_round = latest_processed_round(world)
     if latest_round is None:
         return []
@@ -133,6 +148,11 @@ def cumulative_standings(world):
         })
 
     rows.sort(key=lambda row: (-row["cum_profit"], row["firm"].slot_number))
+
+    max_abs_profit = max((abs(row["cum_profit"]) for row in rows), default=0)
+    for row in rows:
+        row["bar_pct"] = (abs(row["cum_profit"]) / max_abs_profit * 100) if max_abs_profit > 0 else 0
+
     return rows
 
 
@@ -196,10 +216,10 @@ def build_pie_gradient(shares):
     """Takes [{"share_pct": float, ...}] (as produced by
     market_shares_for_round) and returns a CSS conic-gradient() string,
     cycling PIE_COLORS if there are more firms than colors. Returns a flat
-    neutral-gray gradient if every share is 0 (nobody sold anything)."""
+    neutral gradient if every share is 0 (nobody sold anything)."""
     total_pct = sum(row["share_pct"] for row in shares)
     if not shares or total_pct <= 0:
-        return "conic-gradient(#d8dce3 0% 100%)"
+        return "conic-gradient(#4A5A5E 0% 100%)"  # --panel-alt -- was a light-theme grey, unreadable on the dark theme
 
     stops = []
     cursor = 0.0
