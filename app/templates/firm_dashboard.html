@@ -80,6 +80,31 @@
     })();
   </script>
 
+  {% if affordability %}
+  {# Price is the biggest lever in the game but the buyer ceilings are
+     hidden, so overpricing used to arrive as an unexplained cliff. This
+     shows a team how far their OWN price reached, per segment. #}
+  <h3 style="margin-top:20px;">Who Could Afford You in Round {{ world.current_round }}?</h3>
+  <p class="help-text">At {{ "${:,.2f}".format(last_result_price) }} on the {{ last_result_track }} tier. Buyers whose
+    budget was below your price couldn't buy from you at any quality &mdash; raising price shrinks this reach,
+    lowering it grows the reach but cuts your margin.</p>
+  <div style="overflow-x:auto;">
+  <table class="compact">
+    <thead><tr><th>Segment</th><th>Could Afford You</th><th>Priced Out</th><th>Units You Sold</th></tr></thead>
+    <tbody>
+      {% for row in affordability %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td class="{{ 'value positive' if row.reachable_pct >= 50 else '' }}">{{ "%.0f"|format(row.reachable_pct) }}%</td>
+        <td class="{{ 'value negative' if row.priced_out_pct >= 50 else '' }}">{{ "%.0f"|format(row.priced_out_pct) }}%</td>
+        <td>{{ "{:,.0f}".format(row.units_sold) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
   <h3 style="margin-top:20px;">Cumulative Totals (Through Round {{ world.current_round }})</h3>
   <div class="grid grid-3">
     <div class="stat"><div class="label">Cumulative Revenue</div><div class="value">{{ "${:,.0f}".format(cumulative.cum_revenue or 0) }}</div></div>
@@ -167,8 +192,15 @@
         <label for="plant_investment">Plant Investment</label>
         <select id="plant_investment" name="plant_investment" onchange="recalc()" {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
           <option value="0">None ($0)</option>
-          <option value="100000">Expand +15,000 capacity ($100,000)</option>
+          <option value="{{ plant_investment_cost|round|int }}">Expand +{{ "{:,}".format(plant_capacity_gain) }} capacity &mdash; {{ "${:,.0f}".format(plant_investment_cost) }} now, then {{ "${:,.0f}".format(capacity_block_fixed_cost) }}/round</option>
         </select>
+        {# The recurring cost used to be invisible here: the option read just
+           "($100,000)", so a team had no way to know each block also adds a
+           permanent fixed cost. Simulation showed expanding could turn a
+           winning position into bankruptcy purely through that ongoing
+           charge, which read as a gotcha rather than a lesson. #}
+        <p class="help-text">Extra capacity only pays off if you can <em>sell</em> the extra units &mdash;
+          the {{ "${:,.0f}".format(capacity_block_fixed_cost) }}/round is charged every round from now on, sold or not.</p>
         {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>{% endif %}
       </div>
       <div>

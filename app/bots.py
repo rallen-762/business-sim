@@ -151,7 +151,20 @@ def decide(
 
 UNDERBIDDER_START_PRICE = 65.00  # "a modest low price" -- below the $80 platform reference
 UNDERBIDDER_PRICE_STEP = 0.05    # "lower/raise ... slightly" -- 5% per round
-UNDERBIDDER_PRICE_FLOOR = 15.00  # keeps price sane/positive under repeated cuts
+
+# A cost leader competes on price, so it sells the CHEAPEST tier to build --
+# it used to undercut everyone while paying Mid-tier unit costs ($50 vs
+# $37.50), i.e. it took the low-price downside without the low-cost upside.
+UNDERBIDDER_TRACK = "Entry"
+
+# Floor is a real margin over its own unit cost, not a magic number. The old
+# flat $15 floor sat BELOW the unit cost it was paying, and since the rule
+# cuts price every profitable round, the profile ratcheted itself down toward
+# selling at a loss -- which is why it finished last-but-one in every single
+# balance trial. This keeps "always undercut" intact while making it
+# undercut from a position that can actually make money.
+UNDERBIDDER_MIN_MARGIN = 1.35
+UNDERBIDDER_PRICE_FLOOR = round(track_unit_cost(UNDERBIDDER_TRACK) * UNDERBIDDER_MIN_MARGIN, 2)
 
 
 def _decide_underbidder(cash, capacity, last_price, last_profit, rng):
@@ -163,11 +176,11 @@ def _decide_underbidder(cash, capacity, last_price, last_profit, rng):
         base_price = last_price * (1 + UNDERBIDDER_PRICE_STEP)
 
     price = max(UNDERBIDDER_PRICE_FLOOR, round(_noise(rng, base_price), 2))
-    production_qty = _affordable_production_qty(cash, BOOTSTRAP_DEFAULT_TRACK, capacity)
+    production_qty = _affordable_production_qty(cash, UNDERBIDDER_TRACK, capacity)
 
     return dict(
         price=price, production_qty=production_qty, ad_spend=0.0, rd_spend=0.0,
-        track=BOOTSTRAP_DEFAULT_TRACK, celebrity_on=False, plant_investment=0,
+        track=UNDERBIDDER_TRACK, celebrity_on=False, plant_investment=0,
     )
 
 

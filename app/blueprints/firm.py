@@ -37,10 +37,14 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, firm_login_required
 from app.avatars import TIER_ICONS
+from app.market_data import affordability_breakdown
 from app.constants import (
+    CAPACITY_BLOCK_FIXED_COST,
     CELEBRITY_COST_PER_ROUND,
     LOAN_INTEREST_RATE,
     LOAN_REPAYMENT_PRINCIPAL,
+    PLANT_INVESTMENT_CAPACITY_GAIN,
+    PLANT_INVESTMENT_COST,
     ROUNDS_PER_WORLD,
     TRACKS,
     ad_spend_presets,
@@ -69,6 +73,9 @@ def dashboard():
     # current_round - 1. (Caught via a real HTTP smoke test: this used to
     # look up round 0 and silently show "waiting" instead of the results.)
     last_result = RoundResult.query.filter_by(
+        firm_id=firm.id, round_number=world.current_round
+    ).first()
+    last_decision = RoundDecision.query.filter_by(
         firm_id=firm.id, round_number=world.current_round
     ).first()
 
@@ -111,6 +118,12 @@ def dashboard():
         # was confusing, not informative.
         quality_label=f"{quality_descriptor(quality_level)} Quality",
         projected_loan_interest=projected_loan_interest,
+        plant_investment_cost=PLANT_INVESTMENT_COST,
+        plant_capacity_gain=PLANT_INVESTMENT_CAPACITY_GAIN,
+        capacity_block_fixed_cost=CAPACITY_BLOCK_FIXED_COST,
+        affordability=affordability_breakdown(last_decision, last_result),
+        last_result_price=last_decision.price if last_decision else None,
+        last_result_track=last_decision.track if last_decision else None,
     )
 
 

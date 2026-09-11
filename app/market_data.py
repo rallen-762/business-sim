@@ -42,7 +42,13 @@ Edge cases considered:
     locked spec's "no dollar amount shown, just a flag."
 """
 
-from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS, TRACKS
+from app.constants import (
+    SEGMENT_BUYER_COUNT,
+    SEGMENTS,
+    TRACKS,
+    WEALTHY_CEILING_PRICE,
+    wtp_threshold_r,
+)
 from app.extensions import db
 from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult
 
@@ -79,6 +85,47 @@ PIE_TEXT_COLORS = (
     "#F0F0EC",  # on #4A5A5E
     "#14171A",  # on #D9A05B
 )
+
+
+def affordability_breakdown(decision, result):
+    """Per-segment "could these buyers afford you?" feedback for one firm's
+    own round, for the student's Round Results screen.
+
+    Why this exists: price is far and away the biggest lever in this game --
+    simulation put a $15 pricing error at roughly a $12M swing over 10
+    rounds -- but the willingness-to-pay ceilings are hidden, so the penalty
+    for overpricing arrives as a cliff with no warning and no explanation. A
+    team could see "you sold 3,955 units" and have no idea WHY. This turns
+    that into "you were priced above 71% of this segment's buyers", which is
+    the actual lesson.
+
+    Deliberately derived, not stored: priced_out_pct is recomputed from the
+    firm's OWN submitted price/tier via constants.wtp_threshold_r, so it
+    needs no new column and can never disagree with what the engine did.
+    Returns [] when the firm has no decision/result for the round.
+
+    Note this is feedback on a team's own decision, not a peek at the
+    ceiling table itself, and never mentions any rival."""
+    if decision is None or result is None:
+        return []
+
+    units_by_segment = result.units_sold_by_segment or {}
+    rows = []
+    for seg in SEGMENTS:
+        # The Wealthy hard cutoff is an outright exclusion, not a ceiling --
+        # mirror engine.py Step 4b rather than letting the curve speak for it.
+        if seg == "Wealthy" and decision.price > WEALTHY_CEILING_PRICE:
+            priced_out_pct = 100.0
+        else:
+            r = wtp_threshold_r(seg, decision.track, decision.price)
+            priced_out_pct = max(0.0, min(1.0, r)) * 100
+        rows.append({
+            "name": seg,
+            "units_sold": units_by_segment.get(seg, 0),
+            "priced_out_pct": priced_out_pct,
+            "reachable_pct": 100 - priced_out_pct,
+        })
+    return rows
 
 
 def latest_processed_round(world):

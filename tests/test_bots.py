@@ -16,6 +16,7 @@ from app.bots import (
     BOT_PROFILES,
     UNDERBIDDER_PRICE_FLOOR,
     UNDERBIDDER_START_PRICE,
+    UNDERBIDDER_TRACK,
     _AD_LEVEL_9_THRESHOLD,
     decide,
 )
@@ -75,7 +76,9 @@ def test_unknown_profile_raises():
 def test_underbidder_round_one_uses_start_price():
     d = _decide("underbidder", last_price=None, last_profit=None)
     assert d.price == UNDERBIDDER_START_PRICE
-    assert d.track == BOOTSTRAP_DEFAULT_TRACK
+    # A cost leader sells the cheapest tier to build -- it used to undercut
+    # everyone while paying Mid-tier unit costs.
+    assert d.track == UNDERBIDDER_TRACK
 
 
 def test_underbidder_lowers_price_after_a_profitable_round():
@@ -105,7 +108,7 @@ def test_underbidder_never_spends_on_anything_but_price():
         assert d.rd_spend == 0.0
         assert d.celebrity_on is False
         assert d.plant_investment == 0
-        assert d.track == BOOTSTRAP_DEFAULT_TRACK
+        assert d.track == UNDERBIDDER_TRACK
 
 
 # --------------------------------------------------------------------------- #
@@ -222,3 +225,17 @@ def test_random_never_plans_more_spend_than_it_has():
         d = _decide("random", rng=rng, cash=cash, capacity=45_000)
         celebrity = 50_000 if d.celebrity_on else 0
         assert d.rd_spend + d.ad_spend + celebrity <= cash + 1  # +1 for float rounding
+
+
+def test_underbidder_never_prices_below_its_own_unit_cost():
+    """Its rule cuts price every profitable round, so without a cost-aware
+    floor it ratchets itself down to selling at a loss -- the old flat $15
+    floor was below the unit cost it was actually paying."""
+    from app.constants import track_unit_cost
+    unit_cost = track_unit_cost(UNDERBIDDER_TRACK)
+    price = 400.0
+    for _ in range(60):  # far more cuts than a 10-round game could produce
+        d = _decide("underbidder", last_price=price, last_profit=1.0)
+        price = d.price
+        assert price > unit_cost, f"priced {price} at or below unit cost {unit_cost}"
+    assert price == UNDERBIDDER_PRICE_FLOOR  # settles on the floor, not below it
