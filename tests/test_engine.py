@@ -5,7 +5,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.engine import FirmDecision, FirmState, process_round, synthesize_non_submission_decision
-from app.constants import SEGMENT_BUYER_COUNT, STARTING_CASH, STARTING_PLANT_CAPACITY
+from app.constants import (
+    SEGMENT_BUYER_COUNT,
+    STARTING_CASH,
+    STARTING_PLANT_CAPACITY,
+    WTP_SPREAD_HIGH,
+    WTP_SPREAD_LOW,
+    wtp_threshold_r,
+)
 
 
 def make_state(firm_id, **overrides):
@@ -331,3 +338,97 @@ def test_non_submission_spends_zero_on_rd_ads_and_plant():
 def test_non_submission_with_negative_or_zero_cash_produces_nothing():
     d = synthesize_non_submission_decision(1, last_price=50, last_track="Standard", cash=0, plant_capacity=45_000)
     assert d.production_qty == 0
+
+
+# --------------------------------------------------------------------------- #
+# Individual buyer willingness-to-pay ceilings (Sept 2026 buyer-model
+# redesign) -- the tests above all happen to price at $50, which sits below
+# every segment's WTP spread floor and so triggers 100% affordability
+# everywhere (identical to the old always-allocate-the-full-headcount
+# behavior) -- none of them actually exercise the new affordability gate.
+# --------------------------------------------------------------------------- #
+
+def test_underpriced_monopoly_captures_the_full_segment_with_computed_surplus():
+    # Low Income/Standard center is $68; the low end of the +/-20% spread is
+    # exactly $54.40 -- priced there, even the least-generous buyer affords
+    # it, so this monopoly should capture the ENTIRE segment, 0% unsold.
+    price = 68 * WTP_SPREAD_LOW
+    states = {1: make_state(1, plant_capacity=1_000_000)}
+    decisions = {1: make_decision(1, production_qty=1_000_000, price=price)}
+    results = process_round(states, decisions)
+
+    assert math.isclose(
+        results[1].units_sold_by_segment["Low Income"], SEGMENT_BUYER_COUNT["Low Income"], rel_tol=1e-6
+    )
+    stats = results.segment_stats["Low Income"]
+    assert math.isclose(stats.unsold_buyers_pct, 0.0, abs_tol=1e-6)
+    # avg ceiling across the whole population is the center ($68); surplus
+    # is that average minus the price actually paid ($54.40) = $13.60.
+    assert math.isclose(stats.avg_consumer_surplus, 68 - price, abs_tol=1e-6)
+
+
+def test_overpriced_monopoly_sells_nothing_in_that_segment_all_unsold():
+    price = 68 * WTP_SPREAD_HIGH + 5  # above every buyer's ceiling for this track
+    states = {1: make_state(1, plant_capacity=1_000_000)}
+    decisions = {1: make_decision(1, production_qty=1_000_000, price=price)}
+    results = process_round(states, decisions)
+
+    assert results[1].units_sold_by_segment["Low Income"] == 0
+    stats = results.segment_stats["Low Income"]
+    assert math.isclose(stats.unsold_buyers_pct, 100.0, abs_tol=1e-6)
+    assert stats.avg_consumer_surplus is None  # nobody bought -- not 0.0
+
+
+def test_only_the_cheaper_firm_reaches_the_least_willing_buyers():
+    # Two firms, identical in every way except price -- the pricier one can
+    # only ever reach the upper slice of buyers willing to pay that much,
+    # and even there only gets its (otherwise-equal) demand-pull share.
+    cheap_price = 68 * WTP_SPREAD_LOW      # affordable to 100% of Low Income
+    expensive_price = 75                    # affordable only above some r threshold
+    states = {1: make_state(1, plant_capacity=1_000_000), 2: make_state(2, plant_capacity=1_000_000)}
+    decisions = {
+        1: make_decision(1, production_qty=1_000_000, price=cheap_price),
+        2: make_decision(2, production_qty=1_000_000, price=expensive_price),
+    }
+    results = process_round(states, decisions)
+
+    r_b = max(0.0, min(1.0, wtp_threshold_r("Low Income", "Standard", expensive_price)))
+    expected_b_share = (1 - r_b) / 2  # only the interval above r_b, split 50/50 (identical otherwise)
+    expected_b_units = expected_b_share * SEGMENT_BUYER_COUNT["Low Income"]
+
+    assert math.isclose(results[2].units_sold_by_segment["Low Income"], expected_b_units, rel_tol=1e-6)
+    assert results[1].units_sold_by_segment["Low Income"] > results[2].units_sold_by_segment["Low Income"]
+
+
+def test_wealthy_hard_ceiling_excludes_a_firm_even_within_its_own_wtp_spread():
+    # Wealthy/Premium center is $230; the spread's own high end is $276, so
+    # $251 would still let SOME buyers afford it under the raw WTP curve
+    # alone -- but the absolute $250 hard rule (kept from the pre-redesign
+    # model) must still exclude it entirely regardless.
+    states = {1: make_state(1, plant_capacity=1_000_000)}
+    decisions = {1: make_decision(1, production_qty=1_000_000, price=251, track="Premium")}
+    results = process_round(states, decisions)
+
+    assert results[1].units_sold_by_segment["Wealthy"] == 0
+    assert results.segment_stats["Wealthy"].unsold_buyers_pct == 100.0
+
+
+def test_zero_firms_in_the_round_is_100_percent_unsold_everywhere_no_crash():
+    results = process_round({}, {})
+    assert dict(results) == {}
+    for seg, buyer_count in SEGMENT_BUYER_COUNT.items():
+        stats = results.segment_stats[seg]
+        assert stats.total_buyers == buyer_count
+        assert stats.unsold_buyers_pct == 100.0
+        assert stats.avg_consumer_surplus is None
+
+
+def test_process_round_result_is_still_a_plain_dict_for_existing_callers():
+    # RoundResults must behave exactly like the old plain dict return for
+    # every firm_id lookup -- only .segment_stats is new.
+    states = {1: make_state(1)}
+    decisions = {1: make_decision(1)}
+    results = process_round(states, decisions)
+    assert isinstance(results, dict)
+    assert results[1].firm_id == 1
+    assert set(results.segment_stats.keys()) == set(SEGMENT_BUYER_COUNT.keys())

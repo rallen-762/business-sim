@@ -264,38 +264,75 @@ CELEBRITY_MULTIPLIER = {
     "Casual/Fashion": 1.0,
 }
 
-# Standard-segment elasticity coefficients (Wealthy uses its own piecewise rule).
-ELASTICITY_COEFFICIENT = {
-    "Low Income": 1.4,
-    "NBA Fans": 0.3,
-    "Basketball Players": 0.7,
-    "Casual/Fashion": 1.0,
+WEALTHY_CEILING_PRICE = 250  # absolute hard rule: priced above this, excluded from Wealthy entirely (kept from the old model)
+
+
+# --------------------------------------------------------------------------- #
+# Individual buyer willingness-to-pay ceilings (Sept 2026 buyer-model
+# redesign) -- REPLACES the old price_multiplier()/ELASTICITY_COEFFICIENT
+# smooth elasticity formula entirely. Confirmed with the user: keeping both
+# would double-penalize higher prices, since affordability now does that
+# job structurally instead of a separate continuous multiplier.
+#
+# Model: each buyer has ONE underlying percentile r, uniform on [0, 1],
+# shared across all three of their own Budget/Standard/Premium ceilings for
+# their segment -- NOT three independent random draws. A buyer generally
+# willing to pay more sits at the same percentile on every track's ceiling,
+# so ceiling(track, r) = center * (WTP_SPREAD_LOW + (WTP_SPREAD_HIGH -
+# WTP_SPREAD_LOW) * r) is linear and INCREASING in r for a fixed track, and
+# -- since every segment's Budget < Standard < Premium centers below are
+# already ordered that way -- a single buyer's three ceilings never cross
+# each other regardless of r (their Premium ceiling always exceeds their
+# own Standard/Budget ceilings).
+#
+# This makes "affordable fraction of a segment" an exact closed-form
+# fraction of buyers with r above a threshold, rather than something that
+# needs literally simulating ~400,000 individual buyers -- confirmed with
+# the user as the computation approach over true Monte Carlo simulation,
+# to keep this fully deterministic (no new randomness, reproducible
+# balance-testing trials) and avoid adding a numeric/array dependency this
+# project has never needed before.
+# --------------------------------------------------------------------------- #
+
+WTP_CEILING_CENTER = {
+    "Low Income":         {"Budget": 65, "Standard": 68, "Premium": 70},
+    "NBA Fans":           {"Budget": 90, "Standard": 105, "Premium": 120},
+    "Basketball Players": {"Budget": 35, "Standard": 75, "Premium": 130},
+    "Wealthy":            {"Budget": 50, "Standard": 140, "Premium": 230},
+    "Casual/Fashion":     {"Budget": 75, "Standard": 85, "Premium": 90},
 }
 
-WEALTHY_CEILING_PRICE = 250
-WEALTHY_FLAT_CUTOFF_PRICE = 200
-WEALTHY_FLAT_COEFFICIENT = 0.1
+# +/-20% uniform spread around each center above -- confirmed with the user
+# (the spec gave center values but no spread; this is the platform's choice
+# of how much buyer-to-buyer heterogeneity to model).
+WTP_SPREAD_LOW = 0.8
+WTP_SPREAD_HIGH = 1.2
 
 
-def price_multiplier(segment: str, price: float) -> float:
-    """Elasticity-based price multiplier. Pricing below the $50 base cost is
-    NOT capped at 1.0 -- the formula is only floored at 0 on the high end
-    (locked, confirmed against the exact formula given twice in the docs)."""
-    if segment == "Wealthy":
-        return _wealthy_price_multiplier(price)
-    pct_above_base = (price - BASE_UNIT_COST) / BASE_UNIT_COST
-    coefficient = ELASTICITY_COEFFICIENT[segment]
-    return max(0.0, 1 - pct_above_base * coefficient)
+def wtp_threshold_r(segment: str, track: str, price: float) -> float:
+    """The percentile r at which a buyer's willingness-to-pay ceiling for
+    `track` first clears `price` -- the fraction (1 - this, clamped to
+    [0, 1] by the caller) of the segment's buyers can afford it.
+    Deliberately NOT clamped here: a price above every buyer's ceiling
+    yields r > 1 (nobody ever affords it), a price at/below the least
+    generous buyer's ceiling yields r <= 0 (everybody affords it) -- both
+    still carry meaningful ORDERING information relative to other firms'
+    thresholds for a caller doing a multi-firm r-space sweep (see
+    engine.py's segment demand step), so clamping belongs there, not here.
+    """
+    center = WTP_CEILING_CENTER[segment][track]
+    ceiling_at_r0 = center * WTP_SPREAD_LOW
+    ceiling_at_r1 = center * WTP_SPREAD_HIGH
+    return (price - ceiling_at_r0) / (ceiling_at_r1 - ceiling_at_r0)
 
 
-def _wealthy_price_multiplier(price: float) -> float:
-    if price > WEALTHY_CEILING_PRICE:
-        return 0.0
-    if price <= WEALTHY_FLAT_CUTOFF_PRICE:
-        pct_above_base = (price - BASE_UNIT_COST) / BASE_UNIT_COST
-        return max(0.0, 1 - pct_above_base * WEALTHY_FLAT_COEFFICIENT)
-    # 200 < price <= 250: steeper squared taper to zero at the ceiling.
-    return max(0.0, 0.70 * ((WEALTHY_CEILING_PRICE - price) / 50) ** 2)
+def wtp_ceiling_at_r(segment: str, track: str, r: float) -> float:
+    """A buyer's actual willingness-to-pay ceiling at percentile r (0..1)
+    for `track` in `segment` -- the inverse of wtp_threshold_r, used to
+    compute consumer surplus (ceiling - price paid) for buyers landing at
+    a given r."""
+    center = WTP_CEILING_CENTER[segment][track]
+    return center * (WTP_SPREAD_LOW + (WTP_SPREAD_HIGH - WTP_SPREAD_LOW) * r)
 
 
 # --------------------------------------------------------------------------- #

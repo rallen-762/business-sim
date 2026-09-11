@@ -104,6 +104,7 @@ class World(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     firms = db.relationship("Firm", backref="world", cascade="all, delete-orphan")
+    segment_round_results = db.relationship("SegmentRoundResult", backref="world", cascade="all, delete-orphan")
 
     __table_args__ = (
         db.CheckConstraint("current_round >= 1", name="ck_world_current_round_min"),
@@ -255,3 +256,35 @@ class RoundResult(db.Model):
 
     def __repr__(self):
         return f"<RoundResult firm_id={self.firm_id} round={self.round_number} profit={self.profit}>"
+
+
+class SegmentRoundResult(db.Model):
+    """One row per (world, round, segment) -- the SEGMENT-level (not
+    firm-level) outcome of engine.process_round()'s individual buyer
+    willingness-to-pay sweep (see engine.SegmentDemandStats), persisted so
+    the Teacher Dashboard's Average Consumer Surplus by Segment card can
+    read past rounds without re-running the engine. Lives on World directly
+    (not Firm) since a segment's buyers aren't owned by any one firm."""
+    __tablename__ = "segment_round_results"
+
+    id = db.Column(db.Integer, primary_key=True)
+    world_id = db.Column(db.Integer, db.ForeignKey("worlds.id", ondelete="CASCADE"), nullable=False)
+    round_number = db.Column(db.Integer, nullable=False)
+    segment = db.Column(db.String(40), nullable=False)
+
+    total_buyers = db.Column(db.Float, nullable=False)
+    unsold_buyers = db.Column(db.Float, nullable=False)
+    unsold_buyers_pct = db.Column(db.Float, nullable=False)
+    # Null when NO buyer in this segment could afford anyone this round --
+    # not 0.0, which would misleadingly claim "buyers broke even" instead
+    # of "there was no one to measure" (see engine.SegmentDemandStats).
+    avg_consumer_surplus = db.Column(db.Float, nullable=True)
+
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("world_id", "round_number", "segment", name="uq_segment_result_world_round_segment"),
+    )
+
+    def __repr__(self):
+        return f"<SegmentRoundResult world_id={self.world_id} round={self.round_number} segment={self.segment!r}>"

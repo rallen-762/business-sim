@@ -104,6 +104,7 @@
 
 <div class="card">
   <h3>Customer Segments -- Round {{ latest_round }}</h3>
+  <p class="help-text">Avg. Consumer Surplus = average (willingness-to-pay ceiling &minus; price paid) across buyers who actually purchased in this segment; buyers who couldn't afford anyone are excluded from that average but shown as Unsold Buyers.</p>
   <div class="grid grid-3">
     {% for seg in segments %}
     <div class="segment-card stat">
@@ -114,6 +115,10 @@
       <div class="value">{{ "{:,.0f}".format(seg.units_sold_this_round) }}</div>
       <div class="label">Leading Track</div>
       <div class="value">{{ seg.leading_track or "—" }}</div>
+      <div class="label">Avg. Consumer Surplus</div>
+      <div class="value">{{ "${:,.2f}".format(seg.avg_consumer_surplus) if seg.avg_consumer_surplus is not none else "No buyers" }}</div>
+      <div class="label">Unsold Buyers</div>
+      <div class="value">{{ "%.1f"|format(seg.unsold_buyers_pct) }}%</div>
     </div>
     {% endfor %}
   </div>

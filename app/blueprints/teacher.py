@@ -38,7 +38,7 @@ from flask import Blueprint, Response, flash, redirect, render_template, request
 from werkzeug.security import generate_password_hash
 
 from app.auth import log_out, teacher_login_required
-from app.bots import BOT_PROFILES
+from app.bots import BOT_AVATARS, BOT_PROFILES
 from app.bots import decide as bot_decide
 from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
@@ -53,6 +53,7 @@ from app.extensions import db
 from app.market_data import (
     build_pie_gradient,
     competitive_intel_rows,
+    consumer_surplus_by_segment,
     cumulative_standings,
     latest_processed_round,
     market_shares_for_round,
@@ -60,7 +61,7 @@ from app.market_data import (
     segment_overview,
 )
 from app.scouting_report import build_scouting_report
-from app.models import Firm, RoundDecision, RoundResult, World
+from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult, World
 
 bp = Blueprint("teacher", __name__, url_prefix="/teacher")
 
@@ -167,6 +168,7 @@ def view_world(world_id):
         cumulative_by_firm=cumulative_by_firm,
         scouting_report=build_scouting_report(world),
         bot_profiles=BOT_PROFILES,
+        consumer_surplus=consumer_surplus_by_segment(world, selected_round),
     )
 
 
@@ -232,12 +234,13 @@ def assign_bot(world_id, firm_id):
 
     is_new_assignment = firm.bot_profile is None
     firm.bot_profile = profile
-    # Team name always reflects the CURRENT profile -- refreshed on a
-    # reassignment too, not just first assignment, so it never goes stale
-    # (e.g. still reading "Underbidder" after being switched to Elite).
-    # Slot number keeps it unique within the world even if the same profile
-    # is assigned to multiple slots.
+    # Team name and avatar always reflect the CURRENT profile -- refreshed
+    # on a reassignment too, not just first assignment, so neither goes
+    # stale (e.g. still showing "Underbidder"'s name/icon after being
+    # switched to Elite). Slot number keeps the name unique within the
+    # world even if the same profile is assigned to multiple slots.
     firm.team_name = f"Bot #{firm.slot_number} ({BOT_PROFILES[profile]})"
+    firm.avatar = BOT_AVATARS[profile]
     if is_new_assignment:
         # Placeholder password so is_registered is True and this slot
         # participates in process_round like any other firm -- never
@@ -422,6 +425,18 @@ def _process_current_round(world, rng=None):
             d = decisions[firm.id]
             firm.cumulative_rd_spend += d.rd_spend
             firm.cumulative_ad_spend += d.ad_spend
+
+    # Segment-level (not firm-level) willingness-to-pay stats -- a natural
+    # byproduct of the same Step 4b sweep that computed raw_units above
+    # (see engine.RoundResults.segment_stats), persisted so the Teacher
+    # Dashboard's Average Consumer Surplus by Segment card can read past
+    # rounds without re-running the engine.
+    for seg, stats in results.segment_stats.items():
+        db.session.add(SegmentRoundResult(
+            world_id=world.id, round_number=world.current_round, segment=seg,
+            total_buyers=stats.total_buyers, unsold_buyers=stats.unsold_buyers,
+            unsold_buyers_pct=stats.unsold_buyers_pct, avg_consumer_surplus=stats.avg_consumer_surplus,
+        ))
 
     world.status = "complete" if world.current_round >= ROUNDS_PER_WORLD else "transition"
     db.session.commit()

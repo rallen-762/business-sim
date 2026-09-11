@@ -22,10 +22,9 @@ Edge cases considered before writing process_round() (per the project's
    0 sold everywhere; guarded against division by zero in the scaling step.
 3. A segment where every firm's demand pull is 0 (e.g. all priced it dead) ->
    guarded against division by zero; 0 sold to that segment by anyone.
-4. Wealthy segment price > $250 -> multiplier forced to 0 regardless of any
-   other factor.
-5. Price below the $50 base cost -> multiplier can exceed 1.0 (an
-   underpricing bonus). Locked -- not clamped to 1.0.
+4. Wealthy segment price > $250 -> excluded from that segment outright,
+   regardless of the willingness-to-pay curve (absolute hard rule, kept
+   from the pre-redesign model).
 6. R&D/Ad spend submitted THIS round count toward THIS round's Quality/Ad
    level (no lag). Plant Investment alone has the explicit 1-round lag.
 7. A loan taken THIS round (to cover THIS round's shortfall) is not itself
@@ -47,6 +46,35 @@ Edge cases considered before writing process_round() (per the project's
     OFF (confirmed) even if it was on before.
 12. R&D/Ad spend beyond the level-10 threshold has no further effect but is
     still deducted from cash as a real (if wasted) expense.
+
+--------------------------------------------------------------------------
+Sept 2026 buyer-model redesign -- individual willingness-to-pay ceilings
+replace "the full segment headcount always gets allocated to someone"
+(Step 4b below). The old elasticity-based price_multiplier()/
+ELASTICITY_COEFFICIENT is GONE entirely, not just superseded -- keeping it
+alongside the new affordability gate would double-penalize higher prices.
+Additional edge cases from this redesign:
+--------------------------------------------------------------------------
+13. A buyer whose willingness-to-pay ceiling clears NO competing firm's
+    price on that firm's track -> doesn't buy from anyone this round.
+    Tracked explicitly as SegmentDemandStats.unsold_buyers/
+    unsold_buyers_pct, not silently dropped.
+14. A segment where literally no firm is priced within reach of anyone (or
+    no firm competes in it at all, e.g. everyone priced out of Wealthy) ->
+    0 units for everyone, 100% unsold, avg_consumer_surplus=None (not
+    0.0 -- there's no one to average over) -- no divide-by-zero.
+15. Consumer surplus is computed from the EXACT closed-form integral of
+    (ceiling(r) - price) over each r-interval a firm is affordable in, not
+    a sampled approximation -- ceiling(r) is linear in r, so the integral
+    reduces to (average of the two endpoint ceilings) x interval width x
+    that firm's demand-pull share of the interval. Deterministic, no
+    simulated individuals, no new randomness introduced into what has
+    always been a fully deterministic function of its inputs.
+16. A single buyer's Budget/Standard/Premium ceilings are driven by ONE
+    shared percentile r (see constants.wtp_threshold_r's docstring), not
+    three independent random draws -- correlated on purpose, since every
+    segment's Budget < Standard < Premium centers keep a buyer's own three
+    ceilings consistently ordered regardless of r.
 """
 
 from __future__ import annotations
@@ -63,12 +91,14 @@ from app.constants import (
     SEGMENT_BUYER_COUNT,
     SEGMENTS,
     TRACK_PREFERENCE_MULTIPLIER,
+    WEALTHY_CEILING_PRICE,
     ad_level_and_multiplier,
     fixed_cost_for_capacity,
-    price_multiplier,
     quality_level_from_cumulative_rd,
     quality_weight,
     track_unit_cost,
+    wtp_ceiling_at_r,
+    wtp_threshold_r,
 )
 
 
@@ -139,6 +169,38 @@ class FirmRoundResult:
     celebrity_blocked: bool = False
 
 
+@dataclass
+class SegmentDemandStats:
+    """Aggregate, SEGMENT-level (not tied to any one firm) outcome of the
+    individual buyer willingness-to-pay sweep for one segment this round.
+    total_buyers/unsold_buyers are fractional -- the sweep works in
+    continuous buyer-percentile space (see process_round Step 4b), same
+    rationale as FirmRoundResult.units_sold_total being fractional.
+    avg_consumer_surplus is None (not 0.0) when nobody in this segment
+    could afford anybody -- 0.0 would misleadingly claim "buyers broke
+    even" instead of "there was no one to measure.\""""
+    segment: str
+    total_buyers: float
+    unsold_buyers: float
+    unsold_buyers_pct: float
+    avg_consumer_surplus: float | None
+
+
+class RoundResults(dict):
+    """dict[int, FirmRoundResult] -- EXACTLY what process_round() has always
+    returned, so every existing caller/test doing results[firm_id] needs no
+    changes at all. Also carries `.segment_stats` (dict[str,
+    SegmentDemandStats]), the new per-segment consumer-surplus/unsold-buyer
+    data the same Step 4b sweep produces as a natural byproduct of computing
+    raw_units -- attached here rather than duplicating that sweep in a
+    second function (which would risk the two drifting out of sync) or
+    changing process_round()'s return shape to a tuple (which would have
+    forced every one of the ~20 existing engine tests to change how they
+    unpack the result for a piece of data most of them don't even care
+    about)."""
+    segment_stats: dict[str, SegmentDemandStats]
+
+
 # --------------------------------------------------------------------------- #
 # Non-submission handling (Section 9)
 # --------------------------------------------------------------------------- #
@@ -169,13 +231,16 @@ def synthesize_non_submission_decision(
 # The batch round processor
 # --------------------------------------------------------------------------- #
 
-def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecision]) -> dict[int, FirmRoundResult]:
+def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecision]) -> RoundResults:
     """Runs one round's entire economic model in a single batch, exactly as
     specified: no per-submission processing, everything computed together
     here. Pure function -- no DB, no side effects, fully deterministic given
     its inputs. `states` and `decisions` must share the same firm_id keys
-    for every non-bankrupt firm; bankrupt firms need only appear in `states`."""
-    results: dict[int, FirmRoundResult] = {}
+    for every non-bankrupt firm; bankrupt firms need only appear in `states`.
+
+    Returns a RoundResults (dict[firm_id, FirmRoundResult] exactly as
+    before, plus a `.segment_stats` attribute -- see that class)."""
+    results = RoundResults()
 
     active_ids = [fid for fid, s in states.items() if not s.bankrupt]
 
@@ -211,28 +276,90 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
         ad_level[fid] = lvl
         ad_multiplier[fid] = mult
 
-    # --- Step 4: each firm's Demand Pull per segment. ---
+    # --- Step 4: each firm's demand-pull SCORE per segment -- Track
+    # Preference x Quality Weight x Advertising x Celebrity ONLY. Price no
+    # longer factors in here (the old elasticity-based price_multiplier is
+    # gone entirely, per the Sept 2026 buyer-model redesign) -- it now only
+    # gates WHICH firms a buyer can afford at all (Step 4b below), not how
+    # appealing one affordable firm is versus another affordable one. ---
     demand_pull: dict[int, dict[str, float]] = {fid: {} for fid in active_ids}
     for fid in active_ids:
         d = decisions[fid]
         for seg in SEGMENTS:
             tpm = TRACK_PREFERENCE_MULTIPLIER[seg][d.track]
             qw = quality_weight(seg, quality_level[fid])
-            pm = price_multiplier(seg, d.price)
             cm = CELEBRITY_MULTIPLIER[seg] if d.celebrity_on else 1.0
-            demand_pull[fid][seg] = tpm * qw * pm * ad_multiplier[fid] * cm
+            demand_pull[fid][seg] = tpm * qw * ad_multiplier[fid] * cm
 
-    # --- Step 5: segment totals, guarding the "nobody wants this segment at
-    # all" zero-sum case. ---
-    segment_totals = {seg: sum(demand_pull[fid][seg] for fid in active_ids) for seg in SEGMENTS}
+    # --- Step 4b: individual buyer willingness-to-pay sweep -- REPLACES the
+    # old "divide the full segment headcount proportionally regardless of
+    # price" mechanic (former Steps 5-6). Per segment: each firm has an
+    # r-threshold (0..1, a buyer-population percentile) at which it becomes
+    # affordable to buyers at or above that percentile (see
+    # constants.wtp_threshold_r). Sorting those thresholds partitions the
+    # [0, 1] population into intervals within which the SET of affordable
+    # firms is constant; within each interval, buyers split across just
+    # that interval's affordable firms proportional to demand_pull -- the
+    # exact same share formula as before, just scoped to a slice of the
+    # population instead of the whole segment. Buyers below every firm's
+    # threshold (an empty affordable set) buy nothing -- tracked as
+    # unsold, not silently dropped, satisfying edge cases 13-14 below. ---
+    raw_units: dict[int, dict[str, float]] = {fid: {seg: 0.0 for seg in SEGMENTS} for fid in active_ids}
+    segment_stats: dict[str, SegmentDemandStats] = {}
 
-    # --- Step 6: each firm's raw (capacity-unconstrained) units per segment. ---
-    raw_units: dict[int, dict[str, float]] = {fid: {} for fid in active_ids}
     for seg in SEGMENTS:
-        total = segment_totals[seg]
         buyer_count = SEGMENT_BUYER_COUNT[seg]
+        thresholds = []  # [(clamped_r, firm_id), ...]
         for fid in active_ids:
-            raw_units[fid][seg] = 0.0 if total <= 0 else (demand_pull[fid][seg] / total) * buyer_count
+            d = decisions[fid]
+            if seg == "Wealthy" and d.price > WEALTHY_CEILING_PRICE:
+                continue  # absolute hard rule, kept from the old model -- excluded outright
+            r = wtp_threshold_r(seg, d.track, d.price)
+            thresholds.append((max(0.0, min(1.0, r)), fid))
+
+        if not thresholds:
+            # No firm is within reach of anyone here (or no firm competes
+            # in this segment at all, e.g. every firm priced out of
+            # Wealthy) -- 0 units for everyone, 100% unsold, no
+            # divide-by-zero (edge case 14).
+            segment_stats[seg] = SegmentDemandStats(
+                segment=seg, total_buyers=buyer_count, unsold_buyers=buyer_count,
+                unsold_buyers_pct=100.0 if buyer_count > 0 else 0.0, avg_consumer_surplus=None,
+            )
+            continue
+
+        boundaries = sorted({0.0, 1.0} | {r for r, _ in thresholds})
+        surplus_numerator = 0.0
+        served_buyers = 0.0
+
+        for lo, hi in zip(boundaries, boundaries[1:]):
+            width = hi - lo
+            if width <= 0:
+                continue
+            # Every threshold is exactly a boundary point by construction,
+            # so the affordable set is constant throughout (lo, hi).
+            affordable = [fid for r, fid in thresholds if r <= lo]
+            if not affordable:
+                continue  # this slice can't afford anyone yet (edge case 13: unsold)
+            pulls = {fid: demand_pull[fid][seg] for fid in affordable}
+            total_pull = sum(pulls.values())
+            if total_pull <= 0:
+                continue  # defensive -- TPM/Quality/Ad/Celebrity are always > 0 in practice
+            interval_buyers = width * buyer_count
+            served_buyers += interval_buyers
+            for fid in affordable:
+                share = pulls[fid] / total_pull
+                raw_units[fid][seg] += interval_buyers * share
+                d = decisions[fid]
+                avg_ceiling = (wtp_ceiling_at_r(seg, d.track, lo) + wtp_ceiling_at_r(seg, d.track, hi)) / 2
+                surplus_numerator += interval_buyers * share * (avg_ceiling - d.price)
+
+        unsold_buyers = buyer_count - served_buyers
+        segment_stats[seg] = SegmentDemandStats(
+            segment=seg, total_buyers=buyer_count, unsold_buyers=unsold_buyers,
+            unsold_buyers_pct=(unsold_buyers / buyer_count * 100) if buyer_count > 0 else 0.0,
+            avg_consumer_surplus=(surplus_numerator / served_buyers) if served_buyers > 0 else None,
+        )
 
     # --- Step 7: capacity-constrained scaling. Unmet demand is lost, not
     # redistributed to other firms (locked decision). ---
@@ -348,4 +475,5 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
             )
             results[fid].loan_used_ever_after = s.loan_used_ever  # type: ignore[attr-defined]
 
+    results.segment_stats = segment_stats
     return results

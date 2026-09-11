@@ -6,6 +6,7 @@ the "does the DB<->engine wiring actually work" check that the unit tests
 for engine.py/models.py individually can't catch.
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -318,6 +319,26 @@ def test_advancing_round_processes_all_firms_and_creates_results(app, client):
         assert len(auto_decisions) == 1  # only the non-submitting firm got a synthesized decision
 
 
+def test_advancing_round_persists_segment_level_consumer_surplus_stats(app, client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, price="80", production_qty="15000")
+    client.get("/logout")
+
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    with app.app_context():
+        from app.constants import SEGMENTS
+        from app.models import SegmentRoundResult
+        rows = SegmentRoundResult.query.filter_by(world_id=world_id, round_number=1).all()
+        assert {r.segment for r in rows} == set(SEGMENTS)
+
+    resp = client.get(f"/teacher/worlds/{world_id}")
+    assert b"Average Consumer Surplus by Segment" in resp.data
+    assert b"buyers unsold" in resp.data
+
+
 def test_firm_dashboard_shows_just_processed_round_result_during_transition(client):
     # Regression test: world.current_round is NOT incremented until the
     # teacher opens the next round, so during "transition" the just-
@@ -360,9 +381,13 @@ def test_unregistered_slot_does_not_compete_and_gets_no_result_row(app, client):
 
 
 def test_unregistered_slot_does_not_dilute_a_solo_registered_firms_market_share(app, client):
-    # A single registered firm with no real competition should capture the
-    # full segment, not have its share diluted by a phantom unregistered
-    # "competitor" using the bootstrap default price/track.
+    # A single registered firm with no real competition should capture
+    # every buyer who can actually AFFORD it at $80 on Standard, not have
+    # its share diluted by a phantom unregistered "competitor" using the
+    # bootstrap default price/track. Since the willingness-to-pay redesign,
+    # "no competition" no longer means "the entire buyer pool converts" --
+    # some segments' buyers genuinely can't afford $80 on Standard at all,
+    # and that's correct, not a leftover phantom-competitor bug.
     world_id = create_world(client, slots=3)
     register_firm(client, world_id, 1, "Nike")
     with app.app_context():
@@ -378,10 +403,12 @@ def test_unregistered_slot_does_not_dilute_a_solo_registered_firms_market_share(
 
     with app.app_context():
         r = RoundResult.query.filter_by(round_number=1).join(Firm).filter(Firm.world_id == world_id).first()
-        # With zero real competitors, every buyer in every segment should
-        # convert (raw demand is unconstrained since capacity is huge).
-        from app.constants import SEGMENT_BUYER_COUNT
-        assert r.units_sold_total == sum(SEGMENT_BUYER_COUNT.values())
+        from app.constants import SEGMENT_BUYER_COUNT, wtp_threshold_r
+        expected_total = sum(
+            max(0.0, min(1.0, 1 - wtp_threshold_r(seg, "Standard", 80))) * count
+            for seg, count in SEGMENT_BUYER_COUNT.items()
+        )
+        assert math.isclose(r.units_sold_total, expected_total, rel_tol=1e-6)
 
 
 def test_opening_next_round_increments_round_and_resets_status(app, client):
@@ -589,6 +616,8 @@ def test_delete_world_cascades_everything(app, client):
         assert Firm.query.get(firm_id) is None
         assert RoundDecision.query.filter_by(firm_id=firm_id).count() == 0
         assert RoundResult.query.filter_by(firm_id=firm_id).count() == 0
+        from app.models import SegmentRoundResult
+        assert SegmentRoundResult.query.filter_by(world_id=world_id).count() == 0
 
 
 def test_delete_nonexistent_world_returns_404(client):

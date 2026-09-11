@@ -192,13 +192,19 @@ If a firm fails to submit a round's decisions:
 
 With 7 firms at 45,000 units capacity each (315,000 industry capacity), the buyer pool exceeds total capacity, so **capacity — not raw demand — is the binding constraint** on sales in a typical round (see Section 7 reconciliation note).
 
-**Demand-pull mechanic.** Each firm generates a relative attractiveness *score* per segment — termed **Firm's Demand Pull per Segment** — not an actual buyer count. A firm's real share of a segment = Firm's Demand Pull per Segment ÷ sum of all firms' Demand Pull in that segment. That share is applied against the segment's real fixed buyer count to yield actual units sold to that segment. (Worked example: Firm A Demand Pull 2,304 vs. Firm B Demand Pull 400 in the Wealthy segment (800 real buyers) → Firm A ≈ 85% share ≈ 680 units, Firm B ≈ 15% ≈ 120 units.)
+**Demand-pull mechanic (REVISED Sept 2026 — individual buyer willingness-to-pay model).** Each firm generates a relative attractiveness *score* per segment — termed **Firm's Demand Pull per Segment** — not an actual buyer count. This is now a TWO-STEP allocation, not a single proportional split of the whole segment:
+
+1. **Affordability gate.** Every buyer in a segment has their own willingness-to-pay ceiling, which varies by TRACK (Budget/Standard/Premium — see the table below), not one flat ceiling per buyer. A buyer can only ever be served by a firm whose price is at or below that buyer's ceiling for that firm's track. A buyer who can't afford any competing firm simply doesn't buy this round — this replaces the old rule that the full segment headcount always gets divided up among competitors regardless of price. A firm can now genuinely lose ALL demand in a segment by pricing too high, not just lose relative share.
+2. **Preference scoring among only the affordable firms.** Among the firms a given buyer CAN afford, the existing Demand Pull score (Track Preference × Quality Weight × Advertising × Celebrity — see below) decides which one they actually buy from, exactly as before. Buyers are maximizing personal consumer surplus (their own ceiling minus the price paid), not simply picking the cheapest affordable option.
+
+Price no longer appears in the Demand Pull score itself — the old Price Elasticity multiplier is GONE (see the willingness-to-pay table replacing old Section 12.4 below). Keeping both a smooth elasticity penalty AND the new affordability gate would double-penalize higher prices.
 
 **Advertising note (LOCKED):** Advertising Multiplier is flat and applies identically across all 5 segments — pulled straight from the Advertising Ladder (Section 6), no per-segment variation. Decided to keep the model simpler.
 
 **Formulas for student guide (LOCKED terminology):**
-- Firm's Demand Pull per Segment = Track Preference Multiplier × Quality Weight × Price Multiplier × Advertising Multiplier × Celebrity Multiplier
-- Units Sold (Firm, Segment) = (Firm's Demand Pull per Segment ÷ Σ all firms' Demand Pull in that segment) × Segment's Real Buyer Count
+- Firm's Demand Pull per Segment = Track Preference Multiplier × Quality Weight × Advertising Multiplier × Celebrity Multiplier (price is NOT a factor here anymore)
+- A buyer at willingness-to-pay percentile r can afford a firm iff that firm's price ≤ that buyer's ceiling for the firm's track
+- Units Sold (Firm, Segment) = Σ, over every slice of the buyer population where this firm is among the affordable set, of (this firm's Demand Pull ÷ Σ affordable firms' Demand Pull in that slice) × that slice's buyer count
 
 **1. Track Preference Multiplier**
 
@@ -230,28 +236,31 @@ With 7 firms at 45,000 units capacity each (315,000 industry capacity), the buye
 | Wealthy | 1.2 |
 | Casual/Fashion | 1.0 |
 
-**4. Price Elasticity of Demand Coefficient** (LOCKED — final)
+**4. Willingness-to-Pay Ceilings** (REPLACES the old Price Elasticity Coefficient — Sept 2026 redesign)
 
-| Segment | Elasticity Coefficient | Character |
-|---|---|---|
-| Low Income | 1.4 | Highly elastic — very price-sensitive |
-| NBA Fans | 0.3 | Highly inelastic — buying brand/celebrity, barely price-sensitive |
-| Basketball Players | 0.7 | Moderately inelastic — cares more about quality than price |
-| Wealthy | 0.1 | Near-perfectly inelastic below $200, then tapers hard to a $250 ceiling — see mechanism below |
-| Casual/Fashion | 1.0 | Unit elastic — baseline, proportional response |
+Each buyer's maximum willingness-to-pay ceiling varies by TRACK, not one flat number per buyer. Baseline centers:
 
-**Elasticity mechanism (LOCKED):** demand multiplier = 1 − (% price above the $50 base cost) × segment coefficient, floored at 0. E.g., a firm pricing at $80 (60% above base) against Low Income (1.4): 1 − 0.60×1.4 = **0.16** multiplier — badly hurt but not instantly zeroed like it was at coefficient 2.0 (which wiped Low Income out entirely by $75). Full wipeout for Low Income now lands around $85.70 (≈71% markup) instead of $75. Checked against the $80 Round-1 anchor price: Low Income 0.16, Casual/Fashion 0.40, Basketball Players 0.58, NBA Fans 0.82, Wealthy 0.94 — every segment still has *some* live demand near the target price, no segment goes mathematically unreachable at the profit-target price point.
+| Segment | Budget Ceiling | Standard Ceiling | Premium Ceiling |
+|---|---|---|---|
+| Low Income | $65 | $68 | $70 |
+| NBA Fans | $90 | $105 | $120 |
+| Basketball Players | $35 | $75 | $130 |
+| Wealthy | $50 | $140 | $230 |
+| Casual/Fashion | $75 | $85 | $90 |
 
-**Wealthy segment $250 ceiling (LOCKED):** piecewise curve, not a single slope.
-- **Below $200:** normal elasticity formula applies (coefficient 0.1) — demand barely moves. At $200 (300% above $50 base): multiplier = 1 − 3.0×0.1 = 0.70.
-- **From $200 to $250:** switches to a steeper decay so it visibly breaks from the flat part of the curve: `multiplier = 0.70 × ((250 − price) / 50)²`. At $250 exactly, multiplier = 0.
-- Shape: $200→0.70, $210→0.45, $225→0.18, $240→0.03, $250→0.00. Reads as "the rich don't care, until suddenly they really do." Price above $250 is disallowed for this segment (multiplier locked at 0).
+**Spread (platform choice, not given by the original design docs):** each buyer's actual ceiling for a track is uniformly spread ±20% around that track's center for their segment (e.g. Wealthy/Premium ranges $184–$276) — not every buyer in a segment is identical. A single buyer's Budget/Standard/Premium ceilings are correlated (driven by one underlying "how willing to pay is this buyer, generally" draw), not three independent random numbers, since every segment's Budget < Standard < Premium ordering above means a buyer generally willing to pay more is willing to pay more across every track, not randomly more generous on one track and less on another.
+
+**Wealthy segment $250 hard ceiling (LOCKED, kept from the pre-redesign model):** regardless of the willingness-to-pay curve above, a firm priced above $250 is excluded from the Wealthy segment entirely — this is a simple exclusion rule now, not a smooth taper curve (the old $200–$250 piecewise taper is gone along with the rest of the elasticity formula).
 
 *Note (RESOLVED): Section 4b's generic Track/Quality table has been removed. Quality Weight (this section) is now the sole quality-effect layer, applied together with the Track Preference Multiplier — no double-counting.*
 
 ## 13. Pricing Guidance Tool (Firm Dashboard, LOCKED mechanism)
 
-Purpose: help students reason about price changes without exposing the hidden segment formulas (elasticity coefficients, quality weights, track multipliers, Wealthy ceiling curve all stay secret forever).
+**⚠️ FLAGGED Sept 2026 — needs revision before this tool is ever built.** This section still describes the PRE-redesign price elasticity model (see Section 12's replacement). Not yet implemented anywhere in the codebase as of this note, so there's no live code conflict today, but the mechanism below is now wrong on two counts:
+1. **Round 1 fallback** ("assumes an even split of the buyer pool... at a flat $50 baseline price") — there's no more "even split" under the willingness-to-pay model; a buyer either can or can't afford a given price on a given track.
+2. **Round 2+ elasticity projection** ("applies the firm's own price elasticity... to project units-sold if only price changes") assumed a smooth, continuous curve. Under the willingness-to-pay ceiling model, raising price can hit a CLIFF — a chunk of buyers falls off all at once at their ceiling, not a smooth taper — so a projection built on the old smooth-elasticity assumption could mislead a student badly, especially in a segment with a tight buyer-to-buyer spread. Whoever builds this tool needs a new projection mechanism (e.g. estimating where the firm's own price sits against typical ceilings) before shipping it, not just a formula swap.
+
+Purpose: help students reason about price changes without exposing the hidden segment formulas (willingness-to-pay ceilings, quality weights, track multipliers all stay secret forever).
 
 **Mechanism:**
 - Baseline = the firm's own actual result from last round (actual price, actual units sold). Real numbers the firm already has and trusts.

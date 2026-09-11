@@ -129,56 +129,64 @@ def test_fixed_cost_matches_given_examples():
 
 
 # --------------------------------------------------------------------------- #
-# Price multiplier -- standard segments (elasticity formula)
+# Willingness-to-pay ceilings (replaces the old elasticity price_multiplier)
 # --------------------------------------------------------------------------- #
 
-def test_price_multiplier_at_base_cost_is_one():
-    for seg in ("Low Income", "NBA Fans", "Basketball Players", "Casual/Fashion"):
-        assert c.price_multiplier(seg, 50) == 1.0
+def test_wtp_threshold_r_at_the_low_end_of_the_spread_is_zero():
+    # Standard/Low Income center is $68; the low end of a +/-20% spread is
+    # exactly $68 * 0.8 = $54.40 -- priced there, even the LEAST generous
+    # buyer can afford it (r == 0, i.e. the entire population affords it).
+    r = c.wtp_threshold_r("Low Income", "Standard", 68 * c.WTP_SPREAD_LOW)
+    assert math.isclose(r, 0.0, abs_tol=1e-9)
 
 
-def test_price_multiplier_matches_the_80_dollar_anchor_sanity_check():
-    # Directly from the docs' own worked sanity check at the $80 Round-1 anchor.
-    assert math.isclose(c.price_multiplier("Low Income", 80), 0.16, abs_tol=1e-9)
-    assert math.isclose(c.price_multiplier("Casual/Fashion", 80), 0.40, abs_tol=1e-9)
-    assert math.isclose(c.price_multiplier("Basketball Players", 80), 0.58, abs_tol=1e-9)
-    assert math.isclose(c.price_multiplier("NBA Fans", 80), 0.82, abs_tol=1e-9)
+def test_wtp_threshold_r_at_the_high_end_of_the_spread_is_one():
+    r = c.wtp_threshold_r("Low Income", "Standard", 68 * c.WTP_SPREAD_HIGH)
+    assert math.isclose(r, 1.0, abs_tol=1e-9)
 
 
-def test_price_multiplier_floors_at_zero_for_extreme_overpricing():
-    assert c.price_multiplier("Low Income", 1000) == 0.0
+def test_wtp_threshold_r_below_the_spread_is_negative_everyone_affords_it():
+    r = c.wtp_threshold_r("Wealthy", "Premium", 1.0)  # way below $230's low end
+    assert r < 0
 
 
-def test_price_multiplier_underpricing_is_a_bonus_not_capped_at_one():
-    # Locked: pricing below the $50 base cost is NOT clamped to 1.0.
-    mult = c.price_multiplier("Low Income", 40)  # 20% below base
-    assert mult > 1.0
-    expected = 1 - (-0.20) * 1.4
-    assert math.isclose(mult, expected)
+def test_wtp_threshold_r_above_the_spread_exceeds_one_nobody_affords_it():
+    r = c.wtp_threshold_r("Wealthy", "Premium", 10_000)
+    assert r > 1
 
 
-# --------------------------------------------------------------------------- #
-# Wealthy segment piecewise price multiplier
-# --------------------------------------------------------------------------- #
-
-def test_wealthy_price_multiplier_matches_documented_shape():
-    # The docs' shape table rounds to 2 decimals (e.g. exact math at $210 is
-    # 0.70*(40/50)**2 = 0.448, shown there as "0.45") -- tolerance reflects
-    # that rounding, not slack in the formula itself.
-    assert math.isclose(c.price_multiplier("Wealthy", 200), 0.70, abs_tol=0.006)
-    assert math.isclose(c.price_multiplier("Wealthy", 210), 0.45, abs_tol=0.006)
-    assert math.isclose(c.price_multiplier("Wealthy", 225), 0.18, abs_tol=0.006)
-    assert math.isclose(c.price_multiplier("Wealthy", 240), 0.03, abs_tol=0.006)
-    assert math.isclose(c.price_multiplier("Wealthy", 250), 0.0, abs_tol=0.006)
+def test_wtp_ceiling_at_r_is_the_inverse_of_wtp_threshold_r():
+    for segment, track, price in [("NBA Fans", "Premium", 110), ("Casual/Fashion", "Budget", 78)]:
+        r = c.wtp_threshold_r(segment, track, price)
+        assert math.isclose(c.wtp_ceiling_at_r(segment, track, r), price)
 
 
-def test_wealthy_price_above_ceiling_is_dead():
-    assert c.price_multiplier("Wealthy", 251) == 0.0
-    assert c.price_multiplier("Wealthy", 10_000) == 0.0
+def test_a_single_buyers_three_ceilings_are_always_ordered_budget_to_premium():
+    # Every segment's Budget < Standard < Premium center means a buyer's own
+    # three ceilings stay consistently ordered regardless of r (locked
+    # design property, not just true at the centers).
+    for segment in c.SEGMENTS:
+        for r in (0.0, 0.37, 1.0):
+            budget = c.wtp_ceiling_at_r(segment, "Budget", r)
+            standard = c.wtp_ceiling_at_r(segment, "Standard", r)
+            premium = c.wtp_ceiling_at_r(segment, "Premium", r)
+            assert budget < standard < premium
 
 
-def test_wealthy_price_multiplier_continuous_at_the_200_seam():
-    # Both branches should agree at exactly $200 (no discontinuity/bug at the seam).
-    below = 1 - ((200 - 50) / 50) * 0.1
-    above_formula_at_200 = 0.70 * ((250 - 200) / 50) ** 2
-    assert math.isclose(below, above_formula_at_200, abs_tol=1e-9)
+def test_wtp_ceiling_centers_match_the_locked_baseline_table():
+    assert c.WTP_CEILING_CENTER["Wealthy"] == {"Budget": 50, "Standard": 140, "Premium": 230}
+    assert c.WTP_CEILING_CENTER["Basketball Players"] == {"Budget": 35, "Standard": 75, "Premium": 130}
+
+
+def test_price_multiplier_and_elasticity_coefficient_are_gone():
+    # The old elasticity-based formula was REPLACED, not kept alongside the
+    # new affordability gate (confirmed with the user -- double-penalizing
+    # price would result from keeping both).
+    assert not hasattr(c, "price_multiplier")
+    assert not hasattr(c, "ELASTICITY_COEFFICIENT")
+
+
+def test_wealthy_hard_ceiling_price_constant_is_kept():
+    # The $250 absolute cutoff itself survives the redesign -- only the old
+    # smooth $200-250 taper curve is gone.
+    assert c.WEALTHY_CEILING_PRICE == 250

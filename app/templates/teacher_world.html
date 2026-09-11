@@ -7,13 +7,13 @@
   <a href="{{ url_for('teacher.logout') }}">Log Out</a>
 {% endblock %}
 {% block content %}
-<div class="card">
+<div class="card factory-header">
   <h2>{{ world.name }}</h2>
   <p>Game Code: <code>{{ world.game_code }}</code> &middot; Round {{ world.current_round }} of {{ rounds_per_world }} &middot; Status: <strong>{{ world.status }}</strong></p>
   <a class="btn secondary" href="{{ url_for('teacher.export_csv', world_id=world.id) }}">Export CSV</a>
   <form method="post" action="{{ url_for('teacher.delete_world', world_id=world.id) }}" style="display:inline;"
         onsubmit="return confirm('Delete this World and ALL its data? This cannot be undone.');">
-    <button class="btn" style="background:var(--danger);box-shadow:0 4px 0 #7d241a;" type="submit">Delete This World</button>
+    <button class="btn" style="background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);" type="submit">Delete This World</button>
   </form>
 
   {% if world.status == "collecting" %}
@@ -81,7 +81,7 @@
           </form>
           <form method="post" action="{{ url_for('teacher.remove_bot', world_id=world.id, firm_id=firm.id) }}" style="display:inline;"
                 onsubmit="return confirm('Remove this bot? The slot will become unclaimed again (its cash/history stays intact for whoever claims it next).');">
-            <button class="btn" style="padding:4px 8px;font-size:0.75rem;background:var(--danger);box-shadow:0 3px 0 #7d241a;" type="submit">Remove Bot</button>
+            <button class="btn" style="padding:4px 8px;font-size:0.75rem;background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);" type="submit">Remove Bot</button>
           </form>
           {% elif not firm.is_registered %}
           <form method="post" action="{{ url_for('teacher.assign_bot', world_id=world.id, firm_id=firm.id) }}" style="margin-top:4px;">
@@ -135,6 +135,28 @@
         <div class="label">#{{ entry.rank }} -- {{ entry.team_name }}</div>
         <div class="value {{ 'negative' if entry.cum_profit < 0 else 'positive' }}" style="font-size:1.1rem;">{{ "${:,.0f}".format(entry.cum_revenue) }} revenue</div>
         <p style="margin:8px 0 0;font-size:0.9rem;">{{ entry.summary }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Average Consumer Surplus by Segment</h3>
+  {% if not consumer_surplus %}
+    <p class="help-text">Consumer surplus will appear after Round 1 is processed.</p>
+  {% else %}
+    <p class="help-text">Average (willingness-to-pay ceiling &minus; price paid) across buyers who actually purchased in Round {{ selected_round }}, per segment. Buyers who couldn't afford anyone that round are excluded from the average but shown alongside it.</p>
+    <div class="grid grid-3">
+      {% for row in consumer_surplus %}
+      <div class="stat">
+        <div class="label">{{ row.name }}</div>
+        <div class="value" style="font-size:1.1rem;">
+          {{ "${:,.2f}".format(row.avg_consumer_surplus) if row.avg_consumer_surplus is not none else "No buyers" }}
+        </div>
+        <p class="help-text" style="margin:8px 0 0;">
+          {{ "{:,.0f}".format(row.unsold_buyers) }} buyers unsold ({{ "%.1f"|format(row.unsold_buyers_pct) }}%)
+        </p>
       </div>
       {% endfor %}
     </div>

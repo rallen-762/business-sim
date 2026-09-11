@@ -44,7 +44,7 @@ Edge cases considered:
 
 from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS
 from app.extensions import db
-from app.models import Firm, RoundDecision, RoundResult
+from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult
 
 PIE_COLORS = (
     "#2159d1", "#ef8a1f", "#1c8a4b", "#c0392b",
@@ -217,8 +217,14 @@ def segment_overview(world, round_number):
     buyer pool, unrelated to any round), units_sold_this_round (summed
     across all firms), leading_track (whichever of Budget/Standard/Premium
     captured the most units in that segment this round, or None if the
-    segment had zero sales this round)."""
+    segment had zero sales this round), avg_consumer_surplus and
+    unsold_buyers_pct (from the willingness-to-pay sweep -- see
+    consumer_surplus_by_segment; merged in here so the Market Dashboard's
+    existing Customer Segments card can show it without a second query at
+    each call site -- None/0 if that round's segment stats aren't
+    available for any reason)."""
     total_buyers = sum(SEGMENT_BUYER_COUNT.values())
+    surplus_by_name = {row["name"]: row for row in consumer_surplus_by_segment(world, round_number)}
 
     overview = []
     if round_number is None:
@@ -228,6 +234,8 @@ def segment_overview(world, round_number):
                 "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
                 "units_sold_this_round": 0,
                 "leading_track": None,
+                "avg_consumer_surplus": None,
+                "unsold_buyers_pct": 0,
             })
         return overview
 
@@ -263,14 +271,47 @@ def segment_overview(world, round_number):
                     leading_track = track
                     break
 
+        surplus_row = surplus_by_name.get(seg)
         overview.append({
             "name": seg,
             "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
             "units_sold_this_round": total_units,
             "leading_track": leading_track,
+            "avg_consumer_surplus": surplus_row["avg_consumer_surplus"] if surplus_row else None,
+            "unsold_buyers_pct": surplus_row["unsold_buyers_pct"] if surplus_row else 0,
         })
 
     return overview
+
+
+def consumer_surplus_by_segment(world, round_number):
+    """Returns a list of dicts (in SEGMENTS order), one per segment, for the
+    Teacher Dashboard's Average Consumer Surplus by Segment card: name,
+    avg_consumer_surplus (None if nobody in that segment could afford
+    anyone that round -- see engine.SegmentDemandStats), unsold_buyers
+    (fractional headcount), unsold_buyers_pct. Returns [] (same "nothing to
+    show yet" convention as build_scouting_report) if round_number is None
+    or that round simply hasn't been processed/persisted yet -- the caller
+    doesn't need to check latest_processed_round() separately."""
+    if round_number is None:
+        return []
+
+    rows_by_segment = {
+        row.segment: row
+        for row in SegmentRoundResult.query.filter_by(world_id=world.id, round_number=round_number)
+    }
+    if not rows_by_segment:
+        return []
+
+    return [
+        {
+            "name": seg,
+            "avg_consumer_surplus": rows_by_segment[seg].avg_consumer_surplus if seg in rows_by_segment else None,
+            "unsold_buyers": rows_by_segment[seg].unsold_buyers if seg in rows_by_segment else 0,
+            "unsold_buyers_pct": rows_by_segment[seg].unsold_buyers_pct if seg in rows_by_segment else 0,
+        }
+        for seg in SEGMENTS
+    ]
 
 
 def competitive_intel_rows(world, round_number):

@@ -11,12 +11,13 @@ from app.extensions import db
 from app.market_data import (
     build_pie_gradient,
     competitive_intel_rows,
+    consumer_surplus_by_segment,
     cumulative_standings,
     market_shares_for_round,
     round_totals,
     segment_overview,
 )
-from app.models import Firm, RoundDecision, RoundResult, World
+from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult, World
 
 
 @pytest.fixture
@@ -69,6 +70,54 @@ def make_result(firm, round_number, segment_units=None, **overrides):
     db.session.add(r)
     db.session.commit()
     return r
+
+
+def make_segment_result(world, round_number, segment, **overrides):
+    base = dict(total_buyers=1000.0, unsold_buyers=0.0, unsold_buyers_pct=0.0, avg_consumer_surplus=10.0)
+    base.update(overrides)
+    row = SegmentRoundResult(world_id=world.id, round_number=round_number, segment=segment, **base)
+    db.session.add(row)
+    db.session.commit()
+    return row
+
+
+# --------------------------------------------------------------------------- #
+# consumer_surplus_by_segment
+# --------------------------------------------------------------------------- #
+
+def test_consumer_surplus_empty_before_any_round(app):
+    world = make_world()
+    assert consumer_surplus_by_segment(world, None) == []
+    assert consumer_surplus_by_segment(world, 1) == []  # round_number given but nothing persisted for it yet
+
+
+def test_consumer_surplus_returns_one_row_per_segment_in_order(app):
+    world = make_world()
+    for seg in SEGMENTS:
+        make_segment_result(world, 1, seg, avg_consumer_surplus=5.0)
+    rows = consumer_surplus_by_segment(world, 1)
+    assert [row["name"] for row in rows] == list(SEGMENTS)
+
+
+def test_consumer_surplus_none_when_nobody_could_afford_anyone(app):
+    world = make_world()
+    for seg in SEGMENTS:
+        make_segment_result(
+            world, 1, seg, unsold_buyers=SEGMENT_BUYER_COUNT[seg], unsold_buyers_pct=100.0,
+            avg_consumer_surplus=None,
+        )
+    rows = consumer_surplus_by_segment(world, 1)
+    assert all(row["avg_consumer_surplus"] is None for row in rows)
+    assert all(row["unsold_buyers_pct"] == 100.0 for row in rows)
+
+
+def test_consumer_surplus_scoped_to_the_requested_round_only(app):
+    world = make_world()
+    make_segment_result(world, 1, "Wealthy", avg_consumer_surplus=5.0)
+    make_segment_result(world, 2, "Wealthy", avg_consumer_surplus=50.0)
+    rows_round_1 = consumer_surplus_by_segment(world, 1)
+    wealthy_row = next(r for r in rows_round_1 if r["name"] == "Wealthy")
+    assert wealthy_row["avg_consumer_surplus"] == 5.0
 
 
 # --------------------------------------------------------------------------- #
@@ -264,6 +313,31 @@ def test_segment_overview_no_leading_track_when_segment_had_zero_sales(app):
     wealthy = next(s for s in overview if s["name"] == "Wealthy")
     assert wealthy["leading_track"] is None
     assert wealthy["units_sold_this_round"] == 0
+
+
+def test_segment_overview_before_any_round_has_no_consumer_surplus_data(app):
+    world = make_world()
+    overview = segment_overview(world, None)
+    for seg_row in overview:
+        assert seg_row["avg_consumer_surplus"] is None
+        assert seg_row["unsold_buyers_pct"] == 0
+
+
+def test_segment_overview_merges_in_consumer_surplus_data(app):
+    world = make_world()
+    firm = make_firm(world, 1, "Nike")
+    make_decision(firm, 1, track="Standard")
+    make_result(firm, 1, segment_units={"Low Income": 100})
+    make_segment_result(world, 1, "Low Income", avg_consumer_surplus=12.5, unsold_buyers_pct=30.0)
+    make_segment_result(world, 1, "Wealthy", avg_consumer_surplus=None, unsold_buyers_pct=100.0)
+
+    overview = segment_overview(world, 1)
+    low_income = next(s for s in overview if s["name"] == "Low Income")
+    wealthy = next(s for s in overview if s["name"] == "Wealthy")
+    assert low_income["avg_consumer_surplus"] == 12.5
+    assert low_income["unsold_buyers_pct"] == 30.0
+    assert wealthy["avg_consumer_surplus"] is None
+    assert wealthy["unsold_buyers_pct"] == 100.0
 
 
 # --------------------------------------------------------------------------- #
