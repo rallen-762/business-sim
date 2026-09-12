@@ -40,11 +40,26 @@ def test_quality_ladder_caps_at_10_beyond_max_spend():
     assert c.quality_level_from_cumulative_rd(10_000_000) == 10
 
 
-def test_rd_spend_presets_from_zero_lists_every_level_above_1():
+def test_rd_spend_presets_stop_at_the_per_round_level_cap():
+    # A firm can only climb MAX_QUALITY_LEVEL_GAIN_PER_ROUND levels in one
+    # round, so offering a preset for Level 10 from Level 1 would just invite
+    # a team to buy levels the round can't give them.
     presets = c.rd_spend_presets(0)
     assert presets[0] == (2, 50_000)
-    assert presets[-1] == (10, 700_000)
-    assert len(presets) == 9  # levels 2..10
+    assert len(presets) == c.MAX_QUALITY_LEVEL_GAIN_PER_ROUND
+    assert presets[-1][0] == 1 + c.MAX_QUALITY_LEVEL_GAIN_PER_ROUND
+
+
+def test_max_rd_spend_this_round_lands_exactly_on_the_reachable_level():
+    # From Level 1 (nothing spent), 3 levels up is Level 4 -> $150,000.
+    assert c.max_rd_spend_this_round(0) == 150_000
+    # From $150,000 (Level 4), 3 up is Level 7 -> $400,000 threshold,
+    # i.e. $250,000 more.
+    assert c.max_rd_spend_this_round(150_000) == 250_000
+    # Near the top the cap is whatever remains, not 3 full levels.
+    assert c.max_rd_spend_this_round(600_000) == 100_000  # Level 9 -> 10
+    # At max quality there is no cap to state -- the field is locked instead.
+    assert c.max_rd_spend_this_round(700_000) is None
 
 
 def test_rd_spend_presets_only_shows_levels_above_current():

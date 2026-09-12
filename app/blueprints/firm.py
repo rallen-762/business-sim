@@ -43,6 +43,7 @@ from app.constants import (
     CELEBRITY_COST_PER_ROUND,
     LOAN_INTEREST_RATE,
     LOAN_REPAYMENT_PRINCIPAL,
+    MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
     PLANT_INVESTMENT_CAPACITY_GAIN,
     PLANT_INVESTMENT_COST,
     ROUNDS_PER_WORLD,
@@ -50,6 +51,7 @@ from app.constants import (
     ad_spend_presets,
     quality_descriptor,
     quality_level_from_cumulative_rd,
+    max_rd_spend_this_round,
     rd_spend_presets,
     track_unit_cost,
 )
@@ -109,6 +111,8 @@ def dashboard():
         cumulative=cumulative, rounds_per_world=ROUNDS_PER_WORLD,
         track_unit_costs=track_unit_costs, tracks=TRACKS, tier_icons=TIER_ICONS,
         rd_presets=rd_spend_presets(firm.cumulative_rd_spend),
+        rd_cap=max_rd_spend_this_round(firm.cumulative_rd_spend),
+        max_quality_gain=MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
         ad_presets=ad_spend_presets(firm.cumulative_ad_spend),
         celebrity_cost=CELEBRITY_COST_PER_ROUND,
         quality_level=quality_level,
@@ -163,6 +167,21 @@ def submit_decision():
         return redirect(url_for("firm.dashboard"))
     if price < 0 or production_qty < 0 or ad_spend < 0 or rd_spend < 0:
         flash("Values can't be negative.")
+        return redirect(url_for("firm.dashboard"))
+
+    # A firm can only climb MAX_QUALITY_LEVEL_GAIN_PER_ROUND levels per
+    # round. Reject an over-cap submission rather than accepting it and
+    # silently capping the gain in the engine -- the team would have paid
+    # for levels they didn't get.
+    rd_cap = max_rd_spend_this_round(firm.cumulative_rd_spend)
+    if rd_cap is None and rd_spend > 0:
+        flash("You're already at the maximum Quality Level -- more R&D has no effect.")
+        return redirect(url_for("firm.dashboard"))
+    if rd_cap is not None and rd_spend > rd_cap:
+        flash(
+            f"R&D is limited to {MAX_QUALITY_LEVEL_GAIN_PER_ROUND} Quality Levels per round "
+            f"-- that's ${rd_cap:,.0f} maximum this round."
+        )
         return redirect(url_for("firm.dashboard"))
 
     # Hard-block: total planned spend (production cost included) can never

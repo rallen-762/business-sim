@@ -90,6 +90,7 @@ from app.constants import (
     LOAN_AMOUNT,
     LOAN_INTEREST_RATE,
     LOAN_REPAYMENT_PRINCIPAL,
+    MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
     PLANT_INVESTMENT_CAPACITY_GAIN,
     SEGMENT_BUYER_COUNT,
     SEGMENTS,
@@ -290,7 +291,15 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
     for fid in active_ids:
         d = decisions[fid]
         s = states[fid]
-        quality_level[fid] = quality_level_from_cumulative_rd(s.cumulative_rd_spend + d.rd_spend)
+        # A firm can climb at most MAX_QUALITY_LEVEL_GAIN_PER_ROUND levels in
+        # one round, however much it spends. Spend beyond that still counts
+        # toward cumulative_rd_spend, so it isn't burned -- it converts into
+        # levels over the following rounds instead of all at once. The
+        # submission route rejects an over-cap spend before it gets here; this
+        # is the backstop that also binds bots and auto-decisions.
+        level_before = quality_level_from_cumulative_rd(s.cumulative_rd_spend)
+        level_after = quality_level_from_cumulative_rd(s.cumulative_rd_spend + d.rd_spend)
+        quality_level[fid] = min(level_after, level_before + MAX_QUALITY_LEVEL_GAIN_PER_ROUND)
         lvl, mult = ad_level_and_multiplier(s.cumulative_ad_spend + d.ad_spend)
         ad_level[fid] = lvl
         ad_multiplier[fid] = mult

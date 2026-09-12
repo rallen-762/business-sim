@@ -183,7 +183,9 @@
           <option value="{{ amount|round|int }}">${{ "{:,.0f}".format(amount) }} -- reach Quality Level {{ level }}</option>
           {% endfor %}
         </select>
-        <input type="number" step="1" min="0" id="rd_spend" name="rd_spend" value="0" oninput="recalc()" style="margin-top:6px;">
+        <input type="number" step="1" min="0" max="{{ rd_cap|round|int }}" id="rd_spend" name="rd_spend" value="0" oninput="recalc()" style="margin-top:6px;">
+        <p class="help-text">Max {{ max_quality_gain }} Quality Levels per round &mdash;
+          up to <strong>{{ "${:,.0f}".format(rd_cap) }}</strong> this round.</p>
         {% else %}
         {# Quality 10 is the ceiling -- further R&D buys literally nothing but
            still leaves cash. Showing a live "$0" input invited teams to type a

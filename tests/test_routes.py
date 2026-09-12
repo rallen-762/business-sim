@@ -1151,3 +1151,43 @@ def test_teacher_reset_passwords_never_outlive_the_teacher_session(app, client):
     client.get("/teacher/logout")
     with client.session_transaction() as s:
         assert not s.get("reset_passwords")
+
+
+# --------------------------------------------------------------------------- #
+# R&D is limited to MAX_QUALITY_LEVEL_GAIN_PER_ROUND levels per round
+# --------------------------------------------------------------------------- #
+
+def test_rd_spend_above_the_per_round_cap_is_rejected(app, client):
+    from app.constants import max_rd_spend_this_round
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+
+    cap = max_rd_spend_this_round(0)          # Level 1 -> 4 == $150,000
+    resp = submit_decision(client, rd_spend=str(int(cap) + 1),
+                           production_qty="1000", follow_redirects=True)
+    assert b"Quality Levels per round" in resp.data
+    with app.app_context():
+        assert RoundDecision.query.filter_by(firm_id=firm_id).count() == 0, "over-cap spend was stored"
+
+
+def test_rd_spend_exactly_at_the_cap_is_accepted(app, client):
+    from app.constants import max_rd_spend_this_round
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+
+    cap = max_rd_spend_this_round(0)
+    submit_decision(client, rd_spend=str(int(cap)), production_qty="1000")
+    with app.app_context():
+        d = RoundDecision.query.filter_by(firm_id=firm_id).first()
+        assert d is not None and d.rd_spend == cap
+
+
+def test_maxed_out_firm_cannot_submit_any_rd(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.cumulative_rd_spend = 700_000      # already Level 10
+        db.session.commit()
+    resp = submit_decision(client, rd_spend="50000", production_qty="1000", follow_redirects=True)
+    assert b"maximum Quality Level" in resp.data

@@ -8,6 +8,7 @@ from app.engine import FirmDecision, FirmState, process_round, synthesize_non_su
 from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
+    MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
     SEGMENT_BUYER_COUNT,
     STARTING_CASH,
     STARTING_PLANT_CAPACITY,
@@ -464,3 +465,48 @@ def test_unsold_buyers_never_goes_negative_from_float_drift():
     for seg, stats in results.segment_stats.items():
         assert stats.unsold_buyers >= 0, f"{seg} reported negative unsold buyers"
         assert stats.unsold_buyers_pct >= 0, f"{seg} reported negative unsold %"
+
+
+# --------------------------------------------------------------------------- #
+# Per-round Quality Level cap
+# --------------------------------------------------------------------------- #
+
+def test_quality_level_cannot_climb_more_than_the_cap_in_one_round():
+    # Enough R&D to reach Level 10 outright, from Level 1.
+    states = {1: make_state(1, cash=10_000_000)}
+    decisions = {1: make_decision(1, rd_spend=700_000)}
+    results = process_round(states, decisions)
+    assert results[1].quality_level == 1 + MAX_QUALITY_LEVEL_GAIN_PER_ROUND
+
+
+def test_over_cap_rd_is_not_burned_but_the_engine_cap_only_delays_by_one_round():
+    """Documents a real limit of the engine-side cap.
+
+    Quality Level is a pure function of CUMULATIVE R&D spend -- no level is
+    stored per firm -- so the cap can only compare "level implied by spend at
+    the start of the round" against "level implied after". A firm that
+    somehow banks the whole ladder in one round is capped that round, but
+    the next round its starting level already reads 10 and the cap has
+    nothing left to hold back.
+
+    That's acceptable because the SUBMISSION ROUTE is the real enforcement:
+    firm.submit_decision rejects any rd_spend above
+    constants.max_rd_spend_this_round(), so a team's cumulative can never run
+    ahead of its level in the first place. This engine cap is the backstop
+    for decisions that don't go through that route (bots, auto-decisions).
+    Making it airtight would mean persisting quality level as firm state --
+    a schema change that isn't worth it for a path humans can't reach."""
+    states = {1: make_state(1, cash=10_000_000)}
+    first = process_round(states, {1: make_decision(1, rd_spend=700_000)})[1]
+    assert first.quality_level == 1 + MAX_QUALITY_LEVEL_GAIN_PER_ROUND  # capped
+
+    # Next round, with the spend now banked in cumulative:
+    states = {1: make_state(1, cash=10_000_000, cumulative_rd_spend=700_000)}
+    second = process_round(states, {1: make_decision(1, rd_spend=0)})[1]
+    assert second.quality_level == 10  # cap has nothing to hold back anymore
+
+
+def test_cap_does_not_interfere_with_normal_single_level_steps():
+    states = {1: make_state(1, cash=10_000_000, cumulative_rd_spend=0)}
+    decisions = {1: make_decision(1, rd_spend=50_000)}   # exactly Level 2
+    assert process_round(states, decisions)[1].quality_level == 2

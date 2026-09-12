@@ -114,6 +114,30 @@ def quality_level_from_cumulative_rd(cumulative_rd: float) -> int:
     return level
 
 
+# A firm can climb at most this many Quality Levels in a single round.
+# Without it, a Round-1 firm with enough cash could buy its way from Level
+# 1 straight to Level 10 in one move, which made R&D a single up-front
+# purchase rather than an ongoing strategic choice. Confirmed with the
+# user. Enforced in three places: the presets below stop offering
+# unreachable levels, firm.submit_decision rejects an over-cap spend
+# outright (so nobody's money is silently wasted), and engine.process_round
+# caps the level gain regardless of what reaches it.
+MAX_QUALITY_LEVEL_GAIN_PER_ROUND = 3
+
+
+def max_rd_spend_this_round(cumulative_rd_spend: float) -> float | None:
+    """The most R&D a firm may submit this round -- the spend that lands
+    exactly on its highest reachable level. None means "no cap applies"
+    (already at max quality, so rd_spend_presets is empty anyway and the
+    UI locks the field)."""
+    current_level = quality_level_from_cumulative_rd(cumulative_rd_spend)
+    target_level = min(QUALITY_LADDER[-1][0], current_level + MAX_QUALITY_LEVEL_GAIN_PER_ROUND)
+    if target_level <= current_level:
+        return None
+    target_threshold = next(t for lvl, t in QUALITY_LADDER if lvl == target_level)
+    return max(0.0, target_threshold - cumulative_rd_spend)
+
+
 def rd_spend_presets(cumulative_rd_spend: float) -> list[tuple[int, float]]:
     """Returns [(level, additional_spend_needed)] for every quality level
     still ABOVE the firm's current one -- additional_spend_needed is what
@@ -121,12 +145,17 @@ def rd_spend_presets(cumulative_rd_spend: float) -> list[tuple[int, float]]:
     cross that level's cumulative threshold. Used to offer the Firm
     Dashboard's R&D preset quick-fill options; already-reached levels are
     omitted since $0 more is needed for those. Empty list once a firm is
-    already at Level 10 (nothing left to reach)."""
+    already at Level 10 (nothing left to reach).
+
+    Capped at MAX_QUALITY_LEVEL_GAIN_PER_ROUND levels ahead -- offering a
+    preset for a level the round can't actually reach would just be an
+    invitation to waste money."""
     current_level = quality_level_from_cumulative_rd(cumulative_rd_spend)
+    highest_offerable = current_level + MAX_QUALITY_LEVEL_GAIN_PER_ROUND
     return [
         (level, threshold - cumulative_rd_spend)
         for level, threshold in QUALITY_LADDER
-        if level > current_level
+        if current_level < level <= highest_offerable
     ]
 
 
