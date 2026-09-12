@@ -42,6 +42,15 @@ def create_app(config_overrides=None):
     # the session permanent with an explicit lifetime gives the cookie a
     # real expiry the browser is supposed to honor and keep around.
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+    # Set both explicitly rather than inheriting browser defaults. Lax still
+    # sends the cookie on ordinary top-level navigation (which is all this
+    # app does) while refusing it on cross-site POSTs. Secure is conditional:
+    # Render always serves HTTPS, but local dev runs on plain http, where a
+    # Secure cookie would simply never be sent and would look exactly like
+    # "logged out on every page."
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SECURE"] = "DATABASE_URL" in os.environ
 
     if config_overrides:
         app.config.update(config_overrides)
