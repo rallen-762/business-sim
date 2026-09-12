@@ -239,3 +239,72 @@ def test_underbidder_never_prices_below_its_own_unit_cost():
         price = d.price
         assert price > unit_cost, f"priced {price} at or below unit cost {unit_cost}"
     assert price == UNDERBIDDER_PRICE_FLOOR  # settles on the floor, not below it
+
+
+# --------------------------------------------------------------------------- #
+# Marketing's plant expansion -- the one profile that raises its own ceiling.
+#
+# It exists to be WATCHED: students who never noticed the Plant Investment
+# control see a rival sell out, expand, and keep growing. So it has to be
+# reactive (expand only after actually selling out) rather than scheduled --
+# a bot that always expanded would teach the wrong lesson.
+# --------------------------------------------------------------------------- #
+
+def test_marketing_expands_after_selling_out():
+    d = decide(
+        profile="marketing", firm_id=1, round_number=5,
+        cash=4_000_000, capacity=45_000,
+        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        loan_outstanding=0, last_price=80.0, last_profit=500_000,
+        last_units_lost_to_capacity=18_000,
+    )
+    assert d.plant_investment > 0
+
+
+def test_marketing_does_not_expand_when_it_met_its_demand():
+    d = decide(
+        profile="marketing", firm_id=1, round_number=5,
+        cash=4_000_000, capacity=45_000,
+        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        loan_outstanding=0, last_price=80.0, last_profit=500_000,
+        last_units_lost_to_capacity=0,
+    )
+    assert d.plant_investment == 0
+
+
+def test_marketing_does_not_expand_when_it_cannot_stock_the_bigger_plant():
+    # Buying capacity it can't fill would burn $100k up front and then a
+    # permanent $15k/round for units it never builds.
+    d = decide(
+        profile="marketing", firm_id=1, round_number=5,
+        cash=250_000, capacity=45_000,
+        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        loan_outstanding=0, last_price=80.0, last_profit=-50_000,
+        last_units_lost_to_capacity=18_000,
+    )
+    assert d.plant_investment == 0
+
+
+def test_marketing_does_not_expand_while_carrying_debt():
+    # Plant spend is blocked by the engine while a loan is outstanding, so
+    # committing to it here would just get stripped and wasted.
+    d = decide(
+        profile="marketing", firm_id=1, round_number=5,
+        cash=4_000_000, capacity=45_000,
+        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        loan_outstanding=500_000, last_price=80.0, last_profit=-100_000,
+        last_units_lost_to_capacity=18_000,
+    )
+    assert d.plant_investment == 0
+
+
+def test_every_other_profile_still_never_expands():
+    for profile in ("underbidder", "elite", "random"):
+        d = decide(
+            profile=profile, firm_id=1, round_number=5,
+            cash=4_000_000, capacity=45_000,
+            cumulative_rd_spend=0, cumulative_ad_spend=0,
+            loan_outstanding=0, last_price=80.0, last_profit=500_000,
+            last_units_lost_to_capacity=18_000,
+        )
+        assert d.plant_investment == 0, f"{profile} should not expand"

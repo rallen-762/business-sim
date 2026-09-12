@@ -125,6 +125,24 @@ def create_app(config_overrides=None):
                         conn.commit()
                     print("Added firms.product_icon column.")
 
+            # Sold-out reporting. Both DEFAULT 0 and NOT NULL: rounds played
+            # before these columns existed backfill to 0, which reads as
+            # "didn't sell out" and simply leaves the banner hidden, rather
+            # than inventing a shortfall for history we can't reconstruct.
+            # NOT NULL matters -- models.RoundResult declares them non-nullable,
+            # and SQLAlchemy SELECTs every column on every RoundResult query.
+            if "round_results" in inspector.get_table_names():
+                result_columns = {c["name"] for c in inspector.get_columns("round_results")}
+                for col in ("units_demanded_total", "units_lost_to_capacity"):
+                    if col not in result_columns:
+                        with db.engine.connect() as conn:
+                            conn.execute(sa.text(
+                                f"ALTER TABLE round_results ADD COLUMN {col} "
+                                "FLOAT NOT NULL DEFAULT 0"
+                            ))
+                            conn.commit()
+                        print(f"Added round_results.{col} column.")
+
             # Old track value -> new tier value, everywhere a track string
             # is stored. "Premium" is unchanged so it's omitted.
             track_rename = {"Budget": "Entry", "Standard": "Mid"}

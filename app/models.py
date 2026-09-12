@@ -156,6 +156,21 @@ class Firm(db.Model):
     loan_used_ever = db.Column(db.Boolean, nullable=False, default=False)
     bankrupt = db.Column(db.Boolean, nullable=False, default=False)
 
+    @property
+    def effective_capacity(self):
+        """Capacity actually usable THIS round -- what engine.process_round
+        Step 7 enforces (plant_capacity + pending_capacity_increase, since a
+        purchased expansion matures at the start of the following round).
+
+        Exists because that sum was being recomputed by hand at each call
+        site and the student-facing ones got it wrong: the dashboard showed
+        (and its JS capped the production box at) the pre-expansion number,
+        so a team that paid $100,000 to expand was blocked from using the
+        capacity it had just bought, while bots -- which did add the pending
+        amount -- used theirs. Read this instead of re-deriving it.
+        """
+        return self.plant_capacity + (self.pending_capacity_increase or 0)
+
     # Carried forward for synthesizing next round's auto-decision on non-submission.
     last_price = db.Column(db.Float, nullable=True)
     last_track = db.Column(db.String(20), nullable=True)
@@ -253,6 +268,12 @@ class RoundResult(db.Model):
     ad_level = db.Column(db.Integer, nullable=False)
     plant_capacity = db.Column(db.Integer, nullable=False)
     new_pending_capacity_increase = db.Column(db.Integer, nullable=False, default=0)
+
+    # Demand won before capacity scaling, and the part capacity destroyed.
+    # Backfilled to 0 for rounds played before these columns existed, which
+    # reads as "didn't sell out" -- safe, since the banner stays hidden.
+    units_demanded_total = db.Column(db.Float, nullable=False, default=0)
+    units_lost_to_capacity = db.Column(db.Float, nullable=False, default=0)
 
     loan_taken_this_round = db.Column(db.Boolean, nullable=False, default=False)
     loan_principal_paid = db.Column(db.Float, nullable=False, default=0)

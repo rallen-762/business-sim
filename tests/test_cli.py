@@ -211,3 +211,72 @@ def test_init_db_rewrites_old_track_and_segment_values(app):
     with app.app_context():
         firm = db.session.get(Firm, firm_id)
         assert firm.last_track == "Mid"
+
+
+def test_init_db_adds_sold_out_columns_to_an_existing_round_results_table(app):
+    # The load-bearing case: a database created BEFORE the sold-out columns
+    # existed. create_all() only creates missing TABLES, so round_results
+    # keeps its old shape -- and SQLAlchemy SELECTs every column on every
+    # RoundResult query, so without the ALTER TABLE here the first page that
+    # reads a result 500s. That's the whole site, not a degraded corner.
+    with app.app_context():
+        db.create_all()
+        with db.engine.connect() as conn:
+            for col in ("units_demanded_total", "units_lost_to_capacity"):
+                conn.execute(sa.text(f"ALTER TABLE round_results DROP COLUMN {col}"))
+            conn.commit()
+        cols = {c["name"] for c in sa.inspect(db.engine).get_columns("round_results")}
+        assert "units_demanded_total" not in cols, "precondition: column really is gone"
+
+    assert app.test_cli_runner().invoke(args=["init-db"]).exit_code == 0
+
+    with app.app_context():
+        cols = {c["name"] for c in sa.inspect(db.engine).get_columns("round_results")}
+        assert "units_demanded_total" in cols
+        assert "units_lost_to_capacity" in cols
+        # And a real query against the model must now work end to end.
+        assert RoundResult.query.all() == []
+
+
+def test_init_db_backfills_sold_out_columns_to_zero_not_null(app):
+    # Rows that predate the columns can't have their shortfall reconstructed.
+    # They must read as "didn't sell out" (0), never NULL -- the model
+    # declares both columns NOT NULL, and a NULL would break the template's
+    # comparison as well as violate the constraint.
+    with app.app_context():
+        db.create_all()
+        world = World(name="Period 1", game_code="BF0001", planned_firm_slots=1)
+        db.session.add(world)
+        db.session.commit()
+        firm = Firm(world_id=world.id, slot_number=1, team_name="Legacy",
+                    cash=1_000_000, plant_capacity=45_000)
+        db.session.add(firm)
+        db.session.commit()
+        firm_id = firm.id
+
+        # Write a result row through raw SQL with the new columns dropped,
+        # exactly like a row written by the previous version of the app.
+        with db.engine.connect() as conn:
+            for col in ("units_demanded_total", "units_lost_to_capacity"):
+                conn.execute(sa.text(f"ALTER TABLE round_results DROP COLUMN {col}"))
+            conn.execute(sa.text(
+                "INSERT INTO round_results (firm_id, round_number, units_sold_by_segment,"
+                " units_sold_total, revenue, production_cost, fixed_cost, ad_cost, rd_cost,"
+                " celebrity_cost, plant_investment_cost, total_cost, profit, cash_before,"
+                " cash_after, quality_level, ad_level, plant_capacity,"
+                " new_pending_capacity_increase, loan_taken_this_round,"
+                " loan_principal_paid, loan_interest_charged, loan_outstanding_after,"
+                " loan_used_ever_after, went_bankrupt_this_round, is_bankrupt, is_auto,"
+                " plant_investment_blocked, celebrity_blocked, created_at)"
+                " VALUES (:fid, 1, '{}', 1000, 80000, 50000, 100000, 0, 0, 0, 0, 150000,"
+                " -70000, 1000000, 930000, 1, 1, 45000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,"
+                " CURRENT_TIMESTAMP)"
+            ), {"fid": firm_id})
+            conn.commit()
+
+    assert app.test_cli_runner().invoke(args=["init-db"]).exit_code == 0
+
+    with app.app_context():
+        row = RoundResult.query.filter_by(firm_id=firm_id, round_number=1).one()
+        assert row.units_demanded_total == 0
+        assert row.units_lost_to_capacity == 0

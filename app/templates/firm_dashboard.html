@@ -120,6 +120,17 @@
   </div>
   {% endif %}
 
+  {% if last_result.units_lost_to_capacity and last_result.units_lost_to_capacity >= 1 %}
+  <div class="soldout">
+    <div class="soldout-head">You sold out</div>
+    <div class="soldout-lost">{{ "{:,.0f}".format(last_result.units_lost_to_capacity) }} more customers wanted to buy</div>
+    <p>Your factory made its maximum {{ "{:,.0f}".format(last_result.plant_capacity) }} units and they all sold.
+      {{ "{:,.0f}".format(last_result.units_lost_to_capacity) }} more shoppers came looking and left empty-handed
+      {% if last_result_price %}&mdash; about {{ "${:,.0f}".format(last_result.units_lost_to_capacity * last_result_price) }} of sales you couldn't fill{% endif %}.</p>
+    <p class="help-text">Expanding your plant raises the ceiling, but it takes a round to build and adds fixed cost every round after &mdash; so it only pays if you expect the demand to keep coming.</p>
+  </div>
+  {% endif %}
+
   <h3 style="margin-top:20px;">Cumulative Totals (Through Round {{ world.current_round }})</h3>
   <div class="grid grid-3">
     <div class="stat"><div class="label">Cumulative Revenue</div><div class="value">{{ "${:,.0f}".format(cumulative.cum_revenue or 0) }}</div></div>
@@ -149,7 +160,7 @@
   <h2>Round {{ world.current_round }} of {{ rounds_per_world }}</h2>
   <div class="grid grid-3" style="margin-bottom:16px;">
     <div class="stat"><div class="label">Cash</div><div class="value" id="stat-cash">{{ "${:,.0f}".format(firm.cash) }}</div></div>
-    <div class="stat"><div class="label">Plant Capacity</div><div class="value">{{ "{:,}".format(firm.plant_capacity) }}</div></div>
+    <div class="stat"><div class="label">Plant Capacity</div><div class="value">{{ "{:,}".format(firm.effective_capacity) }}</div></div>
     <div class="stat"><div class="label">Quality Level</div><div class="value">{{ quality_level }} &mdash; {{ quality_label }}</div></div>
     <div class="stat"><div class="label">Current Tier</div><div class="value">
       {% if firm.last_track in tier_icons %}<img src="{{ url_for('static', filename='img/tiers/' ~ tier_icons[firm.last_track]) }}" alt="" style="width:20px;height:20px;object-fit:contain;vertical-align:-4px;margin-right:4px;">{% endif %}
@@ -240,7 +251,7 @@
       <div>
         <label>Production Quantity <span class="help-text">(auto-calculated)</span></label>
         <input type="number" id="production_qty" name="production_qty" readonly style="background:var(--panel-alt);">
-        <p class="help-text">Capacity this round: {{ "{:,}".format(firm.plant_capacity) }}</p>
+        <p class="help-text">Capacity this round: {{ "{:,}".format(firm.effective_capacity) }}{% if firm.pending_capacity_increase %} &mdash; includes the +{{ "{:,}".format(firm.pending_capacity_increase) }} expansion you built, now online{% endif %}</p>
       </div>
     </div>
 
@@ -267,7 +278,7 @@
 
 <script>
   const FIRM_CASH = {{ firm.cash|tojson }};
-  const PLANT_CAPACITY = {{ firm.plant_capacity|tojson }};
+  const PLANT_CAPACITY = {{ firm.effective_capacity|tojson }};
   const TRACK_UNIT_COSTS = {{ track_unit_costs|tojson }};
   const CELEBRITY_COST = {{ celebrity_cost|tojson }};
 

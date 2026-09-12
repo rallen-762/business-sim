@@ -1255,3 +1255,59 @@ def test_decision_form_ships_the_affordability_curve_not_the_raw_ceilings(app, c
     assert "WTP_CEILING_CENTER" not in body
     for seg in ("Low Income", "NBA Fans", "Casual/Fashion"):
         assert f'"{seg}"' not in body
+
+
+# --------------------------------------------------------------------------- #
+# Capacity shown to a student must equal capacity the ENGINE enforces.
+#
+# These diverged once already: the dashboard (and the JS that caps the
+# production box) used firm.plant_capacity, which EXCLUDES an expansion that
+# has just matured -- so a team that paid $100,000 to expand was locked out of
+# the capacity it bought, while bots, which added the pending amount, used
+# theirs. Any future edit that re-derives capacity by hand will fail here.
+# --------------------------------------------------------------------------- #
+
+def test_dashboard_capacity_includes_a_matured_expansion(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+
+    with client.application.app_context():
+        firm = Firm.query.filter_by(world_id=world_id, slot_number=1).one()
+        firm.plant_capacity = 45_000
+        firm.pending_capacity_increase = 15_000  # built last round, online now
+        db.session.commit()
+        expected = firm.effective_capacity
+    assert expected == 60_000
+
+    resp = client.get("/firm")
+    body = resp.data.decode("utf-8")
+
+    # The production box must not be capped below what the engine allows.
+    assert "const PLANT_CAPACITY = 60000" in body
+    assert "const PLANT_CAPACITY = 45000" not in body
+    # And the number on screen must agree.
+    assert "60,000" in body
+
+
+def test_sold_out_banner_appears_only_when_capacity_actually_bound(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    # Shrink the plant so CAPACITY is unambiguously the binding constraint --
+    # at full size this firm can't afford a full run, and cash binding first
+    # correctly suppresses the banner (see the engine tests).
+    with client.application.app_context():
+        firm = Firm.query.filter_by(world_id=world_id, slot_number=1).one()
+        firm.plant_capacity = 5_000
+        db.session.commit()
+    submit_decision(client, price="40", production_qty="5000")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    with client.application.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
+    client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    body = client.get("/firm").data.decode("utf-8")
+    assert "You sold out" in body
+    assert "more customers wanted to buy" in body

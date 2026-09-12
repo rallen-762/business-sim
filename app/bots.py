@@ -60,6 +60,8 @@ from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
     CELEBRITY_COST_PER_ROUND,
+    PLANT_INVESTMENT_CAPACITY_GAIN,
+    PLANT_INVESTMENT_COST,
     QUALITY_LADDER,
     ROUNDS_PER_WORLD,
     TRACKS,
@@ -120,6 +122,7 @@ def decide(
     loan_outstanding,
     last_price,
     last_profit,
+    last_units_lost_to_capacity=0.0,
     rng=None,
 ) -> FirmDecision:
     """Dispatches to one profile's decision function and returns a fully-
@@ -134,7 +137,8 @@ def decide(
     if profile == "underbidder":
         fields = _decide_underbidder(cash, capacity, last_price, last_profit, rng)
     elif profile == "marketing":
-        fields = _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng)
+        fields = _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng,
+                                   last_units_lost_to_capacity)
     elif profile == "elite":
         fields = _decide_elite(round_number, cash, capacity, cumulative_rd_spend, loan_outstanding, rng)
     elif profile == "random":
@@ -193,8 +197,20 @@ MARKETING_PRICE_BASE = BOOTSTRAP_DEFAULT_PRICE  # "near the field's typical star
 MARKETING_AD_RAMP_ROUNDS = 6                    # "over the first several rounds"
 MARKETING_CELEBRITY_CASH_THRESHOLD = 300_000    # "once cash comfortably allows it" -- 6x the $50k/round cost
 
+# Marketing is the one profile that expands its plant -- it's the profile whose
+# whole strategy is manufacturing demand, so it's the one that naturally
+# outgrows its factory, and seeing it do that is the point: students who never
+# noticed Plant Investment watch a rival raise its ceiling and keep growing.
+# Deliberately reactive, not scheduled -- it expands only after actually
+# selling out, so it can't teach "always expand" (which would be wrong).
+MARKETING_EXPAND_MIN_LOST_UNITS = 2_000  # ignore a rounding-scale shortfall
+# Must still afford the build AND fill the bigger plant next round, or it would
+# buy capacity it can't use and eat the permanent fixed cost for nothing.
+MARKETING_EXPAND_CASH_BUFFER = 1.5
 
-def _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng):
+
+def _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng,
+                      last_units_lost_to_capacity=0.0):
     track = BOOTSTRAP_DEFAULT_TRACK  # "keeps Track ... at low/default"
     rd_spend = 0.0                   # "keeps ... R&D at low/default investment"
 
@@ -215,11 +231,25 @@ def _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng
     price = max(1.0, round(_noise(rng, MARKETING_PRICE_BASE), 2))
 
     remaining_cash = cash - ad_spend - (CELEBRITY_COST_PER_ROUND if celebrity_on else 0)
+
+    # Expand only when last round actually ran out of plant, the loan gate is
+    # clear (plant spend is blocked while carrying debt anyway), and there's
+    # enough left over to stock the extra capacity once it matures.
+    cost_to_fill_extra = PLANT_INVESTMENT_CAPACITY_GAIN * track_unit_cost(track)
+    plant_investment = 0
+    if (
+        last_units_lost_to_capacity >= MARKETING_EXPAND_MIN_LOST_UNITS
+        and loan_outstanding == 0
+        and remaining_cash >= (PLANT_INVESTMENT_COST + cost_to_fill_extra) * MARKETING_EXPAND_CASH_BUFFER
+    ):
+        plant_investment = PLANT_INVESTMENT_COST
+        remaining_cash -= PLANT_INVESTMENT_COST
+
     production_qty = _affordable_production_qty(remaining_cash, track, capacity)
 
     return dict(
         price=price, production_qty=production_qty, ad_spend=round(ad_spend, 2), rd_spend=rd_spend,
-        track=track, celebrity_on=celebrity_on, plant_investment=0,
+        track=track, celebrity_on=celebrity_on, plant_investment=plant_investment,
     )
 
 

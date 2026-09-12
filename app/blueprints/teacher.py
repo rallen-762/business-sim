@@ -445,11 +445,12 @@ def _process_current_round(world, rng=None):
             )
             bot_decision = bot_decide(
                 profile=firm.bot_profile, firm_id=firm.id, round_number=world.current_round,
-                cash=firm.cash, capacity=firm.plant_capacity + firm.pending_capacity_increase,
+                cash=firm.cash, capacity=firm.effective_capacity,
                 cumulative_rd_spend=firm.cumulative_rd_spend, cumulative_ad_spend=firm.cumulative_ad_spend,
                 loan_outstanding=firm.loan_outstanding,
                 last_price=last_decision.price if last_decision else None,
                 last_profit=last_result.profit if last_result else None,
+                last_units_lost_to_capacity=(last_result.units_lost_to_capacity or 0.0) if last_result else 0.0,
                 rng=rng,
             )
             decisions[firm.id] = bot_decision
@@ -469,7 +470,7 @@ def _process_current_round(world, rng=None):
         else:
             auto = synthesize_non_submission_decision(
                 firm_id=firm.id, last_price=firm.last_price, last_track=firm.last_track,
-                cash=firm.cash, plant_capacity=firm.plant_capacity,
+                cash=firm.cash, plant_capacity=firm.effective_capacity,
             )
             decisions[firm.id] = auto
             db.session.add(RoundDecision(
@@ -492,6 +493,8 @@ def _process_current_round(world, rng=None):
             cash_before=r.cash_before, cash_after=r.cash_after, quality_level=r.quality_level,
             ad_level=r.ad_level, plant_capacity=r.plant_capacity,
             new_pending_capacity_increase=r.new_pending_capacity_increase,
+            units_demanded_total=r.units_demanded_total,
+            units_lost_to_capacity=r.units_lost_to_capacity,
             loan_taken_this_round=r.loan_taken_this_round > 0, loan_principal_paid=r.loan_principal_paid,
             loan_interest_charged=r.loan_interest_charged, loan_outstanding_after=r.loan_outstanding_after,
             loan_used_ever_after=r.loan_used_ever_after, went_bankrupt_this_round=r.went_bankrupt_this_round,

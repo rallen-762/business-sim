@@ -462,6 +462,28 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   margin-bottom: 14px;
 }
 
+/* --- Sold-out callout (firm dashboard: demand that capacity destroyed) ---
+   Deliberately loud. The whole point is that running out of plant used to be
+   invisible -- the round just looked fine -- so students never connected it
+   to the Plant Investment control. --- */
+.soldout {
+  background: var(--panel-alt);
+  border: 2px solid var(--accent-danger);
+  box-shadow: 6px 6px 0 var(--accent-danger-dark);
+  padding: 14px 18px;
+  margin: 18px 0;
+}
+.soldout .soldout-head {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-danger);
+  margin-bottom: 8px;
+}
+.soldout .soldout-lost { font-size: 1.5rem; font-family: var(--font-display); color: var(--text); }
+.soldout p { margin: 8px 0 0; font-size: 0.9rem; }
+
 /* --- Flash messages --- */
 .flash { background: var(--panel-alt); border: 2px solid var(--accent-primary); border-radius: 0; color: var(--text); padding: 10px 14px; margin-bottom: 16px; }
 

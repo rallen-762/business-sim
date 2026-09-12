@@ -1,4 +1,5 @@
 import math
+import pytest
 import sys
 from pathlib import Path
 
@@ -510,3 +511,63 @@ def test_cap_does_not_interfere_with_normal_single_level_steps():
     states = {1: make_state(1, cash=10_000_000, cumulative_rd_spend=0)}
     decisions = {1: make_decision(1, rd_spend=50_000)}   # exactly Level 2
     assert process_round(states, decisions)[1].quality_level == 2
+
+
+# --------------------------------------------------------------------------- #
+# Sold-out reporting -- the demand Step 7's capacity scaling destroys.
+#
+# This used to be computed and thrown away, so a firm that ran out of plant saw
+# a perfectly healthy-looking round and never learned it had turned customers
+# away. The whole point of these fields is that the loss becomes visible, so
+# the attribution has to be right: "you sold out" must mean CAPACITY bound, not
+# merely "you sold everything you chose to build".
+# --------------------------------------------------------------------------- #
+
+def test_selling_out_records_the_demand_capacity_destroyed():
+    # One firm alone in the market with a tiny plant and a giveaway price:
+    # demand far exceeds what it can build.
+    states = {1: make_state(1, plant_capacity=15_000)}
+    decisions = {1: make_decision(1, price=40, production_qty=15_000)}
+    out = process_round(states, decisions)
+    r = out[1]
+
+    assert r.units_sold_total <= 15_000 + 1e-6, "can't sell more than it built"
+    assert r.units_demanded_total > r.units_sold_total, "this scenario must actually sell out"
+    assert r.units_lost_to_capacity == pytest.approx(
+        r.units_demanded_total - r.units_sold_total
+    )
+    assert r.units_lost_to_capacity > 0
+
+
+def test_underproducing_by_choice_is_not_blamed_on_capacity():
+    # Same shortfall, but the plant was never the binding constraint -- the
+    # firm simply chose a short run. Telling this firm to expand would be
+    # wrong advice: a bigger factory would not have sold one extra unit.
+    states = {1: make_state(1, plant_capacity=45_000)}
+    decisions = {1: make_decision(1, price=40, production_qty=10_000)}
+    out = process_round(states, decisions)
+    r = out[1]
+
+    assert r.units_demanded_total > r.units_sold_total, "demand must exceed the short run"
+    assert r.units_lost_to_capacity == 0, "shortfall was a production choice, not a plant limit"
+
+
+def test_a_firm_that_meets_all_its_demand_reports_no_loss():
+    # Priced high enough that demand is comfortably under a full-size plant.
+    states = {1: make_state(1)}
+    decisions = {1: make_decision(1, price=240, production_qty=45_000)}
+    out = process_round(states, decisions)
+    r = out[1]
+
+    assert r.units_lost_to_capacity == 0
+    assert r.units_demanded_total == pytest.approx(r.units_sold_total)
+
+
+def test_pending_capacity_counts_toward_the_sold_out_test():
+    # Capacity that matures THIS round is real capacity -- a firm whose
+    # expansion just came online shouldn't be told it's still capped at the
+    # old ceiling.
+    states = {1: make_state(1, plant_capacity=15_000, pending_capacity_increase=30_000)}
+    decisions = {1: make_decision(1, price=40, production_qty=45_000)}
+    out = process_round(states, decisions)
+    assert out[1].plant_capacity == 45_000

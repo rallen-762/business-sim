@@ -162,6 +162,12 @@ class FirmRoundResult:
     ad_level: int = 1
     plant_capacity: int = 0  # capacity in effect for this round
     new_pending_capacity_increase: int = 0  # matures next round
+    # Demand this firm won BEFORE Step 7's capacity scaling, and the part of
+    # it that capacity destroyed. units_demanded_total > units_sold_total
+    # exactly when the firm sold out. Kept so the student can be TOLD they
+    # sold out -- the scaling used to discard this and the loss was invisible.
+    units_demanded_total: float = 0.0
+    units_lost_to_capacity: float = 0.0
     loan_taken_this_round: float = 0.0
     loan_principal_paid: float = 0.0
     loan_interest_charged: float = 0.0
@@ -397,10 +403,12 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
     # redistributed to other firms (locked decision). ---
     actual_production: dict[int, int] = {}
     final_units: dict[int, dict[str, float]] = {}
+    demanded_total: dict[int, float] = {}
     for fid in active_ids:
         d = decisions[fid]
         actual_production[fid] = max(0, min(d.production_qty, effective_capacity[fid]))
         total_raw = sum(raw_units[fid].values())
+        demanded_total[fid] = total_raw
         if total_raw <= 0 or total_raw <= actual_production[fid]:
             final_units[fid] = dict(raw_units[fid])
         else:
@@ -413,6 +421,15 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
         d = decisions[fid]
         units_sold_total = sum(final_units[fid].values())
         revenue = units_sold_total * d.price
+
+        # Shortfall is only attributed to CAPACITY when capacity is what
+        # actually bound -- i.e. the firm asked to build at least as much as
+        # its plant allows. A firm that chose (or could only afford) a smaller
+        # run has the same shortfall, but buying a bigger plant would not have
+        # helped it, so telling it to expand would be actively wrong advice.
+        shortfall = max(0.0, demanded_total[fid] - units_sold_total)
+        capacity_bound = d.production_qty >= effective_capacity[fid]
+        units_lost_to_capacity = shortfall if capacity_bound else 0.0
 
         unit_cost = track_unit_cost(d.track)
         production_cost = actual_production[fid] * unit_cost  # sunk even for unsold units -- they're destroyed
@@ -475,6 +492,8 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
             ad_level=ad_level[fid],
             plant_capacity=effective_capacity[fid],
             new_pending_capacity_increase=new_capacity_gain,
+            units_demanded_total=demanded_total[fid],
+            units_lost_to_capacity=units_lost_to_capacity,
             loan_taken_this_round=loan_taken,
             loan_principal_paid=principal_paid,
             loan_interest_charged=interest_charged,
