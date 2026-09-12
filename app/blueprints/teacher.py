@@ -104,7 +104,13 @@ def _generate_reset_password():
 @bp.route("/")
 @teacher_login_required
 def dashboard():
-    worlds = World.query.order_by(World.created_at.desc()).all()
+    # Classroom worlds only. Sandbox and bots-only worlds are the player's
+    # or a balance run's, not a class period -- listing them here would bury
+    # real periods under throwaway runs.
+    worlds = (
+        World.query.filter_by(mode="classroom")
+        .order_by(World.created_at.desc()).all()
+    )
     return render_template("teacher_dashboard.html", worlds=worlds)
 
 
@@ -179,7 +185,7 @@ def view_world(world_id):
     return render_template(
         "teacher_world.html", world=world, firms=firms,
         submitted_count=submitted_count, registered_count=registered_count,
-        rounds_per_world=ROUNDS_PER_WORLD, selected_round=selected_round,
+        rounds_per_world=(world.rounds or ROUNDS_PER_WORLD), selected_round=selected_round,
         decisions_by_firm=decisions_by_firm, results_by_firm=results_by_firm,
         scouting_report=build_scouting_report(world), scouting_round=scouting_round,
         bot_profiles=BOT_PROFILES,
@@ -236,8 +242,10 @@ def present(world_id):
         world=world,
         standings=standings_with_rank_delta(world),
         latest_round=latest_processed_round(world),
-        rounds_per_world=ROUNDS_PER_WORLD,
+        rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         hold=request.args.get("hold") == "1",
+        exit_url=url_for("teacher.view_world", world_id=world.id),
+        exit_title="Back to the Teacher Dashboard",
     )
 
 
@@ -589,7 +597,10 @@ def _process_current_round(world, rng=None):
             unsold_buyers_pct=stats.unsold_buyers_pct, avg_consumer_surplus=stats.avg_consumer_surplus,
         ))
 
-    world.status = "complete" if world.current_round >= ROUNDS_PER_WORLD else "transition"
+    # Per-world length, not the global constant -- see World.rounds. Falls
+    # back to the constant for a World object built before the column
+    # existed (defensive; init-db backfills every row to 10).
+    world.status = "complete" if world.current_round >= (world.rounds or ROUNDS_PER_WORLD) else "transition"
     # The reopened window closes as soon as the round is processed again.
     world.reopened_round = None
     db.session.commit()

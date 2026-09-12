@@ -94,6 +94,24 @@ def dashboard():
         .first()
     )
 
+    # Sandbox advances to the next round in the same action that processes
+    # the current one, so the player never sits in the "transition" state
+    # where the firm-level results card lives -- they'd sail past their own
+    # affordability table and the sold-out warning entirely. Hand the
+    # dashboard the round they just played so it can recap it above the
+    # next decision form. Classroom is untouched: it still uses the
+    # transition state for this.
+    recap_result = None
+    recap_decision = None
+    if world.mode == "sandbox" and last_result is None and world.current_round > 1:
+        previous_round = world.current_round - 1
+        recap_result = RoundResult.query.filter_by(
+            firm_id=firm.id, round_number=previous_round
+        ).first()
+        recap_decision = RoundDecision.query.filter_by(
+            firm_id=firm.id, round_number=previous_round
+        ).first()
+
     track_unit_costs = {t: track_unit_cost(t) for t in TRACKS}
     quality_level = quality_level_from_cumulative_rd(firm.cumulative_rd_spend)
 
@@ -109,7 +127,7 @@ def dashboard():
         "firm_dashboard.html",
         firm=firm, world=world, decision=decision, last_result=last_result,
         round_reopened=(world.reopened_round == world.current_round),
-        cumulative=cumulative, rounds_per_world=ROUNDS_PER_WORLD,
+        cumulative=cumulative, rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         track_unit_costs=track_unit_costs, tracks=TRACKS, tier_icons=TIER_ICONS,
         rd_presets=rd_spend_presets(firm.cumulative_rd_spend),
         rd_cap=max_rd_spend_this_round(firm.cumulative_rd_spend),
@@ -130,6 +148,10 @@ def dashboard():
         affordability_curve=affordability_curve(),
         last_result_price=last_decision.price if last_decision else None,
         last_result_track=last_decision.track if last_decision else None,
+        recap_result=recap_result,
+        recap_round=(world.current_round - 1) if recap_result else None,
+        recap_price=recap_decision.price if recap_decision else None,
+        recap_affordability=affordability_breakdown(recap_decision, recap_result),
     )
 
 

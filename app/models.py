@@ -108,6 +108,21 @@ class World(db.Model):
     game_code = db.Column(db.String(20), unique=True, nullable=False, index=True)
     planned_firm_slots = db.Column(db.Integer, nullable=False)  # set at World creation; pre-creates this many empty Firm rows
 
+    # "classroom" (teacher-run, the original and only mode until now),
+    # "sandbox" (one human vs bots, no teacher gatekeeping), or "bots_only"
+    # (unattended balance runs). Classroom is the default so every existing
+    # world keeps its behaviour and keeps showing on the Teacher Dashboard,
+    # which filters to this mode.
+    mode = db.Column(db.String(20), nullable=False, default="classroom")
+
+    # How many rounds THIS world plays. Deliberately a field rather than
+    # constants.ROUNDS_PER_WORLD baked into the round logic: sandbox worlds
+    # are meant to become variable-length later without rework. For now
+    # every world is created at ROUNDS_PER_WORLD (10) and nothing exposes a
+    # way to change it -- opening it up should be a UI change, not a
+    # re-plumbing. ROUNDS_PER_WORLD remains the default and is untouched.
+    rounds = db.Column(db.Integer, nullable=False, default=10)
+
     current_round = db.Column(db.Integer, nullable=False, default=1)
     # "collecting" (default, teams submitting) | "processing" (round-advance
     # job running) | "transition" (round just processed, showing the Round
@@ -130,6 +145,7 @@ class World(db.Model):
 
     __table_args__ = (
         db.CheckConstraint("current_round >= 1", name="ck_world_current_round_min"),
+        db.CheckConstraint("rounds >= 1", name="ck_world_rounds_min"),
         db.CheckConstraint("planned_firm_slots >= 1", name="ck_world_planned_firm_slots_min"),
     )
 

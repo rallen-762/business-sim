@@ -280,3 +280,41 @@ def test_init_db_backfills_sold_out_columns_to_zero_not_null(app):
         row = RoundResult.query.filter_by(firm_id=firm_id, round_number=1).one()
         assert row.units_demanded_total == 0
         assert row.units_lost_to_capacity == 0
+
+
+def test_init_db_backfills_existing_worlds_to_classroom_mode(app):
+    # A world that predates sandbox mode must keep behaving exactly as it
+    # did: classroom mode (so it still shows on the Teacher Dashboard, which
+    # filters on this) and 10 rounds (what the round logic had hardcoded).
+    # Getting this backfill wrong would hide a teacher's live class periods.
+    #
+    # Builds the pre-sandbox table shape directly rather than DROP COLUMN --
+    # SQLite refuses to drop a column a CHECK constraint still references.
+    with app.app_context():
+        old_columns = [
+            c.copy() for c in World.__table__.columns
+            if c.name not in ("mode", "rounds")
+        ]
+        meta = sa.MetaData()
+        sa.Table("worlds", meta, *old_columns)
+        meta.create_all(db.engine)
+        db.metadata.create_all(db.engine, tables=[
+            Firm.__table__, RoundDecision.__table__, RoundResult.__table__,
+        ])
+        assert "mode" not in {c["name"] for c in inspect(db.engine).get_columns("worlds")}
+
+        with db.engine.connect() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO worlds (name, game_code, planned_firm_slots,"
+                " current_round, status, created_at)"
+                " VALUES ('Legacy Period', 'LEGACY', 1, 3, 'collecting', CURRENT_TIMESTAMP)"
+            ))
+            conn.commit()
+
+    assert app.test_cli_runner().invoke(args=["init-db"]).exit_code == 0
+
+    with app.app_context():
+        world = World.query.filter_by(game_code="LEGACY").one()
+        assert world.mode == "classroom", "a pre-existing world must stay a classroom world"
+        assert world.rounds == 10
+        assert world.current_round == 3, "existing progress untouched"

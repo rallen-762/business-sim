@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Sandbox{% endblock %}
+{% block nav %}
+  <a href="{{ url_for('sandbox.logout') }}">Leave Sandbox</a>
+{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Sandbox</h2>
+  <p class="help-text">Sandbox games run on the same market model, formulas and bot logic as a classroom
+    game &mdash; nothing about the math changes. They never appear on the Teacher Dashboard.</p>
+</div>
+
+<div class="card">
+  <h3>New Single-Player Game</h3>
+  <p class="help-text">You run one company against the bots. No teacher, no waiting &mdash; you submit
+    your decision and process the round yourself. {{ default_rounds }} rounds.</p>
+  <form method="post" action="{{ url_for('sandbox.new_game') }}">
+    <div class="grid grid-2">
+      <div>
+        <label for="team_name">Your company name</label>
+        <input type="text" id="team_name" name="team_name" value="My Company" maxlength="60">
+      </div>
+      <div>
+        <label for="password">Password for this game</label>
+        <input type="text" id="password" name="password" value="sandbox" maxlength="60">
+      </div>
+    </div>
+
+    <label style="margin-top:14px;display:block;">Opponents</label>
+    <p class="help-text" style="margin-top:0;">Leave them all ticked for a full field.</p>
+    {% for profile in bot_order %}
+    <label style="display:block;font-weight:400;margin:4px 0;">
+      <input type="checkbox" name="bot_{{ profile }}" checked>
+      {{ bot_display_name(loop.index, profile) }}
+    </label>
+    {% endfor %}
+
+    <button class="btn full" style="margin-top:18px;" type="submit">Start Playing</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Bots-Only Run</h3>
+  <p class="help-text">No human player. Plays all {{ default_rounds }} rounds start to finish, then
+    downloads the same CSV the Teacher Dashboard exports. Use it to test balance.</p>
+  <form method="post" action="{{ url_for('sandbox.run_bots_only') }}">
+    {% for profile in bot_order %}
+    <label style="display:block;font-weight:400;margin:4px 0;">
+      <input type="checkbox" name="bot_{{ profile }}" checked>
+      {{ bot_display_name(loop.index, profile) }}
+    </label>
+    {% endfor %}
+    <button class="btn full secondary" style="margin-top:18px;" type="submit">Run and Export CSV</button>
+  </form>
+</div>
+
+{% if worlds %}
+<div class="card">
+  <h3>Recent Sandbox Games</h3>
+  <div style="overflow-x:auto;">
+  <table class="compact">
+    <thead><tr><th>Game</th><th>Mode</th><th>Round</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for w in worlds %}
+      <tr>
+        <td>{{ w.name }}</td>
+        <td>{{ "Single-player" if w.mode == "sandbox" else "Bots only" }}</td>
+        <td>{{ w.current_round }} / {{ w.rounds }}</td>
+        <td>{{ w.status }}</td>
+        <td>
+          {% if w.mode == "sandbox" %}
+          <a class="btn secondary" style="padding:4px 10px;" href="{{ url_for('sandbox.resume', world_id=w.id) }}">Resume</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

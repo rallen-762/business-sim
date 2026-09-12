@@ -64,6 +64,37 @@ def log_in_teacher():
 
 FIRM_SESSION_KEYS = ("firm_id", "world_id")
 TEACHER_SESSION_KEYS = ("is_teacher", "reset_passwords")
+# Sandbox is its own role, scoped like the other two so signing into it
+# never touches a team or teacher session in the same browser. It is
+# deliberately NOT a weaker teacher: it grants nothing on the Teacher
+# Dashboard.
+SANDBOX_SESSION_KEYS = ("is_sandbox",)
+
+
+def log_in_sandbox():
+    session.permanent = True
+    for key in SANDBOX_SESSION_KEYS:
+        session.pop(key, None)
+    session["is_sandbox"] = True
+
+
+def log_out_sandbox():
+    for key in SANDBOX_SESSION_KEYS:
+        session.pop(key, None)
+
+
+def is_sandbox():
+    return bool(session.get("is_sandbox"))
+
+
+def sandbox_login_required(view):
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        if not is_sandbox():
+            flash("Sandbox password required.")
+            return redirect(url_for("sandbox.login"))
+        return view(*args, **kwargs)
+    return wrapped
 
 
 def log_out_firm():

@@ -28,6 +28,11 @@ def create_app(config_overrides=None):
     # Single global teacher password (not per-World) -- confirmed as the
     # simplest option for one teacher running several class periods.
     app.config["TEACHER_PASSWORD"] = os.environ.get("TEACHER_PASSWORD", "dev-teacher-change-me")
+    # Separate from TEACHER_PASSWORD on purpose: sandbox is for practice and
+    # balance runs, so knowing it must NOT confer Teacher Dashboard access
+    # (processing real class rounds, resetting team passwords, deleting
+    # worlds). Two secrets, two capabilities.
+    app.config["SANDBOX_PASSWORD"] = os.environ.get("SANDBOX_PASSWORD", "dev-sandbox-change-me")
     # True only when running locally: Render always injects a real DATABASE_URL
     # (see _normalized_database_url above), so this is never true in production
     # regardless of what TEACHER_PASSWORD happens to be set to. Used to skip
@@ -68,11 +73,13 @@ def create_app(config_overrides=None):
     with app.app_context():
         from app import models  # noqa: F401  -- registers models on db.metadata
 
-        from app.blueprints import auth, firm, market, teacher
+        from app.blueprints import auth, firm, market, sandbox, teacher
         app.register_blueprint(auth.bp)
         app.register_blueprint(firm.bp)
         app.register_blueprint(market.bp)
         app.register_blueprint(teacher.bp)
+        # Imports from teacher.py, so it must register after it.
+        app.register_blueprint(sandbox.bp)
 
     @app.cli.command("init-db")
     def init_db_command():
@@ -124,6 +131,30 @@ def create_app(config_overrides=None):
                         conn.execute(sa.text("ALTER TABLE firms ADD COLUMN product_icon VARCHAR(120)"))
                         conn.commit()
                     print("Added firms.product_icon column.")
+
+            # Sandbox/bots-only modes. Both backfill every pre-existing world
+            # to exactly its current behaviour: mode "classroom" (so it keeps
+            # showing on the Teacher Dashboard, which filters on this) and
+            # rounds 10 (ROUNDS_PER_WORLD, what the round logic used to have
+            # hardcoded). NOT NULL to match the model, which SELECTs both on
+            # every World query.
+            if "worlds" in inspector.get_table_names():
+                world_cols = {c["name"] for c in inspector.get_columns("worlds")}
+                if "mode" not in world_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text(
+                            "ALTER TABLE worlds ADD COLUMN mode VARCHAR(20) "
+                            "NOT NULL DEFAULT 'classroom'"
+                        ))
+                        conn.commit()
+                    print("Added worlds.mode column.")
+                if "rounds" not in world_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text(
+                            "ALTER TABLE worlds ADD COLUMN rounds INTEGER NOT NULL DEFAULT 10"
+                        ))
+                        conn.commit()
+                    print("Added worlds.rounds column.")
 
             # Undo Last Round's reopen window. Nullable with no default --
             # NULL simply means "no round is reopened", which is the correct
