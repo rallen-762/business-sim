@@ -199,12 +199,12 @@
     <div class="grid grid-3">
       {% for row in consumer_surplus %}
       <div class="stat">
-        <div class="label">{{ row.name }}</div>
+        <div class="label">{{ row.display_name }}</div>
         <div class="value" style="font-size:1.1rem;">
           {{ "${:,.2f}".format(row.avg_consumer_surplus) if row.avg_consumer_surplus is not none else "No buyers" }}
         </div>
         <p class="help-text" style="margin:8px 0 0;">
-          {{ "{:,.0f}".format(row.unsold_buyers) }} buyers unsold ({{ "%.1f"|format(row.unsold_buyers_pct) }}%)
+          {{ "{:,.0f}".format([row.unsold_buyers, 0]|max) }} buyers unsold ({{ "%.1f"|format([row.unsold_buyers_pct, 0]|max) }}%)
         </p>
       </div>
       {% endfor %}

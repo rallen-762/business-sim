@@ -25,17 +25,17 @@ Then, to get actual units sold to that segment:
 PRICE MULTIPLIER — detail
 ----------------------------------------------------------------------------
 
-STANDARD SEGMENTS (Low Income, NBA Fans, Athletes, Casual/Fashion):
+STANDARD SEGMENTS (Budget Shoppers, Music Enthusiasts, Fitness/Active Users, Casual/Style-Conscious):
 
     % above base  =  (Price - 50) / 50
 
     Price Multiplier  =  MAX( 0,  1  -  (% above base) x Elasticity Coefficient )
 
     Elasticity Coefficients (LOCKED):
-        Low Income          1.4
-        Casual/Fashion      1.0
-        Athletes  0.7
-        NBA Fans            0.3
+        Budget Shoppers          1.4
+        Casual/Style-Conscious      1.0
+        Fitness/Active Users  0.7
+        Music Enthusiasts            0.3
 
 
 WEALTHY SEGMENT (piecewise — different rule):

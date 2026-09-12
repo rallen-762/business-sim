@@ -47,6 +47,7 @@ from app.constants import (
     SEGMENTS,
     TRACKS,
     WEALTHY_CEILING_PRICE,
+    segment_label,
     wtp_threshold_r,
 )
 from app.extensions import db
@@ -126,6 +127,29 @@ def affordability_breakdown(decision, result):
             "reachable_pct": 100 - priced_out_pct,
         })
     return rows
+
+
+# Per-segment accent + glyph for the Market Dashboard's Customer Segments
+# cards, which were five identical grey boxes. Colours are drawn from the
+# existing PIE_COLORS palette so the dashboard stays on one set of hues
+# (Wealthy gets the gold, Low Income the muted slate, etc.). Purely
+# presentational -- nothing here feeds the model.
+# Keyed by the INTERNAL segment key, not the display label -- the keys are
+# what the model and the database use (see constants.SEGMENT_DISPLAY_NAMES);
+# the glyphs match what each segment is now CALLED.
+SEGMENT_ACCENTS = {
+    "Low Income":     {"color": "#7A8FA6", "icon": "\U0001FA99"},  # Budget Shoppers -- coin
+    "NBA Fans":       {"color": "#B5651D", "icon": "\U0001F3B5"},  # Music Enthusiasts -- musical note
+    "Athletes":       {"color": "#8FBF8F", "icon": "\U0001F4AA"},  # Fitness/Active -- flexed arm
+    "Wealthy":        {"color": "#C9A227", "icon": "\U0001F451"},  # crown
+    "Casual/Fashion": {"color": "#A85C7A", "icon": "\U0001F576"},  # Style-Conscious -- sunglasses
+}
+SEGMENT_ACCENT_FALLBACK = {"color": "#4A5A5E", "icon": "\U0001F3A7"}
+
+# One colour per product tier, so scanning the Leading Tier row shows the
+# tier mix at a glance. Entry/Mid/Premium read as slate -> teal -> gold,
+# i.e. the same "steps up" ordering the tiers themselves have.
+TIER_ACCENTS = {"Entry": "#7A8FA6", "Mid": "#6FA8A0", "Premium": "#C9A227"}
 
 
 def latest_processed_round(world):
@@ -345,6 +369,7 @@ def segment_overview(world, round_number):
         for seg in SEGMENTS:
             overview.append({
                 "name": seg,
+                "display_name": segment_label(seg),
                 "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
                 "units_sold_this_round": 0,
                 "leading_track": None,
@@ -388,6 +413,7 @@ def segment_overview(world, round_number):
         surplus_row = surplus_by_name.get(seg)
         overview.append({
             "name": seg,
+            "display_name": segment_label(seg),
             "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
             "units_sold_this_round": total_units,
             "leading_track": leading_track,
@@ -420,6 +446,7 @@ def consumer_surplus_by_segment(world, round_number):
     return [
         {
             "name": seg,
+            "display_name": segment_label(seg),
             "avg_consumer_surplus": rows_by_segment[seg].avg_consumer_surplus if seg in rows_by_segment else None,
             "unsold_buyers": rows_by_segment[seg].unsold_buyers if seg in rows_by_segment else 0,
             "unsold_buyers_pct": rows_by_segment[seg].unsold_buyers_pct if seg in rows_by_segment else 0,

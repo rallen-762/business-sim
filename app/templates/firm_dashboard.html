@@ -175,18 +175,28 @@
       </div>
 
       <div>
-        <label for="rd_preset">R&amp;D Spend</label>
         {% if rd_presets %}
+        <label for="rd_preset">R&amp;D Spend</label>
         <select id="rd_preset" onchange="document.getElementById('rd_spend').value=this.value; recalc();">
           <option value="0">No R&amp;D this round ($0)</option>
           {% for level, amount in rd_presets %}
           <option value="{{ amount|round|int }}">${{ "{:,.0f}".format(amount) }} -- reach Quality Level {{ level }}</option>
           {% endfor %}
         </select>
-        {% else %}
-        <p class="help-text">Already at max Quality Level (10).</p>
-        {% endif %}
         <input type="number" step="1" min="0" id="rd_spend" name="rd_spend" value="0" oninput="recalc()" style="margin-top:6px;">
+        {% else %}
+        {# Quality 10 is the ceiling -- further R&D buys literally nothing but
+           still leaves cash. Showing a live "$0" input invited teams to type a
+           number into a field that can only waste money, so the whole control
+           is locked once there's nothing left to reach. The hidden input keeps
+           the form posting rd_spend=0, and the server re-derives affordability
+           regardless. #}
+        <label for="rd_spend_locked">R&amp;D Maxed Out (Level 10)</label>
+        <input type="text" id="rd_spend_locked" value="$0 -- nothing left to unlock" disabled
+               style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
+        <input type="hidden" id="rd_spend" name="rd_spend" value="0">
+        <p class="help-text">Quality Level 10 is the maximum &mdash; more R&amp;D has no effect. Spend it elsewhere.</p>
+        {% endif %}
       </div>
       <div>
         <label for="ad_preset">Advertising Spend</label>

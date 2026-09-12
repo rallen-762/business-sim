@@ -33,7 +33,7 @@ Edge cases considered:
     short fallback sentence instead of crashing on a None decision.
 """
 
-from app.constants import SEGMENTS
+from app.constants import SEGMENTS, segment_label
 from app.models import Firm, RoundDecision, RoundResult
 
 
@@ -127,7 +127,7 @@ def _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares):
     leading = _leading_segment_for_firm(firm.id, segment_shares)
     if leading:
         seg_name, share = leading
-        parts.append(f"Their strongest segment was {seg_name}, capturing {share:.0f}% of that segment's sales.")
+        parts.append(f"Their strongest segment was {segment_label(seg_name)}, capturing {share:.0f}% of that segment's sales.")
 
     return parts
 

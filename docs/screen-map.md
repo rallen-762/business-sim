@@ -69,7 +69,7 @@ BOTTOM — Running Ledger
 
 Own-Firm Segment Breakdown Table (per round, sits alongside the ledger):
 
-- Shows this firm's own units sold broken out across all 5 segments (Low Income, NBA Fans, Athletes, Wealthy, Casual/Fashion) for the most recently completed round.
+- Shows this firm's own units sold broken out across all 5 segments (Budget Shoppers, Music Enthusiasts, Fitness/Active Users, Wealthy, Casual/Style-Conscious) for the most recently completed round.
 - Table format, consistent with the Running Ledger above it — not a chart.
 - Reveals results only (this firm's actual units sold per segment), never the underlying formulas (elasticity coefficients, quality weights, tier multipliers stay hidden forever per Section 12).
 - Intentional design choice: lets sharp students reverse-engineer segment behavior over multiple rounds by observing how their own mix shifts when they change price/tier/etc. — treated as a teaching feature, not a leak.
@@ -118,7 +118,7 @@ Competitive Intelligence Report:
 
 Customer Segment Overview (all 5 segments):
 
-- One panel/card per segment (Low Income, NBA Fans, Athletes, Wealthy, Casual/Fashion) — visual treatment TBD, no hidden-formula numbers exposed.
+- One panel/card per segment (Budget Shoppers, Music Enthusiasts, Fitness/Active Users, Wealthy, Casual/Style-Conscious) — visual treatment TBD, no hidden-formula numbers exposed.
 - Per segment, shows: Segment Name; Relative Size (as a share of total buyer pool, not a raw headcount, so it reads intuitively); Units Sold This Round (total across the whole market into that segment); Leading Tier (whichever of Entry/Mid/Premium is currently capturing the most sales in that segment).
 - Purpose: gives students a directional signal on where demand is moving without leaking the underlying elasticity/tier/quality formulas.
 

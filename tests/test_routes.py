@@ -658,7 +658,7 @@ def test_market_dashboard_shows_standings_ranking_pie_and_segments(client):
     assert "Round Totals" in body
     assert "Market Share" in body
     assert "Customer Segments" in body
-    assert "Low Income" in body and "Casual/Fashion" in body
+    assert "Budget Shoppers" in body and "Casual/Style-Conscious" in body
     assert "View Competitive Intelligence Report" in body
 
 

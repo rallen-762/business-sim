@@ -78,9 +78,9 @@ Total buyer pool = 408,000 per world (base 8,000 x scale factor 51).
 
   Segment              | Real Buyer Count
   ----------------------|-------------------
-  Low Income            |     127,500
-  NBA Fans               |      76,500
-  Athletes     |      51,000
+  Budget Shoppers            |     127,500
+  Music Enthusiasts               |      76,500
+  Fitness/Active Users     |      51,000
   Wealthy                |      40,800
   Casual / Fashion       |     112,200
 
@@ -96,9 +96,9 @@ This is intentional.
 
   Segment              | Entry | Mid | Premium
   ----------------------|--------|----------|--------
-  Low Income             |  1.3   |   0.9    |  0.5
-  NBA Fans                |  0.5   |   0.9    |  1.4
-  Athletes      |  0.7   |   1.0    |  1.2
+  Budget Shoppers             |  1.3   |   0.9    |  0.5
+  Music Enthusiasts                |  0.5   |   0.9    |  1.4
+  Fitness/Active Users      |  0.7   |   1.0    |  1.2
   Wealthy                 |  0.4   |   0.8    |  1.5
   Casual / Fashion        |  0.8   |   1.3    |  0.9
 
@@ -109,9 +109,9 @@ This is intentional.
 
   Segment              |  Q1  |  Q10 | Notes
   ----------------------|------|------|----------------------------
-  Low Income             | 1.0  | 1.0  | Flat -- doesn't care about quality
-  NBA Fans                | 0.9  | 1.3  |
-  Athletes      | 0.7  | 1.8  | Steepest -- dominant factor
+  Budget Shoppers             | 1.0  | 1.0  | Flat -- doesn't care about quality
+  Music Enthusiasts                | 0.9  | 1.3  |
+  Fitness/Active Users      | 0.7  | 1.8  | Steepest -- dominant factor
   Wealthy                 | 0.8  | 1.6  |
   Casual / Fashion        | 0.95 | 1.05 | Nearly flat
 
@@ -126,9 +126,9 @@ effect on demand. Quality Weight is now the ONLY quality-effect layer.
 
   Segment              | Multiplier
   ----------------------|-----------
-  Low Income             |   1.0
-  NBA Fans                |   1.5   <- primary driver for this segment
-  Athletes      |   1.1
+  Budget Shoppers             |   1.0
+  Music Enthusiasts                |   1.5   <- primary driver for this segment
+  Fitness/Active Users      |   1.1
   Wealthy                 |   1.2
   Casual / Fashion        |   1.0
 
@@ -137,25 +137,25 @@ effect on demand. Quality Weight is now the ONLY quality-effect layer.
 3d. Price Multiplier (elasticity-based, LOCKED)
 ---------------------------------------------------------------------------
 
-STANDARD SEGMENTS (Low Income, NBA Fans, Athletes, Casual/Fashion):
+STANDARD SEGMENTS (Budget Shoppers, Music Enthusiasts, Fitness/Active Users, Casual/Style-Conscious):
 
   % above base  =  (Price - 50) / 50
 
   Price Multiplier  =  MAX( 0,  1 - (% above base) x Elasticity Coefficient )
 
   Elasticity Coefficients:
-      Low Income           1.4   (highly elastic / very price-sensitive)
-      Casual/Fashion        1.0   (unit elastic / baseline)
-      Athletes    0.7   (moderately inelastic)
-      NBA Fans               0.3   (highly inelastic -- buying brand/celebrity)
+      Budget Shoppers           1.4   (highly elastic / very price-sensitive)
+      Casual/Style-Conscious        1.0   (unit elastic / baseline)
+      Fitness/Active Users    0.7   (moderately inelastic)
+      Music Enthusiasts               0.3   (highly inelastic -- buying brand/celebrity)
 
   Sanity check at the $80 Round-1 anchor price (60% above base):
-      Low Income:          0.16 multiplier
-      Casual/Fashion:       0.40
-      Athletes:   0.58
-      NBA Fans:             0.82
+      Budget Shoppers:          0.16 multiplier
+      Casual/Style-Conscious:       0.40
+      Fitness/Active Users:   0.58
+      Music Enthusiasts:             0.82
 
-  (Earlier draft used coefficient 2.0 for Low Income -- this was too
+  (Earlier draft used coefficient 2.0 for Budget Shoppers -- this was too
   aggressive, it zeroed that segment out completely by $75. Lowered to
   1.4 so the segment stays technically reachable near the target price.)
 

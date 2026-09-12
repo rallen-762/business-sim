@@ -231,6 +231,39 @@ BUYER_POOL_SCALE_FACTOR = 51
 
 SEGMENTS = ("Low Income", "NBA Fans", "Athletes", "Wealthy", "Casual/Fashion")
 
+# --------------------------------------------------------------------------- #
+# Display labels for the segments above.
+#
+# The SEGMENTS values are NOT just display text -- they are dict keys in
+# every per-segment table below (SEGMENT_BASE_COUNT, TRACK_PREFERENCE_
+# MULTIPLIER, QUALITY_WEIGHT_ENDPOINTS, CELEBRITY_MULTIPLIER,
+# WTP_CEILING_CENTER) AND they are persisted: SegmentRoundResult.segment
+# holds them verbatim, and they are the JSON keys inside
+# RoundResult.units_sold_by_segment for every round ever played.
+#
+# So renaming the values themselves means a data migration over live game
+# history (that's what the earlier Basketball Players -> Athletes rename
+# needed). This layer instead maps key -> what students and the teacher
+# actually read, which is what a label rename really wants: zero migration,
+# zero risk to past rounds, and the model keeps its stable internal keys.
+# Use segment_label() anywhere a segment name is shown to a human.
+# --------------------------------------------------------------------------- #
+
+SEGMENT_DISPLAY_NAMES = {
+    "Low Income": "Budget Shoppers",
+    "NBA Fans": "Music Enthusiasts",
+    "Athletes": "Fitness/Active Users",
+    "Wealthy": "Wealthy",
+    "Casual/Fashion": "Casual/Style-Conscious",
+}
+
+
+def segment_label(segment: str) -> str:
+    """Human-facing name for an internal segment key. Falls back to the key
+    itself so an unmapped or historical segment still renders readably
+    instead of blanking out."""
+    return SEGMENT_DISPLAY_NAMES.get(segment, segment)
+
 # "Basketball Players" -> "Athletes" (confirmed as part of the basketball-
 # terminology sweep). Same segment, same buyer counts/weights/ceilings
 # below -- just a label swap. "NBA Fans" was left as-is: it isn't one of

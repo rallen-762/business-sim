@@ -183,11 +183,11 @@ If a firm fails to submit a round's decisions:
 
 | Segment | Base Count | Scaled Count (×51) |
 |---|---|---|
-| Low Income | 2,500 | 127,500 |
-| NBA Fans | 1,500 | 76,500 |
-| Athletes | 1,000 | 51,000 |
+| Budget Shoppers | 2,500 | 127,500 |
+| Music Enthusiasts | 1,500 | 76,500 |
+| Fitness/Active Users | 1,000 | 51,000 |
 | Wealthy | 800 | 40,800 |
-| Casual/Fashion | 2,200 | 112,200 |
+| Casual/Style-Conscious | 2,200 | 112,200 |
 | **Total** | **8,000** | **408,000** |
 
 With 7 firms at 45,000 units capacity each (315,000 industry capacity), the buyer pool exceeds total capacity, so **capacity — not raw demand — is the binding constraint** on sales in a typical round (see Section 7 reconciliation note).
@@ -210,31 +210,31 @@ Price no longer appears in the Demand Pull score itself — the old Price Elasti
 
 | Segment | Entry | Mid | Premium |
 |---|---|---|---|
-| Low Income | 1.3 | 0.9 | 0.5 |
-| NBA Fans | 0.5 | 0.9 | 1.4 |
-| Athletes | 0.7 | 1.0 | 1.2 |
+| Budget Shoppers | 1.3 | 0.9 | 0.5 |
+| Music Enthusiasts | 0.5 | 0.9 | 1.4 |
+| Fitness/Active Users | 0.7 | 1.0 | 1.2 |
 | Wealthy | 0.4 | 0.8 | 1.5 |
-| Casual/Fashion | 0.8 | 1.3 | 0.9 |
+| Casual/Style-Conscious | 0.8 | 1.3 | 0.9 |
 
 **2. Quality Weight** (Quality 1 → Quality 10, linear interpolation between)
 
 | Segment | Q1 | Q10 |
 |---|---|---|
-| Low Income | 1.0 | 1.0 *(flat — doesn't care)* |
-| NBA Fans | 0.9 | 1.3 |
-| Athletes | 0.7 | 1.8 *(steepest — dominant factor)* |
+| Budget Shoppers | 1.0 | 1.0 *(flat — doesn't care)* |
+| Music Enthusiasts | 0.9 | 1.3 |
+| Fitness/Active Users | 0.7 | 1.8 *(steepest — dominant factor)* |
 | Wealthy | 0.8 | 1.6 |
-| Casual/Fashion | 0.95 | 1.05 *(nearly flat)* |
+| Casual/Style-Conscious | 0.95 | 1.05 *(nearly flat)* |
 
 **3. Celebrity Endorsement Multiplier** (applies only if celebrity is ON)
 
 | Segment | Multiplier |
 |---|---|
-| Low Income | 1.0 |
-| NBA Fans | 1.5 *(primary driver)* |
-| Athletes | 1.1 |
+| Budget Shoppers | 1.0 |
+| Music Enthusiasts | 1.5 *(primary driver)* |
+| Fitness/Active Users | 1.1 |
 | Wealthy | 1.2 |
-| Casual/Fashion | 1.0 |
+| Casual/Style-Conscious | 1.0 |
 
 **4. Willingness-to-Pay Ceilings** (REPLACES the old Price Elasticity Coefficient — Sept 2026 redesign)
 
@@ -242,11 +242,11 @@ Each buyer's maximum willingness-to-pay ceiling varies by TRACK, not one flat nu
 
 | Segment | Entry Ceiling | Mid Ceiling | Premium Ceiling |
 |---|---|---|---|
-| Low Income | $65 | $68 | $70 |
-| NBA Fans | $90 | $105 | $120 |
-| Athletes | $35 | $75 | $130 |
+| Budget Shoppers | $65 | $68 | $70 |
+| Music Enthusiasts | $90 | $105 | $120 |
+| Fitness/Active Users | $35 | $75 | $130 |
 | Wealthy | $50 | $140 | $230 |
-| Casual/Fashion | $75 | $85 | $90 |
+| Casual/Style-Conscious | $75 | $85 | $90 |
 
 **Spread (platform choice, not given by the original design docs):** each buyer's actual ceiling for a tier is uniformly spread ±20% around that tier's center for their segment (e.g. Wealthy/Premium ranges $184–$276) — not every buyer in a segment is identical. A single buyer's Entry/Mid/Premium ceilings are correlated (driven by one underlying "how willing to pay is this buyer, generally" draw), not three independent random numbers, since every segment's Entry < Mid < Premium ordering above means a buyer generally willing to pay more is willing to pay more across every tier, not randomly more generous on one tier and less on another.
 

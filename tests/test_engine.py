@@ -452,3 +452,15 @@ def test_process_round_result_is_still_a_plain_dict_for_existing_callers():
     assert isinstance(results, dict)
     assert results[1].firm_id == 1
     assert set(results.segment_stats.keys()) == set(SEGMENT_BUYER_COUNT.keys())
+
+
+def test_unsold_buyers_never_goes_negative_from_float_drift():
+    """Interval shares summed back up can exceed buyer_count by a hair in
+    floating point, which surfaced as "-0.0% unsold" on the dashboards."""
+    states = {1: make_state(1, plant_capacity=10_000_000), 2: make_state(2, plant_capacity=10_000_000)}
+    decisions = {1: make_decision(1, production_qty=10_000_000, price=20),
+                 2: make_decision(2, production_qty=10_000_000, price=25)}
+    results = process_round(states, decisions)
+    for seg, stats in results.segment_stats.items():
+        assert stats.unsold_buyers >= 0, f"{seg} reported negative unsold buyers"
+        assert stats.unsold_buyers_pct >= 0, f"{seg} reported negative unsold %"

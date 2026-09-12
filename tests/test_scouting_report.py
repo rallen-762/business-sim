@@ -157,7 +157,7 @@ def test_summary_credits_leading_segment(app):
 
     report = build_scouting_report(world)
     nike_entry = next(r for r in report if r["team_name"] == "Nike")
-    assert any("Low Income" in point for point in nike_entry["summary_points"])
+    assert any("Budget Shoppers" in point for point in nike_entry["summary_points"])
 
 
 def test_tied_segment_share_credits_no_one(app):
@@ -171,7 +171,7 @@ def test_tied_segment_share_credits_no_one(app):
 
     report = build_scouting_report(world)
     nike_entry = next(r for r in report if r["team_name"] == "Nike")
-    assert not any("Low Income" in point for point in nike_entry["summary_points"])
+    assert not any("Budget Shoppers" in point for point in nike_entry["summary_points"])
 
 
 def test_firm_with_no_decision_gets_fallback_sentence_not_a_crash(app):

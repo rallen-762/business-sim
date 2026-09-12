@@ -373,7 +373,11 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
                 avg_ceiling = (wtp_ceiling_at_r(seg, d.track, lo) + wtp_ceiling_at_r(seg, d.track, hi)) / 2
                 surplus_numerator += interval_buyers * share * (avg_ceiling - d.price)
 
-        unsold_buyers = buyer_count - served_buyers
+        # Clamped at 0: summing each interval's share back up can land a
+        # hair over buyer_count in floating point, which rendered as a
+        # nonsensical "-0.0% unsold" on both dashboards and got persisted
+        # that way. A segment can never have negative unsold buyers.
+        unsold_buyers = max(0.0, buyer_count - served_buyers)
         segment_stats[seg] = SegmentDemandStats(
             segment=seg, total_buyers=buyer_count, unsold_buyers=unsold_buyers,
             unsold_buyers_pct=(unsold_buyers / buyer_count * 100) if buyer_count > 0 else 0.0,

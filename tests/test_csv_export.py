@@ -6,7 +6,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app
-from app.constants import SEGMENTS
+from app.constants import SEGMENTS, segment_label
 from app.csv_export import build_export_rows, export_filename, rows_to_csv_string
 from app.extensions import db
 from app.models import Firm, RoundDecision, RoundResult, World
@@ -88,11 +88,13 @@ def test_single_result_row_has_expected_fields(app):
     assert row["Tier"] == "Premium"
     assert row["Revenue"] == 8500
     assert row["Profit"] == -100
-    assert row["Units Sold - Low Income"] == 100
+    assert row["Units Sold - Budget Shoppers"] == 100
     # Segments never sold to should still be present, defaulted to 0.
     for seg in SEGMENTS:
         if seg != "Low Income":
-            assert row[f"Units Sold - {seg}"] == 0
+            # Columns are headed by the DISPLAY label; the JSON blob and the
+            # constants tables still key on the internal segment name.
+            assert row[f"Units Sold - {segment_label(seg)}"] == 0
 
 
 def test_rows_sorted_by_slot_then_round_regardless_of_insertion_order(app):

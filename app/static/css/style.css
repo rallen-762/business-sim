@@ -137,6 +137,61 @@ h3 { font-size: 0.95rem; }
 }
 .card h2, .card h3 { margin-top: 0; }
 
+/* --- Customer Segments cards ---
+   Were five identical grey boxes. Each now carries its segment's accent as
+   a left stripe (set inline as --segment-accent), a glyph by the name, a
+   relative-size bar, and visual priority on Avg. Consumer Surplus, which is
+   the card's most meaningful economic number. Colours come from the same
+   PIE_COLORS palette the pie chart uses -- no new hues introduced. */
+.segment-card { border-left: 6px solid var(--segment-accent, var(--accent-primary)); }
+/* min-height so a one-line name ("Wealthy") and a two-line one
+   ("Casual/Style-Conscious") leave every card's stats on the same
+   baseline -- otherwise the row reads ragged. */
+.segment-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+  min-height: 2.6em;
+}
+.segment-icon { font-size: 1.15rem; line-height: 1; filter: saturate(0.85); }
+.segment-name { font-weight: 700; color: var(--text-primary); }
+
+.segment-size-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.segment-bar {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--panel-alt);
+  overflow: hidden;
+}
+.segment-bar-fill { height: 100%; background: var(--segment-accent, var(--accent-primary)); }
+.segment-size-pct { font-family: var(--font-display); font-size: 0.62rem; color: var(--text-primary); }
+
+/* The headline stat -- bigger and in the segment's own accent, so the eye
+   lands here first. Other stats keep .value's normal weight. */
+.segment-surplus {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.5;
+  margin-top: 6px;
+  color: var(--segment-accent, var(--accent-primary));
+}
+
+/* Leading Tier reads as a colour-coded chip so a scan down the row shows
+   the tier mix at a glance. */
+.tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--tier-accent, var(--panel-alt));
+  color: var(--tier-accent, var(--text-primary));
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.tier-chip img { width: 16px; height: 16px; object-fit: contain; }
+
 /* --- "You're also signed in as Teacher" notice on the student dashboard ---
    Amber, the colour already reserved for warnings. Not the punchy red,
    which stays reserved for loss/bankruptcy states -- this is a caution to

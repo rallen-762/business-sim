@@ -32,14 +32,14 @@ Edge cases considered:
 import csv
 import io
 
-from app.constants import SEGMENTS
+from app.constants import SEGMENTS, segment_label
 from app.models import Firm, RoundDecision, RoundResult
 
 FIELDNAMES = (
     ["Firm Slot", "Team Name", "Round", "Bankrupt This Round"]
     + ["Price", "Tier", "Production Qty", "R&D Spend", "Ad Spend",
        "Celebrity On", "Plant Investment", "Auto (Non-Submission)"]
-    + [f"Units Sold - {seg}" for seg in SEGMENTS]
+    + [f"Units Sold - {segment_label(seg)}" for seg in SEGMENTS]
     + ["Units Sold Total", "Revenue", "Production Cost",
        "Rent, Utilities & Labor", "Ad Cost", "R&D Cost", "Celebrity Cost",
        "Plant Investment Cost", "Total Cost", "Profit",
@@ -112,7 +112,7 @@ def build_export_rows(world):
             "Celebrity Blocked": r.celebrity_blocked,
         }
         for seg in SEGMENTS:
-            row[f"Units Sold - {seg}"] = segment_units.get(seg, 0)
+            row[f"Units Sold - {segment_label(seg)}"] = segment_units.get(seg, 0)
 
         sort_key = (firm.slot_number if firm else 0, r.round_number)
         sortable_rows.append((sort_key, row))
