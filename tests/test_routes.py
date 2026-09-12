@@ -1191,3 +1191,63 @@ def test_maxed_out_firm_cannot_submit_any_rd(app, client):
         db.session.commit()
     resp = submit_decision(client, rd_spend="50000", production_qty="1000", follow_redirects=True)
     assert b"maximum Quality Level" in resp.data
+
+
+# --------------------------------------------------------------------------- #
+# Projector view + live price-reach readout
+# --------------------------------------------------------------------------- #
+
+def test_projector_view_requires_teacher_login(app, client):
+    world_id = create_world(client)
+    client.get("/teacher/logout")
+    resp = client.get(f"/teacher/worlds/{world_id}/present", follow_redirects=True)
+    assert b"Teacher Login" in resp.data or b"Teacher login required" in resp.data
+
+
+def test_projector_view_shows_standings_and_is_read_only(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, price="80", production_qty="15000")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "Nike" in body
+    assert "Standings after Round 1" in body
+    # Nothing to mis-click while it's projected in front of a class.
+    assert "<form" not in body and "<button" not in body
+
+
+def test_projector_view_before_any_round_does_not_crash(app, client):
+    world_id = create_world(client)
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "Waiting for Round 1" in body
+
+
+def test_rank_delta_is_none_until_there_is_a_prior_round_to_compare(app, client):
+    from app.market_data import standings_with_rank_delta
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, price="80", production_qty="15000")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    with app.app_context():
+        world = db.session.get(World, world_id)
+        rows = standings_with_rank_delta(world)
+        assert rows and rows[0]["rank"] == 1
+        assert rows[0]["rank_delta"] is None   # only one round played
+
+
+def test_decision_form_ships_the_affordability_curve_not_the_raw_ceilings(app, client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode()
+    assert "AFFORDABILITY_CURVE" in body
+    assert "reach-readout" in body
+    # The per-segment willingness-to-pay table is the strategic secret and
+    # must never reach the browser -- only the aggregate curve does.
+    assert "WTP_CEILING_CENTER" not in body
+    for seg in ("Low Income", "NBA Fans", "Casual/Fashion"):
+        assert f'"{seg}"' not in body

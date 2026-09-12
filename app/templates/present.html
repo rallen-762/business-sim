@@ -1,0 +1,69 @@
+{# Projector view. Deliberately does NOT extend base.html: no nav, no
+   chrome, nothing clickable -- this goes on the classroom wall, not on a
+   laptop. Self-refreshing so processing a round updates the board with
+   nobody touching it. #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# Plain meta refresh rather than polling JS -- it survives a dropped
+     connection and needs no scripts. 30s, not faster: each refresh replays
+     the reveal animation, and rounds are minutes apart, so a tighter
+     interval just makes the board flicker during class discussion.
+     ?hold=1 freezes it entirely, for talking over the standings without
+     the board moving under you. #}
+  {% if not hold %}<meta http-equiv="refresh" content="30">{% endif %}
+  <title>{{ world.name }} -- Standings</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="present-body">
+  <div class="present-header">
+    <div class="present-title">{{ world.name }}</div>
+    <div class="present-round">
+      {% if latest_round %}Standings after Round {{ latest_round }} of {{ rounds_per_world }}
+      {% else %}Round {{ world.current_round }} of {{ rounds_per_world }}{% endif %}
+    </div>
+  </div>
+
+  {% if not standings %}
+    <div class="present-empty">Waiting for Round 1 results&hellip;</div>
+  {% else %}
+    {% set top = standings[0].cum_profit if standings[0].cum_profit > 0 else 1 %}
+    <div class="present-rows">
+      {# Reveal runs LAST place first so the leader lands last -- the
+         animation delay is inverted against the row index. #}
+      {% for row in standings %}
+      <div class="present-row" style="animation-delay: {{ (standings|length - loop.index) * 220 }}ms;">
+        <div class="present-rank">{{ row.rank }}</div>
+        <div class="present-marks">
+          {% if row.firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ row.firm.avatar) }}" alt="">{% endif %}
+          {% if row.firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ row.firm.badge) }}" alt="">{% endif %}
+          {% if row.firm.product_icon %}<img src="{{ url_for('static', filename='img/products/' ~ row.firm.product_icon) }}" alt="">{% endif %}
+        </div>
+        <div class="present-name">
+          {{ row.firm.team_name }}
+          {% if row.firm.bankrupt %}<span class="present-bankrupt">BANKRUPT</span>{% endif %}
+        </div>
+        <div class="present-delta">
+          {% if row.rank_delta is not none and row.rank_delta > 0 %}
+            <span class="up">&#9650;{{ row.rank_delta }}</span>
+          {% elif row.rank_delta is not none and row.rank_delta < 0 %}
+            <span class="down">&#9660;{{ row.rank_delta|abs }}</span>
+          {% elif row.rank_delta is not none %}
+            <span class="flat">&ndash;</span>
+          {% endif %}
+        </div>
+        <div class="present-bar">
+          <div class="present-bar-fill {{ 'negative' if row.cum_profit < 0 else 'positive' }}"
+               style="--bar-pct: {{ (row.cum_profit / top * 100) if row.cum_profit > 0 else 2 }}%;"></div>
+        </div>
+        <div class="present-value {{ 'negative' if row.cum_profit < 0 else 'positive' }}">
+          {{ "${:,.0f}".format(row.cum_profit) }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</body>
+</html>

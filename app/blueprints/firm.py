@@ -37,7 +37,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, firm_login_required
 from app.avatars import TIER_ICONS
-from app.market_data import affordability_breakdown
+from app.market_data import affordability_breakdown, affordability_curve
 from app.constants import (
     CAPACITY_BLOCK_FIXED_COST,
     CELEBRITY_COST_PER_ROUND,
@@ -126,6 +126,7 @@ def dashboard():
         plant_capacity_gain=PLANT_INVESTMENT_CAPACITY_GAIN,
         capacity_block_fixed_cost=CAPACITY_BLOCK_FIXED_COST,
         affordability=affordability_breakdown(last_decision, last_result),
+        affordability_curve=affordability_curve(),
         last_result_price=last_decision.price if last_decision else None,
         last_result_track=last_decision.track if last_decision else None,
     )

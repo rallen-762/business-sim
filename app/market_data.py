@@ -152,6 +152,81 @@ SEGMENT_ACCENT_FALLBACK = {"color": "#4A5A5E", "icon": "\U0001F3A7"}
 TIER_ACCENTS = {"Entry": "#7A8FA6", "Mid": "#6FA8A0", "Premium": "#C9A227"}
 
 
+def affordability_curve(step=5, low=20, high=280):
+    """{tier: [[price, pct_of_all_buyers_who_could_afford_you], ...]} across a
+    coarse price grid, for the Firm Dashboard's live "who can afford this
+    price?" readout while a team types.
+
+    Aggregate on purpose. Per-SEGMENT reach is the genuinely strategic
+    secret (which segment pays what); this only answers "roughly how much of
+    the whole market is within reach at this price on this tier", which is
+    the lesson the sim exists to teach. Computed here rather than
+    reimplementing wtp_threshold_r in JavaScript, so the browser never
+    receives WTP_CEILING_CENTER itself -- but note the curve's SHAPE is
+    inherently discoverable from the readout, which is the point of the
+    feature and a deliberate trade against the docs' "ceilings stay secret"
+    line. Flagged to the user.
+
+    Mirrors engine.py Step 4b, including the Wealthy hard cutoff, so the
+    number a team sees can't disagree with what the round actually does."""
+    total_buyers = sum(SEGMENT_BUYER_COUNT.values())
+    curve = {}
+    for tier in TRACKS:
+        points = []
+        for price in range(low, high + 1, step):
+            reachable = 0.0
+            for seg in SEGMENTS:
+                if seg == "Wealthy" and price > WEALTHY_CEILING_PRICE:
+                    continue  # excluded outright, not a ceiling -- see engine Step 4b
+                r = wtp_threshold_r(seg, tier, float(price))
+                reachable += SEGMENT_BUYER_COUNT[seg] * (1 - max(0.0, min(1.0, r)))
+            points.append([price, round(reachable / total_buyers * 100, 1)])
+        curve[tier] = points
+    return curve
+
+
+def standings_with_rank_delta(world):
+    """cumulative_standings() plus `rank` and `rank_delta` -- how many places
+    each firm has moved since the END of the previous round. Positive means
+    climbed. None when there's no previous round to compare against.
+
+    Rank movement is the most motivating number on any leaderboard and the
+    app showed none; this is what the projector view leads with."""
+    rows = cumulative_standings(world)
+    latest = latest_processed_round(world)
+    for i, row in enumerate(rows, start=1):
+        row["rank"] = i
+
+    if not rows or latest is None or latest < 2:
+        for row in rows:
+            row["rank_delta"] = None
+        return rows
+
+    prior_totals = (
+        db.session.query(
+            RoundResult.firm_id,
+            db.func.sum(RoundResult.profit).label("cum_profit"),
+        )
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id, RoundResult.round_number <= latest - 1)
+        .group_by(RoundResult.firm_id)
+        .all()
+    )
+    # Same ordering rule cumulative_standings uses, so a delta of 0 really
+    # means "didn't move" rather than "sorted differently".
+    firms_by_id = {f.id: f for f in Firm.query.filter_by(world_id=world.id).all()}
+    prior_sorted = sorted(
+        (r for r in prior_totals if firms_by_id.get(r.firm_id) and firms_by_id[r.firm_id].is_registered),
+        key=lambda r: (-(r.cum_profit or 0), firms_by_id[r.firm_id].slot_number),
+    )
+    prior_rank = {r.firm_id: i for i, r in enumerate(prior_sorted, start=1)}
+
+    for row in rows:
+        was = prior_rank.get(row["firm"].id)
+        row["rank_delta"] = (was - row["rank"]) if was else None
+    return rows
+
+
 def latest_processed_round(world):
     """The highest round_number with at least one RoundResult in this
     world, or None if no round has been processed yet."""

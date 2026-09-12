@@ -65,6 +65,7 @@ from app.market_data import (
     pie_slices,
     round_totals,
     segment_overview,
+    standings_with_rank_delta,
 )
 from app.scouting_report import build_scouting_report
 from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult, World
@@ -213,6 +214,28 @@ def market(world_id):
         pie_slices=pie_slices(shares), segments=segments, tier_icons=TIER_ICONS,
         segment_accents=SEGMENT_ACCENTS, segment_accent_fallback=SEGMENT_ACCENT_FALLBACK,
         tier_accents=TIER_ACCENTS,
+    )
+
+
+@bp.route("/worlds/<int:world_id>/present")
+@teacher_login_required
+def present(world_id):
+    """Full-screen, read-only standings for the classroom projector.
+
+    The round reveal is the most social moment in the game and it was
+    happening privately on ~30 separate Chromebooks -- this puts it on the
+    board. Deliberately read-only: no controls to mis-click while it's on
+    the wall in front of the class. Self-refreshes (see the template's meta
+    refresh) so processing a round on the laptop updates the projection
+    without anyone touching it."""
+    world = World.query.get_or_404(world_id)
+    return render_template(
+        "present.html",
+        world=world,
+        standings=standings_with_rank_delta(world),
+        latest_round=latest_processed_round(world),
+        rounds_per_world=ROUNDS_PER_WORLD,
+        hold=request.args.get("hold") == "1",
     )
 
 

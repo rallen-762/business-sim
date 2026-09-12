@@ -10,6 +10,7 @@
 <div class="card">
   <h2>Teacher Dashboard &mdash; {{ world.name }}</h2>
   <p>Game Code: <code>{{ world.game_code }}</code> &middot; Round {{ world.current_round }} of {{ rounds_per_world }} &middot; Status: <strong>{{ world.status }}</strong></p>
+  <a class="btn secondary" href="{{ url_for('teacher.present', world_id=world.id) }}" target="_blank" rel="noopener">Projector View</a>
   <a class="btn secondary" href="{{ url_for('teacher.export_csv', world_id=world.id) }}">Export CSV</a>
   <form method="post" action="{{ url_for('teacher.delete_world', world_id=world.id) }}" style="display:inline;"
         onsubmit="return confirm('Delete this World and ALL its data? This cannot be undone.');">

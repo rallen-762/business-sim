@@ -137,6 +137,76 @@ h3 { font-size: 0.95rem; }
 }
 .card h2, .card h3 { margin-top: 0; }
 
+/* --- Projector mode (teacher's classroom screen) ---
+   Everything here is sized to be read from the back of a room, which is
+   where the pixel display font finally earns its keep -- it's poor for
+   dense financials at 12px and excellent at 40px+. Uses vw units so it
+   scales to whatever the projector is. */
+.present-body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  padding: 2.5vw 3vw;
+  margin: 0;
+  min-height: 100vh;
+}
+.present-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 2.2vw; }
+.present-title { font-family: var(--font-display); font-size: 2.6vw; color: var(--accent-primary); }
+.present-round { font-size: 1.3vw; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+.present-empty { font-family: var(--font-display); font-size: 2vw; color: var(--text-secondary); margin-top: 12vh; text-align: center; }
+
+.present-rows { display: flex; flex-direction: column; gap: 1.1vw; }
+.present-row {
+  display: grid;
+  grid-template-columns: 4vw 11vw minmax(0, 1fr) 4vw 26vw 16vw;
+  align-items: center;
+  gap: 1.4vw;
+  background: var(--panel);
+  border: 3px solid var(--accent-primary);
+  box-shadow: var(--shadow-hard);
+  padding: 1vw 1.4vw;
+  opacity: 0;
+  animation: present-in 420ms ease-out forwards;
+}
+@keyframes present-in {
+  from { opacity: 0; transform: translateX(-2.5vw); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.present-rank { font-family: var(--font-display); font-size: 2.4vw; color: var(--accent-primary); text-align: center; }
+.present-marks { display: flex; gap: 0.5vw; }
+.present-marks img { width: 3.2vw; height: 3.2vw; object-fit: contain; background: var(--bg-base); border: 2px solid var(--accent-primary); padding: 0.3vw; }
+.present-name { font-family: var(--font-display); font-size: 1.5vw; line-height: 1.5; overflow-wrap: normal; }
+.present-bankrupt { display: inline-block; font-size: 0.85vw; color: var(--accent-danger); border: 1px solid var(--accent-danger); padding: 0 0.5vw; margin-left: 0.5vw; }
+.present-delta { font-size: 1.5vw; font-weight: 700; text-align: center; }
+.present-delta .up { color: var(--accent-positive); }
+.present-delta .down { color: var(--accent-danger); }
+.present-delta .flat { color: var(--text-secondary); }
+.present-bar { height: 2.4vw; background: var(--bg-base); border: 2px solid var(--panel-alt); overflow: hidden; }
+.present-bar-fill { height: 100%; width: var(--bar-pct, 0%); }
+.present-bar-fill.positive { background: var(--accent-positive); }
+.present-bar-fill.negative { background: var(--accent-danger); }
+.present-value { font-family: var(--font-display); font-size: 1.4vw; text-align: right; white-space: nowrap; }
+.present-value.positive { color: var(--accent-positive); }
+.present-value.negative { color: var(--accent-danger); }
+
+/* --- Live "who can afford this price?" readout on the decision form ---
+   Green -> amber -> red as reach collapses, using the colours the app
+   already reserves for good/caution/bad states. */
+.reach-readout { margin-top: 8px; }
+.reach-bar {
+  height: 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--panel-alt);
+  overflow: hidden;
+}
+.reach-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent-primary);
+  transition: width 120ms linear, background 120ms linear;
+}
+.reach-bar-fill.warning { background: #FFB020; }
+.reach-bar-fill.danger { background: var(--accent-danger); }
+
 /* --- Customer Segments cards ---
    Were five identical grey boxes. Each now carries its segment's accent as
    a left stripe (set inline as --segment-accent), a glyph by the name, a

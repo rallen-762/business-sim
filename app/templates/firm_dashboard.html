@@ -163,7 +163,14 @@
     <div class="grid grid-2">
       <div>
         <label for="price">Price ($)</label>
-        <input type="number" step="0.01" min="0" id="price" name="price" value="{{ firm.last_price }}" required>
+        <input type="number" step="0.01" min="0" id="price" name="price" value="{{ firm.last_price }}" required oninput="recalc()">
+        {# Live reach readout. Price is by far the biggest lever in this game
+           and the buyer budgets are hidden, so without this a team only
+           learns they overpriced AFTER the round is scored. #}
+        <div class="reach-readout" id="reach-readout">
+          <div class="reach-bar"><div class="reach-bar-fill" id="reach-bar-fill"></div></div>
+          <p class="help-text" id="reach-text" style="margin-top:6px;"></p>
+        </div>
       </div>
       <div>
         <label for="track">Tier</label>
@@ -301,6 +308,49 @@
       overspendMsg.hidden = true;
       submitBtn.disabled = false;
     }
+
+    updateReach(parseFloat(document.getElementById('price').value), trackEl.value);
+  }
+
+  // Live "who can afford this?" readout. AFFORDABILITY_CURVE is a coarse
+  // price grid computed server-side (see market_data.affordability_curve) --
+  // deliberately aggregate and pre-computed, so the browser never receives
+  // the per-segment willingness-to-pay table itself.
+  const AFFORDABILITY_CURVE = {{ affordability_curve|tojson }};
+
+  function reachAtPrice(price, tier) {
+    const points = AFFORDABILITY_CURVE[tier];
+    if (!points || !isFinite(price)) return null;
+    if (price <= points[0][0]) return points[0][1];
+    if (price >= points[points.length - 1][0]) return points[points.length - 1][1];
+    // Straight-line between the two bracketing grid points, so dragging the
+    // price moves the number smoothly instead of stepping every $5.
+    for (let i = 0; i < points.length - 1; i++) {
+      const [p0, v0] = points[i], [p1, v1] = points[i + 1];
+      if (price >= p0 && price <= p1) {
+        const t = (p1 === p0) ? 0 : (price - p0) / (p1 - p0);
+        return v0 + (v1 - v0) * t;
+      }
+    }
+    return null;
+  }
+
+  function updateReach(price, tier) {
+    const fill = document.getElementById('reach-bar-fill');
+    const text = document.getElementById('reach-text');
+    const pct = reachAtPrice(price, tier);
+    if (pct === null) { text.textContent = ''; fill.style.width = '0%'; return; }
+
+    fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    fill.className = 'reach-bar-fill' + (pct < 15 ? ' danger' : pct < 40 ? ' warning' : '');
+    let verdict;
+    if (pct < 5)        verdict = 'Almost nobody can afford this.';
+    else if (pct < 20)  verdict = 'Very few buyers can afford this.';
+    else if (pct < 45)  verdict = 'A narrow slice of the market.';
+    else if (pct < 75)  verdict = 'A solid share of the market.';
+    else                verdict = 'Nearly the whole market -- but check your margin.';
+    text.textContent = 'About ' + pct.toFixed(0) + '% of buyers could afford $'
+      + (isFinite(price) ? price.toFixed(2) : '0.00') + ' on the ' + tier + ' tier. ' + verdict;
   }
 
   recalc();
