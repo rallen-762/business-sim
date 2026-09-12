@@ -606,6 +606,37 @@ tr.bankrupt { opacity: 0.55; }
 .segment-card .label:first-child { margin-top: 0; }
 .segment-card .value { font-weight: 700; }
 
+/* --- "What they care about": static per-segment traits, 3-dot scale.
+   Reuses the card's own --segment-accent rather than adding a colour
+   system, so a card stays one hue. Tightened row spacing pays for the
+   three extra rows without dropping any existing card content. --- */
+.segment-traits { list-style: none; margin: 4px 0 0; padding: 0; }
+.segment-trait {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.segment-trait-name { font-size: 0.82rem; color: var(--text-secondary); }
+.segment-trait-dots { display: inline-flex; gap: 3px; }
+.segment-trait-dots .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--segment-accent, var(--accent-primary));
+  opacity: 0.45;
+}
+.segment-trait-dots .dot.filled { background: var(--segment-accent, var(--accent-primary)); opacity: 1; }
+.segment-trait-level {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  min-width: 52px;
+  text-align: right;
+}
+
 .slot-list { display: grid; gap: 10px; }
 .slot-item {
   display: flex; align-items: center; justify-content: space-between;

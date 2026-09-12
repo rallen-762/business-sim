@@ -114,10 +114,19 @@ class World(db.Model):
     # Transition Notice banner) | "complete" (round 10 processed, game over)
     status = db.Column(db.String(20), nullable=False, default="collecting")
 
+    # Set by Undo Last Round to the round it reopened; cleared when that
+    # round is processed again. Normal play keeps the "one submission per
+    # round, no edits" rule -- this narrowly lifts it for a round the
+    # teacher rewound, because the whole point of undo is to let teams
+    # adjust and resubmit. Without it their kept submissions would be
+    # frozen and undo would help nobody.
+    reopened_round = db.Column(db.Integer, nullable=True)
+
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     firms = db.relationship("Firm", backref="world", cascade="all, delete-orphan")
     segment_round_results = db.relationship("SegmentRoundResult", backref="world", cascade="all, delete-orphan")
+    round_snapshots = db.relationship("RoundSnapshot", backref="world", cascade="all, delete-orphan")
 
     __table_args__ = (
         db.CheckConstraint("current_round >= 1", name="ck_world_current_round_min"),
@@ -327,3 +336,46 @@ class SegmentRoundResult(db.Model):
 
     def __repr__(self):
         return f"<SegmentRoundResult world_id={self.world_id} round={self.round_number} segment={self.segment!r}>"
+
+
+class RoundSnapshot(db.Model):
+    """Every firm's mutable financial state as it was IMMEDIATELY BEFORE one
+    round was processed, so the Teacher Dashboard's "Undo Last Round" can put
+    it back exactly.
+
+    Why a stored snapshot rather than reversing the arithmetic: most of the
+    pre-round state is recoverable from RoundResult (cash_before) or by
+    subtracting this round's decision (cumulative_rd_spend), but not all of
+    it. plant_capacity and pending_capacity_increase collapse into a single
+    stored sum (RoundResult.plant_capacity is their TOTAL), and
+    loan_used_ever/last_price/last_track would each have to be chased back
+    through the previous round's rows, with a different special case for
+    round 1. That's a lot of inference to trust with a whole class's money.
+    A snapshot is exact, and it's the difference between "undo restores the
+    game" and "undo silently corrupts it".
+
+    One row per (world, round). Only the most recently processed round is
+    ever undoable -- older rows are kept purely as a record and are never
+    read by the undo path, which looks up the latest processed round only.
+    """
+    __tablename__ = "round_snapshots"
+
+    id = db.Column(db.Integer, primary_key=True)
+    world_id = db.Column(db.Integer, db.ForeignKey("worlds.id", ondelete="CASCADE"), nullable=False)
+    round_number = db.Column(db.Integer, nullable=False)
+
+    # {str(firm_id): {field: value}} -- JSON keys are strings, so the undo
+    # path casts back to int. Holds exactly the Firm fields
+    # _process_current_round mutates; see SNAPSHOT_FIELDS in teacher.py.
+    firm_states = db.Column(db.JSON, nullable=False)
+    # The world's status before processing, so undo restores the phase too.
+    world_status = db.Column(db.String(20), nullable=False)
+
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("world_id", "round_number", name="uq_snapshot_world_round"),
+    )
+
+    def __repr__(self):
+        return f"<RoundSnapshot world_id={self.world_id} round={self.round_number}>"

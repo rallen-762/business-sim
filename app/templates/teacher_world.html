@@ -31,6 +31,18 @@
   {% else %}
     <span class="banner">Game Complete</span>
   {% endif %}
+
+  {# Sits with the round controls because it's the fix for a premature click
+     on one of them. Hidden entirely until there's something to undo -- a
+     disabled control here would just invite a confused click mid-class. #}
+  {% if undoable_round %}
+  <form method="post" action="{{ url_for('teacher.undo_round', world_id=world.id) }}"
+        style="margin-top:14px;"
+        onsubmit="return confirm('Undo Round {{ undoable_round }}? This restores every team\'s cash and stats to before the round ran, and discards that round\'s results. Team submissions are kept. This can\'t be undone.');">
+    <button class="btn secondary" type="submit">Undo Round {{ undoable_round }}</button>
+    <p class="help-text" style="margin-top:6px;">Rewinds the last processed round only. Teams' submissions stay, so they can adjust and you can process again.</p>
+  </form>
+  {% endif %}
 </div>
 
 <div class="card">

@@ -108,6 +108,7 @@ def dashboard():
     return render_template(
         "firm_dashboard.html",
         firm=firm, world=world, decision=decision, last_result=last_result,
+        round_reopened=(world.reopened_round == world.current_round),
         cumulative=cumulative, rounds_per_world=ROUNDS_PER_WORLD,
         track_unit_costs=track_unit_costs, tracks=TRACKS, tier_icons=TIER_ICONS,
         rd_presets=rd_spend_presets(firm.cumulative_rd_spend),
@@ -146,8 +147,12 @@ def submit_decision():
         flash("This round isn't open for decisions right now.")
         return redirect(url_for("firm.dashboard"))
 
+    # "One submission per round, no edits" still holds in normal play. The
+    # single exception is a round the teacher rewound with Undo Last Round:
+    # their submission was deliberately kept, so editing it is the point.
+    reopened = world.reopened_round == world.current_round
     existing = RoundDecision.query.filter_by(firm_id=firm.id, round_number=world.current_round).first()
-    if existing:
+    if existing and not reopened:
         flash("You've already submitted this round -- decisions can't be edited after submitting.")
         return redirect(url_for("firm.dashboard"))
 
@@ -199,15 +204,28 @@ def submit_decision():
         )
         return redirect(url_for("firm.dashboard"))
 
-    db.session.add(RoundDecision(
-        firm_id=firm.id, round_number=world.current_round, price=price,
-        production_qty=production_qty, ad_spend=ad_spend, rd_spend=rd_spend,
-        track=track, celebrity_on=celebrity_on, plant_investment=plant_investment,
-        is_auto=False,
-    ))
+    if existing:
+        # Overwrite in place -- RoundDecision is "exactly one row per firm
+        # per round" (models.py schema contract), so a reopened round must
+        # update the kept row, never add a second one.
+        existing.price = price
+        existing.production_qty = production_qty
+        existing.ad_spend = ad_spend
+        existing.rd_spend = rd_spend
+        existing.track = track
+        existing.celebrity_on = celebrity_on
+        existing.plant_investment = plant_investment
+        existing.is_auto = False
+    else:
+        db.session.add(RoundDecision(
+            firm_id=firm.id, round_number=world.current_round, price=price,
+            production_qty=production_qty, ad_spend=ad_spend, rd_spend=rd_spend,
+            track=track, celebrity_on=celebrity_on, plant_investment=plant_investment,
+            is_auto=False,
+        ))
     firm.last_price = price
     firm.last_track = track
     db.session.commit()
 
-    flash("Decision submitted!")
+    flash("Decision updated!" if existing else "Decision submitted!")
     return redirect(url_for("firm.dashboard"))

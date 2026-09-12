@@ -125,6 +125,17 @@ def create_app(config_overrides=None):
                         conn.commit()
                     print("Added firms.product_icon column.")
 
+            # Undo Last Round's reopen window. Nullable with no default --
+            # NULL simply means "no round is reopened", which is the correct
+            # reading for every world that existed before this shipped.
+            if "worlds" in inspector.get_table_names():
+                world_columns = {c["name"] for c in inspector.get_columns("worlds")}
+                if "reopened_round" not in world_columns:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text("ALTER TABLE worlds ADD COLUMN reopened_round INTEGER"))
+                        conn.commit()
+                    print("Added worlds.reopened_round column.")
+
             # Sold-out reporting. Both DEFAULT 0 and NOT NULL: rounds played
             # before these columns existed backfill to 0, which reads as
             # "didn't sell out" and simply leaves the banner hidden, rather

@@ -55,6 +55,7 @@ from app.market_data import (
     PIE_COLORS,
     SEGMENT_ACCENTS,
     SEGMENT_ACCENT_FALLBACK,
+    SEGMENT_TRAIT_DOTS,
     TIER_ACCENTS,
     build_pie_gradient,
     competitive_intel_rows,
@@ -68,7 +69,7 @@ from app.market_data import (
     standings_with_rank_delta,
 )
 from app.scouting_report import build_scouting_report
-from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult, World
+from app.models import Firm, RoundDecision, RoundResult, RoundSnapshot, SegmentRoundResult, World
 
 bp = Blueprint("teacher", __name__, url_prefix="/teacher")
 
@@ -185,6 +186,7 @@ def view_world(world_id):
         consumer_surplus=consumer_surplus_by_segment(world, scouting_round),
         consumer_surplus_round=scouting_round,
         reset_passwords=session.get("reset_passwords", {}),
+        undoable_round=_undoable_round(world),
     )
 
 
@@ -213,7 +215,7 @@ def market(world_id):
         shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS,
         pie_slices=pie_slices(shares), segments=segments, tier_icons=TIER_ICONS,
         segment_accents=SEGMENT_ACCENTS, segment_accent_fallback=SEGMENT_ACCENT_FALLBACK,
-        tier_accents=TIER_ACCENTS,
+        tier_accents=TIER_ACCENTS, trait_dots=SEGMENT_TRAIT_DOTS,
     )
 
 
@@ -394,6 +396,64 @@ def advance_round(world_id):
     return redirect(url_for("teacher.view_world", world_id=world.id))
 
 
+# Exactly the Firm fields _process_current_round mutates. If that function
+# ever starts writing another field, it MUST be added here or Undo Last Round
+# will silently leave that field at its post-round value -- which is the one
+# way this feature could corrupt a game rather than restore it. A test pins
+# this list against the real mutation set.
+SNAPSHOT_FIELDS = (
+    "cash",
+    "plant_capacity",
+    "pending_capacity_increase",
+    "cumulative_rd_spend",
+    "cumulative_ad_spend",
+    "loan_outstanding",
+    "loan_used_ever",
+    "bankrupt",
+    "last_price",
+    "last_track",
+)
+
+
+def _capture_snapshot(world, firms):
+    """Record every firm's pre-round state so this round can be undone.
+    Replaces any existing snapshot for the same round (a round can be
+    processed again after an undo)."""
+    RoundSnapshot.query.filter_by(world_id=world.id, round_number=world.current_round).delete()
+    db.session.add(RoundSnapshot(
+        world_id=world.id,
+        round_number=world.current_round,
+        world_status=world.status,
+        firm_states={
+            str(f.id): {field: getattr(f, field) for field in SNAPSHOT_FIELDS}
+            for f in firms
+        },
+    ))
+
+
+def _undoable_round(world):
+    """The single round Undo Last Round can revert, or None.
+
+    That's the most recently PROCESSED round -- never further back, so undo
+    can't walk a game backwards one click at a time. Requires a snapshot to
+    exist: rounds processed before this feature shipped have results but no
+    snapshot, and undoing those would be a guess."""
+    latest = (
+        db.session.query(RoundResult.round_number)
+        .join(Firm, Firm.id == RoundResult.firm_id)
+        .filter(Firm.world_id == world.id)
+        .order_by(RoundResult.round_number.desc())
+        .first()
+    )
+    if latest is None:
+        return None
+    round_number = latest[0]
+    snapshot = RoundSnapshot.query.filter_by(
+        world_id=world.id, round_number=round_number
+    ).first()
+    return round_number if snapshot else None
+
+
 def _process_current_round(world, rng=None):
     # rng: defaults to None -> app.bots.decide() falls back to the stdlib
     # `random` module for true randomness in live class play. The headless
@@ -407,6 +467,9 @@ def _process_current_round(world, rng=None):
     # emit their frozen row); only unregistered slots are excluded entirely.
     firms = [f for f in Firm.query.filter_by(world_id=world.id).all() if f.is_registered]
     active_firms = [f for f in firms if not f.bankrupt]
+
+    # Before ANY mutation below -- this is what Undo Last Round restores.
+    _capture_snapshot(world, firms)
 
     states = {}
     for firm in firms:
@@ -527,6 +590,8 @@ def _process_current_round(world, rng=None):
         ))
 
     world.status = "complete" if world.current_round >= ROUNDS_PER_WORLD else "transition"
+    # The reopened window closes as soon as the round is processed again.
+    world.reopened_round = None
     db.session.commit()
 
 
@@ -534,6 +599,76 @@ def _open_next_round(world):
     world.current_round += 1
     world.status = "collecting"
     db.session.commit()
+
+
+@bp.route("/worlds/<int:world_id>/undo", methods=["POST"])
+@teacher_login_required
+def undo_round(world_id):
+    """Revert the most recently processed round.
+
+    Deliberately NOT a general undo history: only the latest processed round
+    is reachable, so a teacher can fix a premature "Process Round" click but
+    can't quietly rewind a game several rounds.
+
+    Team submissions for the round survive on purpose -- the point is that
+    groups resubmit or adjust and the teacher re-processes once everyone's
+    ready. The auto-generated decisions do NOT survive: bot moves and
+    no-show fallbacks are produced BY the processing being undone, so
+    leaving them would freeze a bot's move and, worse, leave a no-show team
+    looking like it had already submitted, locking it out of the retry this
+    feature exists to give it.
+    """
+    world = World.query.get_or_404(world_id)
+
+    round_number = _undoable_round(world)
+    if round_number is None:
+        flash("There's no processed round to undo yet.")
+        return redirect(url_for("teacher.view_world", world_id=world.id))
+
+    snapshot = RoundSnapshot.query.filter_by(
+        world_id=world.id, round_number=round_number
+    ).first()
+
+    firms = Firm.query.filter_by(world_id=world.id).all()
+    firms_by_id = {f.id: f for f in firms}
+    for firm_id_str, saved in snapshot.firm_states.items():
+        firm = firms_by_id.get(int(firm_id_str))
+        if firm is None:
+            continue  # slot deleted since the round ran -- nothing to restore
+        for field, value in saved.items():
+            setattr(firm, field, value)
+
+    firm_ids = list(firms_by_id)
+    if firm_ids:
+        RoundResult.query.filter(
+            RoundResult.firm_id.in_(firm_ids),
+            RoundResult.round_number == round_number,
+        ).delete(synchronize_session=False)
+        # Bot/no-show rows were generated by this processing run; real
+        # submissions (is_auto=False) are the teams' own work and stay.
+        RoundDecision.query.filter(
+            RoundDecision.firm_id.in_(firm_ids),
+            RoundDecision.round_number == round_number,
+            RoundDecision.is_auto.is_(True),
+        ).delete(synchronize_session=False)
+
+    SegmentRoundResult.query.filter_by(
+        world_id=world.id, round_number=round_number
+    ).delete(synchronize_session=False)
+
+    # Reopen the round that was undone. Covers both shapes: undoing straight
+    # after processing (current_round is already that round) and undoing
+    # after the next round was opened (current_round has moved past it).
+    world.current_round = round_number
+    world.status = snapshot.world_status if snapshot.world_status else "collecting"
+    # Lets teams edit the submissions we just kept (see World.reopened_round).
+    world.reopened_round = round_number
+
+    db.session.delete(snapshot)
+    db.session.commit()
+
+    flash(f"Round {round_number} was undone. Teams' submissions were kept -- adjust and process again when ready.")
+    return redirect(url_for("teacher.view_world", world_id=world.id))
 
 
 @bp.route("/worlds/<int:world_id>/export.csv")

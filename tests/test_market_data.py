@@ -6,9 +6,16 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app
-from app.constants import SEGMENT_BUYER_COUNT, SEGMENTS
+from app.constants import (
+    CELEBRITY_MULTIPLIER,
+    QUALITY_WEIGHT_ENDPOINTS,
+    SEGMENT_BUYER_COUNT,
+    SEGMENTS,
+)
 from app.extensions import db
 from app.market_data import (
+    SEGMENT_TRAIT_DOTS,
+    segment_traits,
     PIE_COLORS,
     PIE_TEXT_COLORS,
     build_pie_gradient,
@@ -474,3 +481,67 @@ def test_competitive_intel_sorted_by_market_share_desc(app):
 
     rows = competitive_intel_rows(world, 1)
     assert [r["team_name"] for r in rows] == ["Adidas", "Nike"]
+
+
+# --------------------------------------------------------------------------- #
+# "What they care about" -- static per-segment traits on the Customer
+# Segments cards. Static means STATIC: these must not vary with round or
+# game state, and must never leak the underlying coefficients.
+# --------------------------------------------------------------------------- #
+
+def test_every_segment_has_all_three_traits():
+    for seg in SEGMENTS:
+        rows = segment_traits(seg)
+        assert [label for label, _, _ in rows] == [
+            "Price sensitivity", "Quality focus", "Brand pull"
+        ], f"{seg} rows wrong"
+
+
+def test_trait_levels_are_within_the_three_dot_scale():
+    for seg in SEGMENTS:
+        for _, level, word in segment_traits(seg):
+            assert 1 <= level <= SEGMENT_TRAIT_DOTS
+            assert word in ("Low", "Medium", "High")
+
+
+def test_trait_levels_match_the_locked_constants_they_translate():
+    # These dots are a qualitative read of real constants, so they must not
+    # drift from them. Ordering checks, not magic numbers: whichever segment
+    # the model treats as most quality-driven must show the most dots.
+    by_quality_range = sorted(
+        SEGMENTS, key=lambda s: QUALITY_WEIGHT_ENDPOINTS[s][1] - QUALITY_WEIGHT_ENDPOINTS[s][0]
+    )
+    quality_dots = {s: dict((l, lv) for l, lv, _ in [(a, b, c) for a, b, c in segment_traits(s)])
+                    for s in SEGMENTS}
+    assert quality_dots[by_quality_range[-1]]["Quality focus"] == 3
+    assert quality_dots[by_quality_range[0]]["Quality focus"] == 1
+
+    # Brand pull tracks the celebrity multiplier the same way.
+    by_celebrity = sorted(SEGMENTS, key=lambda s: CELEBRITY_MULTIPLIER[s])
+    assert quality_dots[by_celebrity[-1]]["Brand pull"] == 3
+
+
+def test_unknown_segment_renders_nothing_rather_than_raising():
+    # A dashboard must never 500 mid-class over a presentational lookup.
+    assert segment_traits("Not A Segment") == []
+
+
+def test_traits_are_identical_regardless_of_round(app):
+    # The cards show these with no round caption, so they had better not
+    # depend on one.
+    with app.app_context():
+        db.create_all()
+        world = World(name="P1", game_code="TRAIT1", planned_firm_slots=1)
+        db.session.add(world)
+        db.session.commit()
+        empty = {s["name"]: s["traits"] for s in segment_overview(world, None)}
+    assert empty == {s: segment_traits(s) for s in SEGMENTS}
+
+
+def test_traits_never_expose_the_underlying_coefficients():
+    # Only the tier and its word may reach a browser.
+    for seg in SEGMENTS:
+        for label, level, word in segment_traits(seg):
+            assert isinstance(level, int)
+            assert isinstance(word, str)
+            assert not isinstance(level, float)

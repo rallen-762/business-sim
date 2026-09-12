@@ -13,6 +13,7 @@ from app.market_data import (
     PIE_COLORS,
     SEGMENT_ACCENTS,
     SEGMENT_ACCENT_FALLBACK,
+    SEGMENT_TRAIT_DOTS,
     TIER_ACCENTS,
     build_pie_gradient,
     competitive_intel_rows,
@@ -52,6 +53,7 @@ def dashboard():
         shares=shares, pie_gradient=pie_gradient, pie_colors=PIE_COLORS,
         pie_slices=pie_slices(shares), segments=segments, tier_icons=TIER_ICONS,
         segment_accents=SEGMENT_ACCENTS, segment_accent_fallback=SEGMENT_ACCENT_FALLBACK,
+        trait_dots=SEGMENT_TRAIT_DOTS,
         tier_accents=TIER_ACCENTS,
     )
 

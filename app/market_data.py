@@ -146,6 +146,59 @@ SEGMENT_ACCENTS = {
 }
 SEGMENT_ACCENT_FALLBACK = {"color": "#4A5A5E", "icon": "\U0001F3A7"}
 
+# "What they care about" -- the QUALITATIVE translation of the locked
+# per-segment constants, for the Customer Segments cards. Static and
+# universal: these describe who a segment IS, never what happened in a
+# round, so the cards render them with no round caption, exactly like the
+# segment's name and icon.
+#
+# Bucketed from the live constants, NOT from master-variable-table.md's
+# Section 12 verbatim -- that section still names a "Price Elasticity
+# Coefficient" which no longer exists in code (the Sept 2026 buyer-model
+# redesign replaced ELASTICITY_COEFFICIENT entirely with WTP_CEILING_CENTER;
+# see the note above that constant). The tiers below were checked against
+# what the model actually uses today:
+#   price sensitivity <- WTP_CEILING_CENTER   (lower ceilings = more sensitive)
+#   quality focus     <- QUALITY_WEIGHT_ENDPOINTS range (Q1 -> Q10 steepness)
+#   brand pull        <- CELEBRITY_MULTIPLIER
+# The coefficients themselves stay hidden -- competitive intel the sim
+# deliberately withholds (see COMPETITIVE_INTEL_HIDDEN_FIELDS). Only the
+# 1-3 tier and its label are ever sent to a browser.
+#
+# Keyed by INTERNAL segment key, same as SEGMENT_ACCENTS above.
+SEGMENT_TRAIT_LABELS = {3: "High", 2: "Medium", 1: "Low"}
+SEGMENT_TRAIT_DOTS = 3
+
+SEGMENT_TRAITS = {
+    "Low Income":     {"price_sensitivity": 3, "quality_focus": 1, "brand_pull": 1},
+    "NBA Fans":       {"price_sensitivity": 1, "quality_focus": 2, "brand_pull": 3},
+    "Athletes":       {"price_sensitivity": 2, "quality_focus": 3, "brand_pull": 1},
+    "Wealthy":        {"price_sensitivity": 1, "quality_focus": 2, "brand_pull": 2},
+    "Casual/Fashion": {"price_sensitivity": 2, "quality_focus": 1, "brand_pull": 1},
+}
+
+# Row order and display names, kept here so the template doesn't hardcode
+# them and every card renders the three rows in the same order.
+SEGMENT_TRAIT_ROWS = (
+    ("price_sensitivity", "Price sensitivity"),
+    ("quality_focus", "Quality focus"),
+    ("brand_pull", "Brand pull"),
+)
+
+
+def segment_traits(segment: str):
+    """[(row_label, level_int, level_word), ...] for one segment's "What they
+    care about" rows, or [] for an unknown segment (same "render nothing
+    rather than raise" posture the accent fallback takes -- a missing segment
+    must never 500 a dashboard mid-class)."""
+    traits = SEGMENT_TRAITS.get(segment)
+    if not traits:
+        return []
+    return [
+        (label, traits[key], SEGMENT_TRAIT_LABELS[traits[key]])
+        for key, label in SEGMENT_TRAIT_ROWS
+    ]
+
 # One colour per product tier, so scanning the Leading Tier row shows the
 # tier mix at a glance. Entry/Mid/Premium read as slate -> teal -> gold,
 # i.e. the same "steps up" ordering the tiers themselves have.
@@ -445,6 +498,7 @@ def segment_overview(world, round_number):
             overview.append({
                 "name": seg,
                 "display_name": segment_label(seg),
+                "traits": segment_traits(seg),
                 "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
                 "units_sold_this_round": 0,
                 "leading_track": None,
@@ -489,6 +543,7 @@ def segment_overview(world, round_number):
         overview.append({
             "name": seg,
             "display_name": segment_label(seg),
+            "traits": segment_traits(seg),
             "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
             "units_sold_this_round": total_units,
             "leading_track": leading_track,
