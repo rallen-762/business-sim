@@ -18,6 +18,13 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="present-body">
+  {# Way out. Dimmed so it doesn't compete with the standings on a wall,
+     but brightens on hover/focus so it's findable when you go looking.
+     It's a LINK, not a button or form -- it still can't change any game
+     state, which was the point of keeping this view inert. #}
+  <a class="present-exit" href="{{ url_for('teacher.view_world', world_id=world.id) }}"
+     title="Back to the Teacher Dashboard (Esc)">&larr; Exit</a>
+
   <div class="present-header">
     <div class="present-title">{{ world.name }}</div>
     <div class="present-round">
@@ -65,5 +72,15 @@
       {% endfor %}
     </div>
   {% endif %}
+
+  <script>
+    // Esc leaves the board -- a teacher at a podium shouldn't have to find a
+    // small link with a mouse. Keyboard only; nothing here mutates state.
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        window.location.href = {{ url_for('teacher.view_world', world_id=world.id)|tojson }};
+      }
+    });
+  </script>
 </body>
 </html>

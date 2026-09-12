@@ -1215,8 +1215,12 @@ def test_projector_view_shows_standings_and_is_read_only(app, client):
     body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
     assert "Nike" in body
     assert "Standings after Round 1" in body
-    # Nothing to mis-click while it's projected in front of a class.
+    # Nothing that can CHANGE anything while it's projected in front of a
+    # class -- but there must still be a way out. The first version had no
+    # exit at all, which meant closing the tab was the only way back.
     assert "<form" not in body and "<button" not in body
+    assert "present-exit" in body
+    assert f"/teacher/worlds/{world_id}" in body
 
 
 def test_projector_view_before_any_round_does_not_crash(app, client):

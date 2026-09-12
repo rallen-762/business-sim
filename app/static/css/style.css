@@ -149,7 +149,31 @@ h3 { font-size: 0.95rem; }
   margin: 0;
   min-height: 100vh;
 }
-.present-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 2.2vw; }
+/* Deliberately faint at rest so it doesn't pull the eye on a projected
+   board, full strength on hover/focus so it's obvious once looked for. */
+.present-exit {
+  position: fixed;
+  top: 1vw;
+  right: 1.4vw;
+  z-index: 10;
+  font-size: 1vw;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--text-secondary);
+  opacity: 0.35;
+  border: 1px solid var(--panel-alt);
+  padding: 0.4vw 0.9vw;
+  transition: opacity 140ms linear, color 140ms linear, border-color 140ms linear;
+}
+.present-exit:hover,
+.present-exit:focus {
+  opacity: 1;
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  outline: none;
+}
+.present-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 2.2vw; padding-right: 7vw; }
 .present-title { font-family: var(--font-display); font-size: 2.6vw; color: var(--accent-primary); }
 .present-round { font-size: 1.3vw; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
 .present-empty { font-family: var(--font-display); font-size: 2vw; color: var(--text-secondary); margin-top: 12vh; text-align: center; }
