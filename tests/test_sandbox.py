@@ -52,7 +52,7 @@ def sandbox_login(client):
 
 
 def start_game(client, team_name="My Company", **bots):
-    data = {"team_name": team_name, "password": "sandbox"}
+    data = {"team_name": team_name}
     if bots:
         data.update(bots)
     else:
@@ -142,7 +142,7 @@ def test_choosing_a_subset_of_bots_is_respected(client):
 def test_a_game_with_no_bots_ticked_still_gets_a_full_field(client):
     # A stray empty submit shouldn't hand the player a one-firm monopoly.
     sandbox_login(client)
-    client.post("/sandbox/new", data={"team_name": "Solo", "password": "x"})
+    client.post("/sandbox/new", data={"team_name": "Solo"})
 
     world = World.query.filter_by(mode="sandbox").one()
     bots = [f for f in Firm.query.filter_by(world_id=world.id) if f.bot_profile]
@@ -338,3 +338,28 @@ def test_bots_only_requires_the_sandbox_password(client):
     resp = client.post("/sandbox/bots", data={"bot_elite": "on"}, follow_redirects=True)
     assert b"Sandbox Password" in resp.data
     assert World.query.filter_by(mode="bots_only").count() == 0
+
+
+def test_sandbox_setup_collects_no_password(client):
+    # A visible input named "password", prefilled, posting to a fresh URL on
+    # a shared *.onrender.com domain reads as a phishing form -- Safe
+    # Browsing flagged this page as deceptive over it. The field was never
+    # used for anything (the sandbox password gates the door and Resume
+    # signs the player in directly), so it must stay gone.
+    sandbox_login(client)
+    body = client.get("/sandbox/").data.decode("utf-8")
+    form = body[body.index("sandbox/new"):body.index("Start Playing")]
+    assert 'name="password"' not in form
+    assert 'type="password"' not in form
+
+
+def test_a_sandbox_player_still_gets_an_unguessable_credential(client):
+    # Removing the field must not leave the firm with a blank or shared
+    # password -- the slot would otherwise be claimable by anyone who
+    # reached the normal team login.
+    sandbox_login(client)
+    start_game(client)
+    player = Firm.query.filter_by(slot_number=1).one()
+    assert player.password_hash
+    assert not player.check_password("sandbox")
+    assert not player.check_password("")

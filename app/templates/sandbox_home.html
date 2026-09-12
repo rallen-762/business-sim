@@ -16,16 +16,14 @@
   <p class="help-text">You run one company against the bots. No teacher, no waiting &mdash; you submit
     your decision and process the round yourself. {{ default_rounds }} rounds.</p>
   <form method="post" action="{{ url_for('sandbox.new_game') }}">
-    <div class="grid grid-2">
-      <div>
-        <label for="team_name">Your company name</label>
-        <input type="text" id="team_name" name="team_name" value="My Company" maxlength="60">
-      </div>
-      <div>
-        <label for="password">Password for this game</label>
-        <input type="text" id="password" name="password" value="sandbox" maxlength="60">
-      </div>
-    </div>
+    {# No password field here on purpose. The sandbox password at the door
+       already authenticates you, and Resume signs you straight in, so a
+       per-game password was never used for anything -- while a visible
+       input literally named "password", prefilled, posting to a fresh URL
+       on a shared *.onrender.com domain is a phishing signature, and
+       Safe Browsing flagged this page as deceptive because of it. #}
+    <label for="team_name">Your company name</label>
+    <input type="text" id="team_name" name="team_name" value="My Company" maxlength="60">
 
     <label style="margin-top:14px;display:block;">Opponents</label>
     <p class="help-text" style="margin-top:0;">Leave them all ticked for a full field.</p>

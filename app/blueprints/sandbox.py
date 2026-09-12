@@ -147,7 +147,6 @@ def home():
 @sandbox_login_required
 def new_game():
     team_name = request.form.get("team_name", "").strip() or "My Company"
-    password = request.form.get("password", "").strip() or "sandbox"
     profiles = _requested_profiles(request.form)
 
     world = World(
@@ -162,7 +161,11 @@ def new_game():
 
     player = Firm(
         world_id=world.id, slot_number=1, team_name=team_name,
-        password_hash=generate_password_hash(password),
+        # Random and never shown. Firm requires a hash, but a sandbox player
+        # never types one: the sandbox password gates the door and Resume
+        # signs them in directly. Asking for one added no security and cost
+        # us a Safe Browsing "deceptive site" flag (see sandbox_home.html).
+        password_hash=generate_password_hash(secrets.token_hex(16)),
         cash=STARTING_CASH, plant_capacity=STARTING_PLANT_CAPACITY,
         last_price=BOOTSTRAP_DEFAULT_PRICE, last_track=BOOTSTRAP_DEFAULT_TRACK,
         avatar=AVATAR_CHOICES[0], badge=BADGE_CHOICES[0], product_icon=PRODUCT_CHOICES[0],
