@@ -237,6 +237,7 @@ def market(world_id):
         pie_slices=pie_slices(shares), segments=segments, tier_icons=TIER_ICONS,
         segment_accents=SEGMENT_ACCENTS, segment_accent_fallback=SEGMENT_ACCENT_FALLBACK,
         tier_accents=TIER_ACCENTS, trait_dots=SEGMENT_TRAIT_DOTS,
+        teacher_view=True,
     )
 
 

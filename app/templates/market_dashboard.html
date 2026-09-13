@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Market Dashboard{% endblock %}
 {% block nav %}
-  {% if session.get('is_teacher') %}
+  {# Branch on WHICH VIEW this is, not on whether a teacher session exists.
+     /market is the firm's own view of its own world; /teacher/.../market is
+     the teacher's. Keying off session.is_teacher meant a teacher playing a
+     sandbox game got teacher navigation on their own market dashboard --
+     every link led back out of the game they were in the middle of. #}
+  {% if teacher_view %}
     <a href="{{ url_for('teacher.view_world', world_id=world.id) }}">&larr; Teacher Dashboard &mdash; {{ world.name }}</a>
     <a href="{{ url_for('teacher.logout') }}">Log Out</a>
   {% else %}
-    <a href="{{ url_for('firm.dashboard') }}">My Firm</a>
+    <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('firm.dashboard') }}">&larr; Back to {{ firm_name or "My Firm" }}</a>
+    {% if session.get('is_teacher') %}
+      {# Signed in as teacher too. Offer the way out, but clearly as LEAVING
+         this game rather than as the main action. #}
+      <a href="{{ url_for('teacher.dashboard') }}">Exit to Teacher Dashboard</a>
+    {% endif %}
     <a href="{{ url_for('auth.logout') }}">Log Out</a>
   {% endif %}
 {% endblock %}

@@ -7,7 +7,7 @@ facing equivalents (same templates, different world lookup).
 
 from flask import Blueprint, render_template, request
 
-from app.auth import current_world, firm_login_required
+from app.auth import current_firm, current_world, firm_login_required
 from app.avatars import TIER_ICONS
 from app.market_data import (
     PIE_COLORS,
@@ -55,6 +55,9 @@ def dashboard():
         segment_accents=SEGMENT_ACCENTS, segment_accent_fallback=SEGMENT_ACCENT_FALLBACK,
         trait_dots=SEGMENT_TRAIT_DOTS,
         tier_accents=TIER_ACCENTS,
+        # This is the FIRM's own view -- see the nav block in the template.
+        teacher_view=False,
+        firm_name=current_firm().team_name if current_firm() else None,
     )
 
 

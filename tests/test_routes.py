@@ -226,7 +226,9 @@ def test_student_market_link_stays_on_the_student_dashboard(app, client):
     resp = client.get("/market", follow_redirects=True)
     body = resp.data.decode()
     assert "Create a World" not in body, "student landed on the Teacher Dashboard"
-    assert "My Firm" in body, "student did not get the student Market Dashboard nav"
+    # Assert the LINK, not its wording -- the label now carries the team's
+    # own name ("Back to Nike"), which is cosmetic and free to change.
+    assert 'href="/firm"' in body, "student did not get the student Market Dashboard nav"
 
 
 def test_teacher_session_hitting_a_student_page_is_not_forwarded_to_teacher_dashboard(app, client):

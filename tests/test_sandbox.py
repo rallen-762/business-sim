@@ -611,3 +611,34 @@ def test_registration_and_sandbox_share_one_picker(client):
     for field in ('name="avatar"', 'name="badge"', 'name="product_icon"'):
         assert field in register_page
         assert field in sandbox_page
+
+
+def test_market_dashboard_keeps_a_sandbox_player_in_their_game(client):
+    # Reported live: a teacher playing a sandbox game hit Exit on the
+    # standings board and landed on a Market Dashboard whose every nav link
+    # walked them back out of the game. The nav used to branch on "is there
+    # a teacher session" rather than "which view is this".
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/new-from-teacher", data={"team_name": "My Company"})
+    submit(client)
+    client.post("/sandbox/round")
+
+    body = client.get("/market").data.decode("utf-8")
+    assert 'href="/firm"' in body, "no way back into the game"
+    assert "Back to My Company" in body
+    # The teacher link is still offered, but as an explicit exit -- not as
+    # the primary action, and not labelled with the sandbox world's name.
+    assert "Exit to Teacher Dashboard" in body
+    assert "Teacher Dashboard &mdash; Sandbox" not in body
+
+
+def test_teachers_own_market_view_still_gets_teacher_nav(client):
+    # The counterpart: /teacher/worlds/<id>/market is genuinely the
+    # teacher's view and must keep pointing back at the world page.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/teacher/worlds", data={"name": "Period 4", "planned_firm_slots": "2"})
+    world = World.query.filter_by(name="Period 4").one()
+
+    body = client.get(f"/teacher/worlds/{world.id}/market").data.decode("utf-8")
+    assert f"/teacher/worlds/{world.id}" in body
+    assert "Back to" not in body
