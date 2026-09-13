@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import click
 import sqlalchemy as sa
-from flask import Flask
+from flask import Flask, request
 
 from app.extensions import db
 
@@ -80,6 +80,29 @@ def create_app(config_overrides=None):
         app.register_blueprint(teacher.bp)
         # Imports from teacher.py, so it must register after it.
         app.register_blueprint(sandbox.bp)
+
+    @app.after_request
+    def _no_store_dynamic_pages(response):
+        """Stop browsers caching logged-in pages.
+
+        The app sent no Cache-Control at all, so a browser was free to cache
+        HTML heuristically -- iOS Safari does, aggressively. Reported live:
+        an iPad kept showing a stale Market Dashboard nav for a deploy it
+        had already received, while a desktop showed the new one.
+
+        The bigger reason, though, is shared classroom devices. Every page
+        here is scoped to whoever is signed in; a cached copy can be
+        re-displayed to the NEXT person on that iPad or Chromebook -- after
+        a logout, or via the back button -- showing them a team's or the
+        teacher's screen. Vary: Cookie alone doesn't reliably prevent that.
+
+        Static assets keep caching normally; they're identical for everyone
+        and re-fetching them on a classroom wifi would be a real cost.
+        """
+        if request.endpoint == "static":
+            return response
+        response.headers.setdefault("Cache-Control", "no-store, max-age=0, must-revalidate")
+        return response
 
     @app.cli.command("init-db")
     def init_db_command():

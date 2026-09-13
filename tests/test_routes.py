@@ -1351,3 +1351,42 @@ def test_auto_refreshing_projector_board_does_not_pulse_its_exit(client):
     # Frozen with ?hold=1, a human is reading it -- pulse is welcome there.
     held = client.get(f"/teacher/worlds/{world_id}/present?hold=1").data.decode("utf-8")
     assert "flash-once" in held
+
+
+# --------------------------------------------------------------------------- #
+# Caching: logged-in pages must not be reusable by the next person on a
+# shared classroom device, and must not go stale across a deploy.
+# --------------------------------------------------------------------------- #
+
+def test_dynamic_pages_are_not_cacheable(client):
+    # Reported live: an iPad kept rendering a stale Market Dashboard nav
+    # after the fix had deployed. The app sent no Cache-Control at all, so
+    # iOS Safari cached the HTML heuristically.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+
+    for path in ("/login", "/firm", "/market"):
+        resp = client.get(path)
+        cache = resp.headers.get("Cache-Control", "")
+        assert "no-store" in cache, f"{path} is cacheable: {cache!r}"
+
+
+def test_a_logged_out_page_cannot_be_served_from_cache_to_the_next_user(client):
+    # The reason this matters on a shared iPad or Chromebook: a cached copy
+    # of a team's dashboard could be shown to whoever picks the device up
+    # next, including via the back button.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    assert "no-store" in client.get("/firm").headers.get("Cache-Control", "")
+
+    teacher_login(client)
+    assert "no-store" in client.get("/teacher/").headers.get("Cache-Control", "")
+
+
+def test_static_assets_stay_cacheable(client):
+    # Killing caching for CSS and icons too would make every page load
+    # re-fetch them over classroom wifi for no benefit -- they're identical
+    # for every user.
+    resp = client.get("/static/css/style.css")
+    assert resp.status_code == 200
+    assert "no-store" not in resp.headers.get("Cache-Control", "")
