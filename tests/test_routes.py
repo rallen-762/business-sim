@@ -1311,3 +1311,26 @@ def test_sold_out_banner_appears_only_when_capacity_actually_bound(client):
     body = client.get("/firm").data.decode("utf-8")
     assert "You sold out" in body
     assert "more customers wanted to buy" in body
+
+
+def test_google_site_verification_tag_is_present_on_every_page(client):
+    # Search Console verification only works while this tag is in the HTML
+    # Google fetches. Pinned because it's invisible -- nothing about the UI
+    # would look wrong if a template edit dropped it, and the failure only
+    # surfaces as a verification that silently stops working.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    tag = 'name="google-site-verification"'
+
+    client.get("/logout")
+    assert tag in client.get("/login").data.decode("utf-8")
+
+    firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
+    client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    assert tag in client.get("/firm").data.decode("utf-8")
+
+    teacher_login(client)
+    assert tag in client.get(f"/teacher/worlds/{world_id}").data.decode("utf-8")
+    # present.html is a standalone document, not a base.html child, so it
+    # carries its own copy and is the one that would be missed.
+    assert tag in client.get(f"/teacher/worlds/{world_id}/present").data.decode("utf-8")

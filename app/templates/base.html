@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# Google Search Console ownership verification. Inert -- it only needs to
+     be present in the HTML when Google checks. Needed to request a Safe
+     Browsing review after the sandbox setup form was flagged. #}
+  <meta name="google-site-verification" content="akq_48c9nEDM8mhcfV3QzCo2moVZU6QwHZjvEGL7fhc" />
   <title>{% block title %}Headphone Company Simulator{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>

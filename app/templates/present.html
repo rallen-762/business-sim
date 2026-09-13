@@ -14,6 +14,9 @@
      ?hold=1 freezes it entirely, for talking over the standings without
      the board moving under you. #}
   {% if not hold %}<meta http-equiv="refresh" content="30">{% endif %}
+  {# This template is a standalone document, not a base.html child, so it
+     needs its own copy of the Search Console verification tag. #}
+  <meta name="google-site-verification" content="akq_48c9nEDM8mhcfV3QzCo2moVZU6QwHZjvEGL7fhc" />
   <title>{{ world.name }} -- Standings</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
