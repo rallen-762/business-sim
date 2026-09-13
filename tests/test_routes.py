@@ -1390,3 +1390,63 @@ def test_static_assets_stay_cacheable(client):
     resp = client.get("/static/css/style.css")
     assert resp.status_code == 200
     assert "no-store" not in resp.headers.get("Cache-Control", "")
+
+
+# --------------------------------------------------------------------------- #
+# R&D and Advertising are dropdown-only.
+#
+# A free-entry box let a team type an amount that buys a FRACTION of a level
+# -- real money spent for no quality or ad gain, with nothing on screen
+# explaining why. Every value the dropdown offers lands exactly on a level.
+# --------------------------------------------------------------------------- #
+
+def _decision_form(client, world_id):
+    body = client.get("/firm").data.decode("utf-8")
+    return body[body.index('id="decision-form"'):] if 'id="decision-form"' in body else body
+
+
+def test_rd_and_ad_spend_have_no_free_entry_box(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+
+    for field in ("rd_spend", "ad_spend"):
+        assert f'<select id="{field}" name="{field}"' in body, f"{field} should be a dropdown"
+        assert f'type="number" step="1" min="0" max="{{{{ rd_cap' not in body
+        # No number input may carry these names.
+        assert f'type="number"' not in body.split(f'name="{field}"')[0][-120:], \
+            f"{field} still has a free-entry number box"
+
+
+def test_price_is_still_free_entry(client):
+    # Price is the actual decision -- it must stay typeable. Only the
+    # level-based spends became dropdowns.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+    assert 'type="number"' in body.split('name="price"')[0][-200:]
+
+
+def test_a_dropdown_submission_still_saves_correctly(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, rd_spend="50000", ad_spend="25000")
+
+    row = RoundDecision.query.filter_by(round_number=1).one()
+    assert row.rd_spend == 50000
+    assert row.ad_spend == 25000
+
+
+def test_maxed_out_ad_level_shows_a_locked_field_not_a_box(client):
+    # At Ad Level 10 there's nothing left to buy. The form must still post
+    # ad_spend=0 rather than omitting the field.
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with client.application.app_context():
+        firm = Firm.query.get(firm_id)
+        firm.cumulative_ad_spend = 99_000_000  # far past the top of the ladder
+        db.session.commit()
+
+    body = client.get("/firm").data.decode("utf-8")
+    assert 'name="ad_spend"' in body, "form must still post the field"
+    assert 'type="hidden" id="ad_spend"' in body
