@@ -101,6 +101,19 @@ hardcoding a colour.
 Projected to a classroom wall as often as read on a laptop — favour size and
 contrast over density.
 
+**What this replaced, and don't drift back to it.** The original look was a
+conventional dashboard — generic semantic tokens (`--bg`, `--surface`,
+`--primary`, `--danger`), rounded corners, soft shadows, no display face.
+Robert didn't like it, and the Sept 2026 overhaul replaced it wholesale: hence
+`--radius: 0` set site-wide in one place, and the hard offset shadows. The old
+token names survive only as **aliases** to the new ones so existing inline
+styles pick up the theme automatically — they are not a second palette, and
+nothing new should be written against them.
+
+If a change starts reintroducing rounded cards, blurred shadows, or a default
+sans for headings, that is drift back toward the rejected design, not a neutral
+choice.
+
 ## Project documentation
 
 Not auto-loaded. Read the relevant one before substantial work:
