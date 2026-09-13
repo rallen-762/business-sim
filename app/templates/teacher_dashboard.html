@@ -34,7 +34,9 @@
     <label for="sp_team_name">Your company name</label>
     <input type="text" id="sp_team_name" name="team_name" value="My Company" maxlength="60">
 
-    <label style="margin-top:14px;display:block;">Opponents</label>
+    {% include "_icon_picker.html" %}
+
+    <label style="margin-top:18px;display:block;">Opponents</label>
     {% for profile in bot_order %}
     <label style="display:block;font-weight:400;margin:4px 0;">
       <input type="checkbox" name="bot_{{ profile }}" checked>

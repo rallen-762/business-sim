@@ -92,6 +92,28 @@ def _make_bot_firm(world, slot_number, profile):
     )
 
 
+def _chosen_icon(form, field, choices):
+    """One picked icon, validated against the real choice list.
+
+    Never trusts the posted value -- an unknown filename would render as a
+    broken image forever (that already happened once, when an asset swap
+    left old filenames in the DB). Falls back to the first choice rather
+    than rejecting the whole submission: a sandbox game isn't worth an
+    error page over a cosmetic field.
+    """
+    value = form.get(field, "")
+    return value if value in choices else choices[0]
+
+
+def _picked_icons(form):
+    """All three icon choices from a sandbox form, each validated."""
+    return {
+        "avatar": _chosen_icon(form, "avatar", AVATAR_CHOICES),
+        "badge": _chosen_icon(form, "badge", BADGE_CHOICES),
+        "product_icon": _chosen_icon(form, "product_icon", PRODUCT_CHOICES),
+    }
+
+
 def _requested_profiles(form):
     """Bot profiles chosen on the setup form, in BOT_ORDER. Falls back to
     the full roster if nothing was ticked, so a stray empty submit still
@@ -137,6 +159,7 @@ def home():
         bot_profiles=BOT_PROFILES,
         bot_display_name=bot_display_name,
         default_rounds=ROUNDS_PER_WORLD,
+        avatars=AVATAR_CHOICES, badges=BADGE_CHOICES, products=PRODUCT_CHOICES,
     )
 
 
@@ -144,11 +167,16 @@ def home():
 # Single-player: one human, configurable bots, no teacher
 # --------------------------------------------------------------------------- #
 
-def _create_single_player_game(team_name, profiles):
+def _create_single_player_game(team_name, profiles, icons=None):
     """Build a sandbox world with one human firm plus the chosen bots, and
     return the player's Firm. Shared by both entry points (the student-side
     sandbox page and the Teacher Dashboard) so the two can never drift into
-    creating subtly different games."""
+    creating subtly different games.
+
+    `icons` is {avatar, badge, product_icon} as picked on the form. Omitted
+    (or partly omitted) it falls back to the first of each, which is what
+    every sandbox game used to get -- a fixed identity nobody chose."""
+    icons = icons or {}
     world = World(
         name=f"Sandbox -- {team_name}",
         game_code=_generate_game_code(),
@@ -168,7 +196,9 @@ def _create_single_player_game(team_name, profiles):
         password_hash=generate_password_hash(secrets.token_hex(16)),
         cash=STARTING_CASH, plant_capacity=STARTING_PLANT_CAPACITY,
         last_price=BOOTSTRAP_DEFAULT_PRICE, last_track=BOOTSTRAP_DEFAULT_TRACK,
-        avatar=AVATAR_CHOICES[0], badge=BADGE_CHOICES[0], product_icon=PRODUCT_CHOICES[0],
+        avatar=icons.get("avatar") or AVATAR_CHOICES[0],
+        badge=icons.get("badge") or BADGE_CHOICES[0],
+        product_icon=icons.get("product_icon") or PRODUCT_CHOICES[0],
     )
     db.session.add(player)
 
@@ -186,6 +216,7 @@ def new_game():
     player = _create_single_player_game(
         request.form.get("team_name", "").strip() or "My Company",
         _requested_profiles(request.form),
+        _picked_icons(request.form),
     )
     # Straight into the firm -- the whole point is no waiting room.
     log_in_firm(player)
@@ -207,6 +238,7 @@ def new_game_from_teacher():
     player = _create_single_player_game(
         request.form.get("team_name", "").strip() or "My Company",
         _requested_profiles(request.form),
+        _picked_icons(request.form),
     )
     log_in_firm(player)
     return redirect(url_for("firm.dashboard"))

@@ -532,3 +532,82 @@ def test_balance_runs_are_not_listed_on_the_student_sandbox_page(client):
     body = client.get("/sandbox/").data.decode("utf-8")
     assert "Bots" not in body.split("Recent Sandbox Games")[-1] if "Recent Sandbox Games" in body else True
     assert World.query.filter_by(mode="bots_only").count() == 1
+
+
+# --------------------------------------------------------------------------- #
+# Icon choice -- a sandbox player picks their identity like a real team
+# --------------------------------------------------------------------------- #
+
+def test_both_single_player_forms_offer_the_icon_picker(client):
+    from app.avatars import AVATAR_CHOICES
+
+    sandbox_login(client)
+    student = client.get("/sandbox/").data.decode("utf-8")
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    teacher = client.get("/teacher/").data.decode("utf-8")
+
+    for body, where in ((student, "sandbox page"), (teacher, "teacher dashboard")):
+        assert 'name="avatar"' in body, f"{where} missing factory picker"
+        assert 'name="badge"' in body, f"{where} missing logo picker"
+        assert 'name="product_icon"' in body, f"{where} missing product picker"
+        assert AVATAR_CHOICES[1] in body, f"{where} offers only one choice"
+
+
+def test_picked_icons_are_saved_on_the_player_firm(client):
+    from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
+
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/new-from-teacher", data={
+        "team_name": "Picky",
+        "avatar": AVATAR_CHOICES[3],
+        "badge": BADGE_CHOICES[2],
+        "product_icon": PRODUCT_CHOICES[1],
+    })
+
+    player = Firm.query.filter_by(slot_number=1).one()
+    assert player.avatar == AVATAR_CHOICES[3]
+    assert player.badge == BADGE_CHOICES[2]
+    assert player.product_icon == PRODUCT_CHOICES[1]
+
+
+def test_the_student_door_saves_picked_icons_too(client):
+    from app.avatars import AVATAR_CHOICES
+
+    sandbox_login(client)
+    client.post("/sandbox/new", data={"team_name": "Picky", "avatar": AVATAR_CHOICES[5]})
+    assert Firm.query.filter_by(slot_number=1).one().avatar == AVATAR_CHOICES[5]
+
+
+def test_an_unknown_icon_falls_back_instead_of_saving_a_broken_image(client):
+    # A filename that isn't a real asset would render as a broken <img>
+    # forever -- that already happened once when an asset swap left stale
+    # names in the DB. Never trust the posted value.
+    from app.avatars import AVATAR_CHOICES, BADGE_CHOICES
+
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/new-from-teacher", data={
+        "team_name": "Sneaky", "avatar": "../../etc/passwd", "badge": "nope.png",
+    })
+
+    player = Firm.query.filter_by(slot_number=1).one()
+    assert player.avatar in AVATAR_CHOICES
+    assert player.badge in BADGE_CHOICES
+
+
+def test_registration_and_sandbox_share_one_picker(client):
+    # Both render the same partial, so a change to the asset lists can't
+    # leave one surface offering icons the other doesn't.
+    world_id = None
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/teacher/worlds", data={"name": "Period 9", "planned_firm_slots": "1"})
+    world = World.query.filter_by(name="Period 9").one()
+    firm = Firm.query.filter_by(world_id=world.id).first()
+    client.get("/teacher/logout")
+
+    register_page = client.get(f"/register/{world.id}/{firm.id}").data.decode("utf-8")
+    sandbox_login(client)
+    sandbox_page = client.get("/sandbox/").data.decode("utf-8")
+
+    for field in ('name="avatar"', 'name="badge"', 'name="product_icon"'):
+        assert field in register_page
+        assert field in sandbox_page

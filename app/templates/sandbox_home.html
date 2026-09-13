@@ -25,7 +25,9 @@
     <label for="team_name">Your company name</label>
     <input type="text" id="team_name" name="team_name" value="My Company" maxlength="60">
 
-    <label style="margin-top:14px;display:block;">Opponents</label>
+    {% include "_icon_picker.html" %}
+
+    <label style="margin-top:18px;display:block;">Opponents</label>
     <p class="help-text" style="margin-top:0;">Leave them all ticked for a full field.</p>
     {% for profile in bot_order %}
     <label style="display:block;font-weight:400;margin:4px 0;">

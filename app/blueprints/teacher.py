@@ -125,6 +125,7 @@ def dashboard():
         bot_order=tuple(BOT_PROFILES),
         bot_profiles=BOT_PROFILES,
         rounds_per_world=ROUNDS_PER_WORLD,
+        avatars=AVATAR_CHOICES, badges=BADGE_CHOICES, products=PRODUCT_CHOICES,
     )
 
 

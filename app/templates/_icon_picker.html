@@ -1,0 +1,36 @@
+{# Factory / brand logo / product picker.
+
+   Shared by team registration and by both single-player sandbox forms, so
+   the three can't drift apart -- a sandbox player picks their identity the
+   same way a real team does. Expects `avatars`, `badges` and `products` in
+   the context (AVATAR_CHOICES / BADGE_CHOICES / PRODUCT_CHOICES). #}
+
+<label>Choose Your Factory</label>
+<div class="avatar-grid">
+  {% for filename in avatars %}
+  <label class="avatar-choice">
+    <input type="radio" name="avatar" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
+    <span class="avatar-frame"><img src="{{ url_for('static', filename='img/avatars/' ~ filename) }}" alt=""></span>
+  </label>
+  {% endfor %}
+</div>
+
+<label style="margin-top:18px;">Choose Your Brand Logo</label>
+<div class="avatar-grid">
+  {% for filename in badges %}
+  <label class="avatar-choice">
+    <input type="radio" name="badge" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
+    <span class="avatar-frame"><img src="{{ url_for('static', filename='img/badges/' ~ filename) }}" alt=""></span>
+  </label>
+  {% endfor %}
+</div>
+
+<label style="margin-top:18px;">Choose Your Product</label>
+<div class="avatar-grid">
+  {% for filename in products %}
+  <label class="avatar-choice">
+    <input type="radio" name="product_icon" value="{{ filename }}" {% if loop.first %}checked{% endif %}>
+    <span class="avatar-frame"><img src="{{ url_for('static', filename='img/products/' ~ filename) }}" alt=""></span>
+  </label>
+  {% endfor %}
+</div>
