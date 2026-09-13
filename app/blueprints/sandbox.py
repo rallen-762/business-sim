@@ -146,15 +146,13 @@ def logout():
 @bp.route("/")
 @sandbox_login_required
 def home():
-    # Single-player games only. Balance runs moved to the Teacher Dashboard,
-    # so listing them here would offer a player games they can't open.
-    worlds = (
-        World.query.filter_by(mode="sandbox")
-        .order_by(World.created_at.desc()).limit(25).all()
-    )
+    # No list of existing games here on purpose. It showed EVERY sandbox
+    # world anyone had created, and its Resume button signed you into that
+    # world's firm -- so on a shared classroom device one student could drop
+    # straight into another's practice game. Removed rather than filtered,
+    # since there is no per-player ownership on a sandbox world to filter by.
     return render_template(
         "sandbox_home.html",
-        worlds=worlds,
         bot_order=BOT_ORDER,
         bot_profiles=BOT_PROFILES,
         bot_display_name=bot_display_name,
@@ -247,6 +245,20 @@ def new_game_from_teacher():
 @bp.route("/play/<int:world_id>")
 @sandbox_login_required
 def resume(world_id):
+    """Sign back into an existing sandbox game by its world id.
+
+    DELIBERATELY KEPT with nothing linking to it. The sandbox page used to
+    list every game with a Resume button, which let one student walk into
+    another's practice run on a shared device -- that list is gone. This
+    route stays because Robert asked for it: a way back into a game he
+    started, for his own use, reached by typing the URL.
+
+    Still gated by the sandbox password, so it is not a way past any login;
+    the exposure is only that someone who already has that password could
+    guess an id. Sandbox worlds hold nothing but a made-up company name and
+    a practice game, which is why that trade is acceptable here and would
+    not be for a classroom world.
+    """
     world = World.query.get_or_404(world_id)
     if world.mode != "sandbox":
         flash("That isn't a single-player sandbox game.")

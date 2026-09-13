@@ -521,17 +521,25 @@ def test_the_teacher_door_still_requires_a_teacher(client):
     assert World.query.filter_by(mode="sandbox").count() == 0
 
 
-def test_balance_runs_are_not_listed_on_the_student_sandbox_page(client):
-    # They're a teacher tool now -- offering them here would list games a
-    # player has no way to open.
+def test_the_sandbox_page_lists_nobodys_games(client):
+    # It used to list EVERY sandbox world anyone had created, with a Resume
+    # button that signed you into that world's firm -- so on a shared
+    # classroom device one student could drop straight into another's
+    # practice game. There is no per-player ownership on a sandbox world to
+    # filter by, so the list is gone rather than narrowed.
     client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
     client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
     client.get("/teacher/logout")
 
     sandbox_login(client)
+    start_game(client, team_name="SomeonesGame")
+    client.get("/logout")
+
     body = client.get("/sandbox/").data.decode("utf-8")
-    assert "Bots" not in body.split("Recent Sandbox Games")[-1] if "Recent Sandbox Games" in body else True
-    assert World.query.filter_by(mode="bots_only").count() == 1
+    assert "SomeonesGame" not in body, "another player's game must not be listed"
+    assert "Recent Sandbox Games" not in body
+    assert "/sandbox/play/" not in body, "no Resume links"
+    assert "New Single-Player Game" in body, "starting a game still works"
 
 
 # --------------------------------------------------------------------------- #
@@ -642,3 +650,23 @@ def test_teachers_own_market_view_still_gets_teacher_nav(client):
     body = client.get(f"/teacher/worlds/{world.id}/market").data.decode("utf-8")
     assert f"/teacher/worlds/{world.id}" in body
     assert "Back to" not in body
+
+
+def test_resume_by_url_still_works_but_needs_the_sandbox_password(client):
+    # Kept on purpose for Robert's own use now that nothing links to it.
+    # It must stay gated: not a way past any login, just an unlisted route.
+    sandbox_login(client)
+    start_game(client, team_name="MyOwnGame")
+    world = World.query.filter_by(mode="sandbox").one()
+    client.get("/logout")
+    client.get("/sandbox/logout")
+
+    # Anonymous: bounced to the sandbox password screen, no access.
+    resp = client.get(f"/sandbox/play/{world.id}", follow_redirects=True)
+    assert b"Sandbox Password" in resp.data
+    assert b"MyOwnGame" not in resp.data
+
+    # With the sandbox password: back in the game.
+    sandbox_login(client)
+    resp = client.get(f"/sandbox/play/{world.id}", follow_redirects=True)
+    assert b"MyOwnGame" in resp.data
