@@ -153,6 +153,14 @@ def dashboard():
         affordability_curve=affordability_curve(),
         last_result_price=last_decision.price if last_decision else None,
         last_result_track=last_decision.track if last_decision else None,
+        last_result_celebrity=(
+            CELEBRITY_LABELS.get(last_decision.celebrity)
+            if last_decision and last_decision.celebrity_on else None
+        ),
+        recap_celebrity=(
+            CELEBRITY_LABELS.get(recap_decision.celebrity)
+            if recap_decision and recap_decision.celebrity_on else None
+        ),
         recap_result=recap_result,
         recap_round=(world.current_round - 1) if recap_result else None,
         recap_price=recap_decision.price if recap_decision else None,

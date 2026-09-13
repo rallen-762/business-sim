@@ -118,6 +118,10 @@
     </tbody>
   </table>
   </div>
+    {% if last_result_celebrity %}
+    <p class="help-text" style="margin-top:8px;">Your <strong>{{ last_result_celebrity }}</strong> endorsement ran this round.
+      Compare the Units You Sold column above with the round before &mdash; that's where its pull went.</p>
+    {% endif %}
   {% endif %}
 
   {% if last_result.units_lost_to_capacity and last_result.units_lost_to_capacity >= 1 %}
@@ -208,6 +212,10 @@
       </tbody>
     </table>
     </div>
+    {% endif %}
+    {% if recap_celebrity %}
+    <p class="help-text" style="margin-top:8px;">Your <strong>{{ recap_celebrity }}</strong> endorsement ran this round.
+      Compare the Units You Sold column above with the round before &mdash; that's where its pull went.</p>
     {% endif %}
   </div>
   {% endif %}
@@ -355,7 +363,16 @@
       </label>
     </div>
     {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>
-    {% else %}<p class="help-text">Different endorsers appeal to different customers. Which one fits yours is for you to work out.</p>{% endif %}
+    {% else %}
+    <p class="help-text">Different endorsers appeal to different customers. Which one fits yours is for you to work out.</p>
+    {# Says what an endorsement DOES against this team's own price, without
+       hinting at which endorser suits them -- that part stays discoverable.
+       Deliberately describes the mechanism rather than giving a verdict:
+       reach alone doesn't decide it (a Premium firm at 48% reach and an
+       Entry firm at 60% land on opposite sides), so promising an answer
+       here would be wrong as often as it was right. #}
+    <p class="help-text" id="celeb-hint" style="margin-top:4px;"></p>
+    {% endif %}
 
     <div class="card" style="margin-top:18px;background:var(--bg);">
       <div class="grid grid-3">
@@ -461,6 +478,30 @@
     else                verdict = 'Nearly the whole market -- but check your margin.';
     text.textContent = 'About ' + pct.toFixed(0) + '% of buyers could afford $'
       + (isFinite(price) ? price.toFixed(2) : '0.00') + ' on the ' + tier + ' tier. ' + verdict;
+
+    updateCelebHint(pct);
+  }
+
+  // An endorsement multiplies how many of the buyers who CAN afford you
+  // actually pick you. So its value depends on your price: when almost
+  // everyone can already reach you, the extra interest runs into what you
+  // can build and afford to make; when few can, it pulls harder on those
+  // who can. Stated as mechanism, not advice -- see the note in the markup.
+  function updateCelebHint(pct) {
+    const hint = document.getElementById('celeb-hint');
+    if (!hint) return;
+    if (pct === null || !isFinite(pct)) { hint.textContent = ''; return; }
+
+    if (pct >= 55) {
+      hint.textContent = 'At this price most buyers can already reach you. An endorsement brings '
+        + 'more interest your way — but you can only sell what you can build and afford to make.';
+    } else if (pct <= 30) {
+      hint.textContent = 'At this price few buyers can reach you at all. An endorsement pulls harder '
+        + 'on the ones who can.';
+    } else {
+      hint.textContent = 'An endorsement changes how many of the buyers who can afford you actually '
+        + 'choose you — not how many can afford you.';
+    }
   }
 
   recalc();

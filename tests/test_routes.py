@@ -1518,3 +1518,53 @@ def test_the_multipliers_never_reach_the_browser(client):
     assert "1.5" not in body.split('class="celeb-grid"')[1].split("Committed Spend")[0]
     for seg in ("Athletes", "Wealthy", "Low Income", "NBA Fans"):
         assert seg not in body.split('class="celeb-grid"')[1].split("Committed Spend")[0]
+
+
+def test_the_form_explains_what_an_endorsement_does_without_naming_a_fit(client):
+    # The price interaction is the thing that makes endorsement a decision,
+    # and it's invisible otherwise. WHICH endorser suits you stays hidden.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+
+    assert 'id="celeb-hint"' in body
+    assert "updateCelebHint" in body
+    # Mechanism, not a recommendation, and no endorser named in the hint logic.
+    hint_js = body[body.index("function updateCelebHint"):body.index("recalc();", body.index("function updateCelebHint"))]
+    for key in ("athlete", "musician", "star", "influencer"):
+        assert f'"{key}"' not in hint_js
+    for seg in ("Athletes", "Wealthy", "Low Income", "NBA Fans", "Budget Shoppers"):
+        assert seg not in hint_js
+
+
+def test_results_name_the_endorsement_that_ran(client):
+    # So a team can line it up against the per-segment Units You Sold column
+    # that's already on the same card, and work the rest out themselves.
+    from app.constants import CELEBRITY_LABELS
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, celebrity="athlete")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
+    client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    body = client.get("/firm").data.decode("utf-8")
+    assert CELEBRITY_LABELS["athlete"] in body
+    assert "endorsement ran this round" in body
+
+
+def test_no_endorsement_note_when_none_was_run(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, celebrity="")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
+    client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    assert "endorsement ran this round" not in client.get("/firm").data.decode("utf-8")
