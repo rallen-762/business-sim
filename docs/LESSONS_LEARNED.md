@@ -53,8 +53,12 @@ re-crawl of the unchanged page just confirms the flag.
 ## 2. "Where did my feature go?" — it never went anywhere
 
 *Evidence: `git show 8a687a1 -- app/templates/sandbox_home.html` removes only the
-Bots-Only card; `"New Single-Player Game"` is present in that file at `55112b4`,
-`8a687a1`, `75332f4` and `62bf9a1` — every commit, continuously.*
+Bots-Only card. Checking the whole path rather than one string — the
+`@bp.route("/new")` handler, the form's `sandbox.new_game` action, the
+"New Single-Player Game" card, and the sandbox link on `/login` — all four are
+present at every sandbox-era commit (`55112b4`, `613ebae`, `8bb5b7c`, `8a687a1`,
+`75332f4`, `fe0dc02`, `6428cb1`, `e2812a7`, `7a3090b`, `319ff93`, `62bf9a1`).
+Re-runnable: loop those commits and `grep -c` each of the four.*
 
 ### Problem
 After the bots-only Balance Run was relocated to the Teacher Dashboard,
