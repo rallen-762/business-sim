@@ -33,7 +33,7 @@ Edge cases considered:
     short fallback sentence instead of crashing on a None decision.
 """
 
-from app.constants import SEGMENTS, segment_label
+from app.constants import CELEBRITY_LABELS, SEGMENTS, segment_label
 from app.models import Firm, RoundDecision, RoundResult
 
 
@@ -119,7 +119,13 @@ def _build_summary(firm, decision, avg_price, avg_rd, avg_ad, segment_shares):
         parts.append(f"Spent less than the field on advertising (${decision.ad_spend:,.0f} vs. ${avg_ad:,.0f} average).")
 
     if decision.celebrity_on:
-        parts.append("Ran a Celebrity Endorsement this round.")
+        # Naming the endorser, not just "ran one": who a rival signed is
+        # visible in the real world, and it's the part worth reasoning about.
+        who = CELEBRITY_LABELS.get(decision.celebrity)
+        parts.append(
+            f"Signed a {who} endorsement this round." if who
+            else "Ran a Celebrity Endorsement this round."
+        )
 
     if decision.plant_investment > 0:
         parts.append("Invested in expanding plant capacity this round.")

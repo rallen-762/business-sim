@@ -332,13 +332,90 @@ def quality_weight(segment: str, quality_level: int) -> float:
     return q1 + (q10 - q1) * (q - 1) / 9
 
 
-CELEBRITY_MULTIPLIER = {
+# The ORIGINAL single celebrity's per-segment pull multiplier. Kept, and
+# still applied, for rounds played before the four-celebrity roster existed:
+# those RoundDecision rows carry celebrity_on=True with no celebrity named,
+# and must keep resolving to exactly the numbers they were scored with.
+# Never use this for a new decision -- see CELEBRITY_MULTIPLIERS below.
+LEGACY_CELEBRITY_MULTIPLIER = {
     "Low Income": 1.0,
     "NBA Fans": 1.5,
     "Athletes": 1.1,
     "Wealthy": 1.2,
     "Casual/Fashion": 1.0,
 }
+CELEBRITY_MULTIPLIER = LEGACY_CELEBRITY_MULTIPLIER  # back-compat alias
+
+# --------------------------------------------------------------------------- #
+# Section 12 (continued): the four endorsement options.
+#
+# Same mechanic as before -- a per-segment multiplier on demand pull -- just
+# four differently-shaped versions of it instead of one. Each endorser has
+# one STRONG segment and one SECONDARY, on the same scale the single
+# celebrity already used (its strongest pull was 1.5, its secondary 1.2), so
+# nothing here changes the magnitude of the lever, only its aim.
+#
+# These values are DELIBERATELY not surfaced anywhere in the UI, exactly
+# like every other Section 12 constant. Which endorser suits a team's
+# customers is meant to be found by playing, not read off a table. The
+# Firm Dashboard shows the four options and their shared price and says
+# nothing about who they reach.
+# --------------------------------------------------------------------------- #
+
+CELEBRITY_STRONG = 1.5
+CELEBRITY_SECONDARY = 1.2
+
+# Order here is the order they appear on the dashboard, left to right, and
+# matches the supplied icon sheet.
+CELEBRITIES = ("athlete", "musician", "star", "influencer")
+
+CELEBRITY_LABELS = {
+    "athlete": "Pro Athlete",
+    "musician": "Music Icon",
+    "star": "Movie Star",
+    "influencer": "Influencer",
+}
+
+CELEBRITY_ICONS = {
+    "athlete": "athlete.png",
+    "musician": "musician.png",
+    "star": "star.png",
+    "influencer": "influencer.png",
+}
+
+_CELEBRITY_TARGETS = {
+    # endorser:     (strong segment, secondary segment)
+    "athlete":      ("Athletes", "NBA Fans"),
+    "musician":     ("NBA Fans", "Casual/Fashion"),
+    "star":         ("Wealthy", "Casual/Fashion"),
+    "influencer":   ("Low Income", "Casual/Fashion"),
+}
+
+CELEBRITY_MULTIPLIERS = {
+    key: {
+        seg: (
+            CELEBRITY_STRONG if seg == strong
+            else CELEBRITY_SECONDARY if seg == secondary
+            else 1.0
+        )
+        for seg in SEGMENTS
+    }
+    for key, (strong, secondary) in _CELEBRITY_TARGETS.items()
+}
+
+
+def celebrity_multiplier(celebrity: str | None, segment: str) -> float:
+    """Pull multiplier for one endorser in one segment.
+
+    `celebrity` of None means a pre-roster round (celebrity_on with nobody
+    named), which resolves to the legacy single-celebrity numbers so old
+    games stay reproducible. An unrecognised name also falls back there
+    rather than raising -- a bad value must never 500 a whole class's round
+    mid-lesson, the same posture as the tier fallback above.
+    """
+    if celebrity in CELEBRITY_MULTIPLIERS:
+        return CELEBRITY_MULTIPLIERS[celebrity][segment]
+    return LEGACY_CELEBRITY_MULTIPLIER[segment]
 
 WEALTHY_CEILING_PRICE = 250  # absolute hard rule: priced above this, excluded from Wealthy entirely (kept from the old model)
 

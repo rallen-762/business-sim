@@ -327,11 +327,35 @@
       </div>
     </div>
 
-    <div class="checkbox-row">
-      <input type="checkbox" id="celebrity_on" name="celebrity_on" onchange="recalc()" {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
-      <label for="celebrity_on" style="margin:0;">Celebrity Endorsement ($50,000/round)</label>
+    {# Four endorsers, one pick (or none). Radios styled as buttons: the
+       browser enforces "only one" for free, and the control still works
+       without JS. Who each one reaches is deliberately unsaid -- that's the
+       thing worth discovering by playing. #}
+    <label style="margin-top:18px;display:block;">Celebrity Endorsement
+      <span class="help-text" style="font-weight:400;">&mdash; {{ "${:,.0f}".format(celebrity_cost) }}/round, pick one</span>
+    </label>
+    <div class="celeb-grid" role="radiogroup" aria-label="Celebrity endorsement">
+      {% for key in celebrities %}
+      <label class="celeb-choice">
+        <input type="radio" name="celebrity" value="{{ key }}" onchange="recalc()"
+               {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
+        <span class="celeb-face">
+          <img src="{{ url_for('static', filename='img/celebrities/' ~ celebrity_icons[key]) }}" alt="">
+          <span class="celeb-name">{{ celebrity_labels[key] }}</span>
+        </span>
+      </label>
+      {% endfor %}
+      <label class="celeb-choice celeb-none">
+        <input type="radio" name="celebrity" value="" checked onchange="recalc()"
+               {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
+        <span class="celeb-face">
+          <span class="celeb-nomark" aria-hidden="true">&times;</span>
+          <span class="celeb-name">No Endorsement</span>
+        </span>
+      </label>
     </div>
-    {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>{% endif %}
+    {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>
+    {% else %}<p class="help-text">Different endorsers appeal to different customers. Which one fits yours is for you to work out.</p>{% endif %}
 
     <div class="card" style="margin-top:18px;background:var(--bg);">
       <div class="grid grid-3">
@@ -359,7 +383,7 @@
     const rdEl = document.getElementById('rd_spend');
     const adEl = document.getElementById('ad_spend');
     const plantEl = document.getElementById('plant_investment');
-    const celebEl = document.getElementById('celebrity_on');
+    const celebEls = document.querySelectorAll('input[name="celebrity"]');
     const productionEl = document.getElementById('production_qty');
     const submitBtn = document.getElementById('submit-btn');
     const overspendMsg = document.getElementById('overspend-message');
@@ -368,7 +392,10 @@
     const rd = parseFloat(rdEl.value) || 0;
     const ad = parseFloat(adEl.value) || 0;
     const plant = plantEl.disabled ? 0 : (parseFloat(plantEl.value) || 0);
-    const celeb = celebEl.disabled ? 0 : (celebEl.checked ? CELEBRITY_COST : 0);
+    let celeb = 0;
+    celebEls.forEach(function (el) {
+      if (el.checked && !el.disabled && el.value) celeb = CELEBRITY_COST;
+    });
 
     const committed = rd + ad + plant + celeb;
     const leftover = FIRM_CASH - committed;

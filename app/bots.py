@@ -56,6 +56,7 @@ from __future__ import annotations
 import random as _random_module
 
 from app.constants import (
+    CELEBRITIES,
     AD_LADDER,
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
@@ -184,7 +185,7 @@ def _decide_underbidder(cash, capacity, last_price, last_profit, rng):
 
     return dict(
         price=price, production_qty=production_qty, ad_spend=0.0, rd_spend=0.0,
-        track=UNDERBIDDER_TRACK, celebrity_on=False, plant_investment=0,
+        track=UNDERBIDDER_TRACK, celebrity_on=False, celebrity=None, plant_investment=0,
     )
 
 
@@ -249,7 +250,9 @@ def _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng
 
     return dict(
         price=price, production_qty=production_qty, ad_spend=round(ad_spend, 2), rd_spend=rd_spend,
-        track=track, celebrity_on=celebrity_on, plant_investment=plant_investment,
+        track=track, celebrity_on=celebrity_on,
+        celebrity="musician" if celebrity_on else None,
+        plant_investment=plant_investment,
     )
 
 
@@ -289,7 +292,9 @@ def _decide_elite(round_number, cash, capacity, cumulative_rd_spend, loan_outsta
 
     return dict(
         price=price, production_qty=production_qty, ad_spend=0.0, rd_spend=round(rd_spend, 2),
-        track=track, celebrity_on=celebrity_on, plant_investment=0,
+        track=track, celebrity_on=celebrity_on,
+        celebrity="star" if celebrity_on else None,
+        plant_investment=0,
     )
 
 
@@ -307,11 +312,12 @@ def _decide_random(cash, capacity, rng):
     rd_spend = round(rng.uniform(0, max(0.0, cash) * RANDOM_SPEND_MAX_FRACTION), 2)
     ad_spend = round(rng.uniform(0, max(0.0, cash) * RANDOM_SPEND_MAX_FRACTION), 2)
     celebrity_on = rng.random() < 0.5
+    celebrity_pick = rng.choice(list(CELEBRITIES)) if celebrity_on else None
 
     remaining_cash = cash - rd_spend - ad_spend - (CELEBRITY_COST_PER_ROUND if celebrity_on else 0)
     production_qty = _affordable_production_qty(remaining_cash, track, capacity)
 
     return dict(
         price=price, production_qty=production_qty, ad_spend=ad_spend, rd_spend=rd_spend,
-        track=track, celebrity_on=celebrity_on, plant_investment=0,
+        track=track, celebrity_on=celebrity_on, celebrity=celebrity_pick, plant_investment=0,
     )

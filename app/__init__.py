@@ -190,6 +190,20 @@ def create_app(config_overrides=None):
                         conn.commit()
                     print("Added worlds.reopened_round column.")
 
+            # Which celebrity a round picked. Nullable with no default --
+            # NULL is meaningful here, not missing data: it marks a round
+            # played before the four-endorser roster existed, which
+            # constants.celebrity_multiplier() scores with the original
+            # single-celebrity numbers. Backfilling a name would silently
+            # rewrite what those rounds were actually scored with.
+            if "round_decisions" in inspector.get_table_names():
+                decision_cols = {c["name"] for c in inspector.get_columns("round_decisions")}
+                if "celebrity" not in decision_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text("ALTER TABLE round_decisions ADD COLUMN celebrity VARCHAR(20)"))
+                        conn.commit()
+                    print("Added round_decisions.celebrity column.")
+
             # Sold-out reporting. Both DEFAULT 0 and NOT NULL: rounds played
             # before these columns existed backfill to 0, which reads as
             # "didn't sell out" and simply leaves the banner hidden, rather

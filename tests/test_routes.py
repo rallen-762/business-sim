@@ -380,7 +380,10 @@ def test_dashboard_disables_plant_and_celebrity_when_indebted(app, client):
     resp = client.get("/firm")
     body = resp.data.decode()
     assert 'id="plant_investment" name="plant_investment" onchange="recalc()" disabled' in body
-    assert 'id="celebrity_on" name="celebrity_on" onchange="recalc()" disabled' in body
+    # Celebrity is four radio buttons now; every one of them must be disabled.
+    celeb_block = body[body.index('class="celeb-grid"'):body.index('Committed Spend')]
+    assert celeb_block.count('type="radio" name="celebrity"') == 5, "four endorsers plus a None option"
+    assert celeb_block.count("disabled") == 5, "every endorsement choice must be disabled under debt"
 
 
 def test_round_results_screen_shows_cumulative_totals(client):
@@ -1450,3 +1453,68 @@ def test_maxed_out_ad_level_shows_a_locked_field_not_a_box(client):
     body = client.get("/firm").data.decode("utf-8")
     assert 'name="ad_spend"' in body, "form must still post the field"
     assert 'type="hidden" id="ad_spend"' in body
+
+
+# --------------------------------------------------------------------------- #
+# Celebrity endorsement: four endorsers, pick one.
+# --------------------------------------------------------------------------- #
+
+def test_all_four_endorsers_are_offered_with_icons(client):
+    from app.constants import CELEBRITIES, CELEBRITY_ICONS, CELEBRITY_LABELS
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+
+    for key in CELEBRITIES:
+        assert f'value="{key}"' in body
+        assert CELEBRITY_LABELS[key] in body
+        assert CELEBRITY_ICONS[key] in body
+
+
+def test_only_one_endorser_can_be_chosen(client):
+    # Radios share a name, so the browser enforces it -- and the server
+    # stores exactly one value, never a list.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+    block = body[body.index('class="celeb-grid"'):body.index("Committed Spend")]
+    assert block.count('type="radio" name="celebrity"') == 5
+
+    submit_decision(client, celebrity="star")
+    row = RoundDecision.query.filter_by(round_number=1).one()
+    assert row.celebrity == "star"
+    assert row.celebrity_on is True
+
+
+def test_choosing_no_endorsement_costs_nothing(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, celebrity="")
+
+    row = RoundDecision.query.filter_by(round_number=1).one()
+    assert row.celebrity is None
+    assert row.celebrity_on is False
+
+
+def test_an_unknown_endorser_is_treated_as_none(client):
+    # The multipliers behind these are hidden, so a bogus value is a tampered
+    # form rather than a student mistake -- fall back, don't error.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, celebrity="taylor-swift")
+
+    row = RoundDecision.query.filter_by(round_number=1).one()
+    assert row.celebrity is None
+    assert row.celebrity_on is False
+
+
+def test_the_multipliers_never_reach_the_browser(client):
+    # Same treatment as every other Section 12 constant: discoverable by
+    # playing, never printed in the UI.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+
+    assert "1.5" not in body.split('class="celeb-grid"')[1].split("Committed Spend")[0]
+    for seg in ("Athletes", "Wealthy", "Low Income", "NBA Fans"):
+        assert seg not in body.split('class="celeb-grid"')[1].split("Committed Spend")[0]

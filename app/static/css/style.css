@@ -507,6 +507,56 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 .soldout .soldout-lost { font-size: 1.5rem; font-family: var(--font-display); color: var(--text); }
 .soldout p { margin: 8px 0 0; font-size: 0.9rem; }
 
+/* --- Celebrity endorsement: four buttons, pick one ---------------------
+   Radios styled as buttons, so the browser enforces the single choice and
+   the control still works with JS off. Chunky offset shadow and square
+   corners match .btn rather than inventing a third control style. --- */
+.celeb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+.celeb-choice { display: block; cursor: pointer; margin: 0; font-weight: 400; }
+.celeb-choice input { position: absolute; opacity: 0; width: 0; height: 0; }
+.celeb-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px 10px;
+  background: var(--panel-alt);
+  border: 2px solid var(--panel-alt);
+  box-shadow: 4px 4px 0 var(--panel-alt-dark);
+  transition: border-color 120ms linear, box-shadow 120ms linear, background 120ms linear;
+}
+.celeb-face img {
+  width: 54px; height: 54px; object-fit: contain; display: block;
+}
+.celeb-nomark {
+  width: 54px; height: 54px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.9rem; color: var(--text-secondary);
+}
+.celeb-name {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--text-secondary);
+  line-height: 1.25;
+}
+.celeb-choice:hover .celeb-face { border-color: var(--accent-primary); }
+.celeb-choice input:focus-visible + .celeb-face { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.celeb-choice input:checked + .celeb-face {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  box-shadow: 4px 4px 0 var(--accent-primary-dark);
+}
+.celeb-choice input:checked + .celeb-face .celeb-name { color: #0a0a0a; font-weight: 700; }
+.celeb-choice input:checked + .celeb-face .celeb-nomark { color: #0a0a0a; }
+.celeb-choice input:disabled + .celeb-face { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
 /* --- Flash messages --- */
 .flash { background: var(--panel-alt); border: 2px solid var(--accent-primary); border-radius: 0; color: var(--text); padding: 10px 14px; margin-bottom: 16px; }
 

@@ -571,3 +571,83 @@ def test_pending_capacity_counts_toward_the_sold_out_test():
     decisions = {1: make_decision(1, price=40, production_qty=45_000)}
     out = process_round(states, decisions)
     assert out[1].plant_capacity == 45_000
+
+
+# --------------------------------------------------------------------------- #
+# Four endorsers, one mechanic.
+#
+# Each is a per-segment multiplier on demand pull -- the SAME lever the
+# single celebrity always was, just aimed differently. The tests that matter
+# are that each one actually moves its own segment, and that rounds played
+# before the roster existed still score identically.
+# --------------------------------------------------------------------------- #
+
+def test_each_endorser_lifts_its_own_strong_segment(app=None):
+    from app.constants import CELEBRITIES, _CELEBRITY_TARGETS
+
+    for key in CELEBRITIES:
+        strong, secondary = _CELEBRITY_TARGETS[key]
+        states = {1: make_state(1, plant_capacity=1_000_000), 2: make_state(2, plant_capacity=1_000_000)}
+        base = {
+            1: make_decision(1, price=50, track="Premium", production_qty=1_000_000),
+            2: make_decision(2, price=50, track="Premium", production_qty=1_000_000),
+        }
+        plain = process_round(states, base)
+
+        boosted = {
+            1: make_decision(1, price=50, track="Premium", production_qty=1_000_000,
+                             celebrity_on=True, celebrity=key),
+            2: make_decision(2, price=50, track="Premium", production_qty=1_000_000),
+        }
+        out = process_round(states, boosted)
+
+        assert out[1].units_sold_by_segment[strong] > plain[1].units_sold_by_segment[strong], \
+            f"{key} should lift {strong}"
+        assert out[1].units_sold_by_segment[secondary] > plain[1].units_sold_by_segment[secondary], \
+            f"{key} should lift {secondary} too"
+
+
+def test_endorsers_differ_from_one_another(app=None):
+    # If two endorsers produced identical outcomes the choice would be fake.
+    from app.constants import CELEBRITIES
+
+    sold = {}
+    for key in CELEBRITIES:
+        states = {1: make_state(1, plant_capacity=1_000_000), 2: make_state(2, plant_capacity=1_000_000)}
+        decisions = {
+            1: make_decision(1, price=50, track="Premium", production_qty=1_000_000, celebrity_on=True, celebrity=key),
+            2: make_decision(2, price=50, track="Premium", production_qty=1_000_000),
+        }
+        sold[key] = tuple(round(v, 3) for v in process_round(states, decisions)[1].units_sold_by_segment.values())
+    assert len(set(sold.values())) == len(CELEBRITIES), "every endorser must produce a distinct outcome"
+
+
+def test_a_pre_roster_round_still_scores_on_the_legacy_numbers():
+    # Rounds played before the four-endorser roster carry celebrity_on=True
+    # with no name. They must keep resolving to the ORIGINAL multipliers, or
+    # replaying a finished game would silently produce different history.
+    from app.constants import LEGACY_CELEBRITY_MULTIPLIER, celebrity_multiplier
+
+    for seg, expected in LEGACY_CELEBRITY_MULTIPLIER.items():
+        assert celebrity_multiplier(None, seg) == expected
+        assert celebrity_multiplier("not-a-real-endorser", seg) == expected
+
+
+def test_endorsement_still_costs_the_same_whichever_is_chosen(app=None):
+    from app.constants import CELEBRITIES, CELEBRITY_COST_PER_ROUND
+
+    for key in CELEBRITIES:
+        states = {1: make_state(1)}
+        decisions = {1: make_decision(1, celebrity_on=True, celebrity=key)}
+        assert process_round(states, decisions)[1].celebrity_cost == CELEBRITY_COST_PER_ROUND
+
+
+def test_debt_still_blocks_every_endorser(app=None):
+    from app.constants import CELEBRITIES
+
+    for key in CELEBRITIES:
+        states = {1: make_state(1, loan_outstanding=400_000, loan_used_ever=True)}
+        decisions = {1: make_decision(1, celebrity_on=True, celebrity=key)}
+        r = process_round(states, decisions)[1]
+        assert r.celebrity_blocked is True
+        assert r.celebrity_cost == 0

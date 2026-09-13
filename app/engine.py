@@ -85,7 +85,7 @@ from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
     CELEBRITY_COST_PER_ROUND,
-    CELEBRITY_MULTIPLIER,
+    celebrity_multiplier,
     TRACK_COST_MULTIPLIER,
     LOAN_AMOUNT,
     LOAN_INTEREST_RATE,
@@ -140,6 +140,9 @@ class FirmDecision:
     celebrity_on: bool
     plant_investment: int  # 0 or PLANT_INVESTMENT_COST
     is_auto: bool = False
+    # Which endorser, when celebrity_on. None means a round played before the
+    # four-celebrity roster existed -- see constants.celebrity_multiplier.
+    celebrity: str | None = None
 
 
 @dataclass
@@ -322,7 +325,7 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
         for seg in SEGMENTS:
             tpm = TRACK_PREFERENCE_MULTIPLIER[seg][d.track]
             qw = quality_weight(seg, quality_level[fid])
-            cm = CELEBRITY_MULTIPLIER[seg] if d.celebrity_on else 1.0
+            cm = celebrity_multiplier(d.celebrity, seg) if d.celebrity_on else 1.0
             demand_pull[fid][seg] = tpm * qw * ad_multiplier[fid] * cm
 
     # --- Step 4b: individual buyer willingness-to-pay sweep -- REPLACES the

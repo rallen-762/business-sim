@@ -79,7 +79,7 @@
         <td>{{ "{:,}".format(d.production_qty) if d else "—" }}</td>
         <td>{{ "${:,.0f}".format(d.ad_spend) if d else "—" }}</td>
         <td>{{ "${:,.0f}".format(d.rd_spend) if d else "—" }}</td>
-        <td>{{ ("Yes" if d.celebrity_on else "No") if d else "—" }}</td>
+        <td>{{ ((celebrity_labels.get(d.celebrity, "Yes") if d.celebrity_on else "No") if d else "—") }}</td>
         <td>{{ "${:,.0f}".format(d.plant_investment) if d else "—" }}</td>
         <td>{{ "{:,.0f}".format(r.units_sold_total) if r else "—" }}</td>
         <td>{{ "${:,.0f}".format(r.revenue) if r else "—" }}</td>

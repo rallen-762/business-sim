@@ -32,13 +32,13 @@ Edge cases considered:
 import csv
 import io
 
-from app.constants import SEGMENTS, segment_label
+from app.constants import CELEBRITY_LABELS, SEGMENTS, segment_label
 from app.models import Firm, RoundDecision, RoundResult
 
 FIELDNAMES = (
     ["Firm Slot", "Team Name", "Round", "Bankrupt This Round"]
     + ["Price", "Tier", "Production Qty", "R&D Spend", "Ad Spend",
-       "Celebrity On", "Plant Investment", "Auto (Non-Submission)"]
+       "Celebrity", "Plant Investment", "Auto (Non-Submission)"]
     + [f"Units Sold - {segment_label(seg)}" for seg in SEGMENTS]
     + ["Units Sold Total", "Revenue", "Production Cost",
        "Rent, Utilities & Labor", "Ad Cost", "R&D Cost", "Celebrity Cost",
@@ -85,7 +85,7 @@ def build_export_rows(world):
             "Production Qty": d.production_qty if d else "",
             "R&D Spend": d.rd_spend if d else "",
             "Ad Spend": d.ad_spend if d else "",
-            "Celebrity On": d.celebrity_on if d else "",
+            "Celebrity": (CELEBRITY_LABELS.get(d.celebrity, "Yes") if d.celebrity_on else "No") if d else "",
             "Plant Investment": d.plant_investment if d else "",
             "Auto (Non-Submission)": d.is_auto if d else "",
             "Units Sold Total": r.units_sold_total,

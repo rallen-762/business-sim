@@ -255,6 +255,11 @@ class RoundDecision(db.Model):
     rd_spend = db.Column(db.Float, nullable=False, default=0)
     track = db.Column(db.String(20), nullable=False)
     celebrity_on = db.Column(db.Boolean, nullable=False, default=False)
+    # WHICH endorser, when celebrity_on. Nullable on purpose: rounds played
+    # before the four-celebrity roster existed have celebrity_on=True and no
+    # name here, and constants.celebrity_multiplier() resolves those to the
+    # original single-celebrity numbers so past games stay reproducible.
+    celebrity = db.Column(db.String(20), nullable=True)
     plant_investment = db.Column(db.Integer, nullable=False, default=0)  # 0 or PLANT_INVESTMENT_COST
     is_auto = db.Column(db.Boolean, nullable=False, default=False)
 

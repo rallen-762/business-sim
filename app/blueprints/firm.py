@@ -40,7 +40,10 @@ from app.avatars import TIER_ICONS
 from app.market_data import affordability_breakdown, affordability_curve
 from app.constants import (
     CAPACITY_BLOCK_FIXED_COST,
+    CELEBRITIES,
     CELEBRITY_COST_PER_ROUND,
+    CELEBRITY_ICONS,
+    CELEBRITY_LABELS,
     LOAN_INTEREST_RATE,
     LOAN_REPAYMENT_PRINCIPAL,
     MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
@@ -134,6 +137,8 @@ def dashboard():
         max_quality_gain=MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
         ad_presets=ad_spend_presets(firm.cumulative_ad_spend),
         celebrity_cost=CELEBRITY_COST_PER_ROUND,
+        celebrities=CELEBRITIES, celebrity_labels=CELEBRITY_LABELS,
+        celebrity_icons=CELEBRITY_ICONS,
         quality_level=quality_level,
         # Descriptor ONLY (e.g. "Elite Quality"), not quality_track_label's
         # combined "Elite Quality Mid" -- the Current Tier stat right
@@ -184,7 +189,14 @@ def submit_decision():
         ad_spend = float(request.form.get("ad_spend") or 0)
         rd_spend = float(request.form.get("rd_spend") or 0)
         track = request.form["track"]
-        celebrity_on = request.form.get("celebrity_on") == "on"
+        # One endorser per round, or none. An unrecognised value is treated
+        # as "none" rather than rejected -- the multipliers behind these are
+        # hidden, so a bad value is a tampered form, not a student mistake
+        # worth an error page.
+        celebrity = request.form.get("celebrity") or None
+        if celebrity not in CELEBRITIES:
+            celebrity = None
+        celebrity_on = celebrity is not None
         plant_investment = int(request.form.get("plant_investment") or 0)
     except (KeyError, ValueError):
         flash("That form had an invalid value -- please check your entries and try again.")
@@ -236,13 +248,15 @@ def submit_decision():
         existing.rd_spend = rd_spend
         existing.track = track
         existing.celebrity_on = celebrity_on
+        existing.celebrity = celebrity
         existing.plant_investment = plant_investment
         existing.is_auto = False
     else:
         db.session.add(RoundDecision(
             firm_id=firm.id, round_number=world.current_round, price=price,
             production_qty=production_qty, ad_spend=ad_spend, rd_spend=rd_spend,
-            track=track, celebrity_on=celebrity_on, plant_investment=plant_investment,
+            track=track, celebrity_on=celebrity_on, celebrity=celebrity,
+            plant_investment=plant_investment,
             is_auto=False,
         ))
     firm.last_price = price

@@ -318,3 +318,40 @@ def test_init_db_backfills_existing_worlds_to_classroom_mode(app):
         assert world.mode == "classroom", "a pre-existing world must stay a classroom world"
         assert world.rounds == 10
         assert world.current_round == 3, "existing progress untouched"
+
+
+def test_init_db_adds_the_celebrity_column_without_renaming_history(app):
+    # Rounds played before the four-endorser roster have celebrity_on=True
+    # and no name. They must keep NULL -- backfilling one would silently
+    # rewrite which multipliers those rounds were actually scored with.
+    with app.app_context():
+        old_columns = [c.copy() for c in RoundDecision.__table__.columns if c.name != "celebrity"]
+        meta = sa.MetaData()
+        sa.Table("round_decisions", meta, *old_columns)
+        meta.create_all(db.engine)
+        db.metadata.create_all(db.engine, tables=[
+            World.__table__, Firm.__table__, RoundResult.__table__,
+        ])
+        assert "celebrity" not in {c["name"] for c in inspect(db.engine).get_columns("round_decisions")}
+
+        world = World(name="Old Period", game_code="PREROS", planned_firm_slots=1)
+        db.session.add(world)
+        db.session.commit()
+        firm = Firm(world_id=world.id, slot_number=1, team_name="Nike",
+                    cash=1_000_000, plant_capacity=45_000)
+        db.session.add(firm)
+        db.session.commit()
+        with db.engine.connect() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO round_decisions (firm_id, round_number, price, production_qty,"
+                " ad_spend, rd_spend, track, celebrity_on, plant_investment, is_auto, submitted_at)"
+                " VALUES (:fid, 1, 80, 1000, 0, 0, 'Mid', 1, 0, 0, CURRENT_TIMESTAMP)"
+            ), {"fid": firm.id})
+            conn.commit()
+
+    assert app.test_cli_runner().invoke(args=["init-db"]).exit_code == 0
+
+    with app.app_context():
+        row = RoundDecision.query.filter_by(round_number=1).one()
+        assert row.celebrity_on is True
+        assert row.celebrity is None, "a pre-roster round must NOT be given an endorser name"

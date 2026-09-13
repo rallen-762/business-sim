@@ -37,7 +37,7 @@
         <td>{{ d.production_qty }}</td>
         <td>${{ "{:,.0f}".format(d.rd_spend) }}</td>
         <td>${{ "{:,.0f}".format(d.ad_spend) }}</td>
-        <td>{{ "Yes" if d.celebrity_on else "No" }}</td>
+        <td>{{ celebrity_labels.get(d.celebrity, "Yes") if d.celebrity_on else "No" }}</td>
         <td>${{ "{:,.0f}".format(d.plant_investment) }}</td>
         <td>{{ "Auto" if d.is_auto else "" }}</td>
       </tr>

@@ -42,6 +42,7 @@ from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, TIER_ICO
 from app.bots import BOT_PROFILES
 from app.bots import decide as bot_decide
 from app.constants import (
+    CELEBRITY_LABELS,
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
     ROUNDS_PER_WORLD,
@@ -208,6 +209,7 @@ def view_world(world_id):
         consumer_surplus_round=scouting_round,
         reset_passwords=session.get("reset_passwords", {}),
         undoable_round=_undoable_round(world),
+        celebrity_labels=CELEBRITY_LABELS,
     )
 
 
@@ -514,7 +516,8 @@ def _process_current_round(world, rng=None):
             decisions[firm.id] = FirmDecision(
                 firm_id=firm.id, price=submitted.price, production_qty=submitted.production_qty,
                 ad_spend=submitted.ad_spend, rd_spend=submitted.rd_spend, track=submitted.track,
-                celebrity_on=submitted.celebrity_on, plant_investment=submitted.plant_investment,
+                celebrity_on=submitted.celebrity_on, celebrity=submitted.celebrity,
+                plant_investment=submitted.plant_investment,
                 is_auto=False,
             )
         elif firm.bot_profile:
@@ -545,7 +548,8 @@ def _process_current_round(world, rng=None):
                 firm_id=firm.id, round_number=world.current_round, price=bot_decision.price,
                 production_qty=bot_decision.production_qty, ad_spend=bot_decision.ad_spend,
                 rd_spend=bot_decision.rd_spend, track=bot_decision.track,
-                celebrity_on=bot_decision.celebrity_on, plant_investment=bot_decision.plant_investment,
+                celebrity_on=bot_decision.celebrity_on, celebrity=bot_decision.celebrity,
+                plant_investment=bot_decision.plant_investment,
                 is_auto=True,
             ))
             # Keep last_price/last_track current for this firm -- matters if
@@ -563,7 +567,8 @@ def _process_current_round(world, rng=None):
             db.session.add(RoundDecision(
                 firm_id=firm.id, round_number=world.current_round, price=auto.price,
                 production_qty=auto.production_qty, ad_spend=auto.ad_spend, rd_spend=auto.rd_spend,
-                track=auto.track, celebrity_on=auto.celebrity_on, plant_investment=auto.plant_investment,
+                track=auto.track, celebrity_on=auto.celebrity_on, celebrity=auto.celebrity,
+                plant_investment=auto.plant_investment,
                 is_auto=True,
             ))
 
@@ -735,6 +740,7 @@ def team_lookup(world_id):
     return render_template(
         "teacher_lookup.html", world=world, firms=firms, query=query,
         selected_firm=selected_firm, decisions=decisions, results=results,
+        celebrity_labels=CELEBRITY_LABELS,
     )
 
 
