@@ -36,13 +36,13 @@ Edge cases considered:
 import secrets
 
 from flask import (
-    Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for
+    Blueprint, current_app, flash, redirect, render_template, request, url_for
 )
 from werkzeug.security import generate_password_hash
 
 from app.auth import (
     current_firm, current_world, firm_login_required, log_in_firm,
-    log_in_sandbox, log_out_sandbox, sandbox_login_required,
+    log_in_sandbox, log_out_sandbox, sandbox_login_required, teacher_login_required,
 )
 from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
 from app.blueprints.teacher import _generate_game_code, _open_next_round, _process_current_round
@@ -54,7 +54,6 @@ from app.constants import (
     STARTING_CASH,
     STARTING_PLANT_CAPACITY,
 )
-from app.csv_export import build_export_rows, export_filename, rows_to_csv_string
 from app.extensions import db
 from app.market_data import latest_processed_round, standings_with_rank_delta
 from app.models import Firm, World
@@ -125,8 +124,10 @@ def logout():
 @bp.route("/")
 @sandbox_login_required
 def home():
+    # Single-player games only. Balance runs moved to the Teacher Dashboard,
+    # so listing them here would offer a player games they can't open.
     worlds = (
-        World.query.filter(World.mode.in_(("sandbox", "bots_only")))
+        World.query.filter_by(mode="sandbox")
         .order_by(World.created_at.desc()).limit(25).all()
     )
     return render_template(
@@ -143,12 +144,11 @@ def home():
 # Single-player: one human, configurable bots, no teacher
 # --------------------------------------------------------------------------- #
 
-@bp.route("/new", methods=["POST"])
-@sandbox_login_required
-def new_game():
-    team_name = request.form.get("team_name", "").strip() or "My Company"
-    profiles = _requested_profiles(request.form)
-
+def _create_single_player_game(team_name, profiles):
+    """Build a sandbox world with one human firm plus the chosen bots, and
+    return the player's Firm. Shared by both entry points (the student-side
+    sandbox page and the Teacher Dashboard) so the two can never drift into
+    creating subtly different games."""
     world = World(
         name=f"Sandbox -- {team_name}",
         game_code=_generate_game_code(),
@@ -176,8 +176,38 @@ def new_game():
         db.session.add(_make_bot_firm(world, offset, profile))
 
     db.session.commit()
+    return player
 
+
+@bp.route("/new", methods=["POST"])
+@sandbox_login_required
+def new_game():
+    """Start a single-player game from the student-side sandbox page."""
+    player = _create_single_player_game(
+        request.form.get("team_name", "").strip() or "My Company",
+        _requested_profiles(request.form),
+    )
     # Straight into the firm -- the whole point is no waiting room.
+    log_in_firm(player)
+    return redirect(url_for("firm.dashboard"))
+
+
+@bp.route("/new-from-teacher", methods=["POST"])
+@teacher_login_required
+def new_game_from_teacher():
+    """Start a single-player game straight from the Teacher Dashboard.
+
+    Same game, different door: a teacher trying the sim themselves shouldn't
+    have to go find the student login and type a second password. The
+    teacher session stays intact alongside the firm session (they're scoped
+    separately in app/auth.py), so the Teacher Dashboard is still one click
+    away -- and the firm dashboard's "also signed in as teacher" banner
+    makes that state visible rather than silent.
+    """
+    player = _create_single_player_game(
+        request.form.get("team_name", "").strip() or "My Company",
+        _requested_profiles(request.form),
+    )
     log_in_firm(player)
     return redirect(url_for("firm.dashboard"))
 
@@ -264,10 +294,18 @@ def results(world_id):
 # --------------------------------------------------------------------------- #
 
 @bp.route("/bots", methods=["POST"])
-@sandbox_login_required
+@teacher_login_required
 def run_bots_only():
-    """Runs a whole game start to finish with no human firm, then hands back
-    the same CSV the Teacher Dashboard exports."""
+    """Runs a whole game start to finish with no human firm, then drops the
+    teacher on that game's own dashboard.
+
+    Teacher-gated, not sandbox-gated: this is a balance-testing tool, it
+    lives on the Teacher Dashboard, and it hands off to a teacher-only page.
+    It used to return a CSV download directly, which gave you a file and
+    nowhere to look -- the world page has the round-by-round tables, the
+    scouting report and the same Export CSV button, so the file is still one
+    click away but the results are actually explorable.
+    """
     profiles = _requested_profiles(request.form)
 
     world = World(
@@ -286,12 +324,11 @@ def run_bots_only():
 
     run_to_completion(world)
 
-    csv_text = rows_to_csv_string(build_export_rows(world))
-    return Response(
-        csv_text,
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={export_filename(world)}"},
+    flash(
+        f"Balance run complete -- {len(profiles)} bots, {world.rounds} rounds. "
+        "Use Export CSV below for the full round-by-round data."
     )
+    return redirect(url_for("teacher.view_world", world_id=world.id))
 
 
 def run_to_completion(world, rng=None):

@@ -160,9 +160,12 @@ h3 { font-size: 0.95rem; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-decoration: none;
-  color: var(--text-secondary);
-  opacity: 0.35;
-  border: 1px solid var(--panel-alt);
+  /* Was --text-secondary at 0.35 opacity, which read as "barely there" on a
+     projector and left people hunting for the way out. Still quiet enough
+     not to compete with the standings, but actually findable. */
+  color: var(--text);
+  opacity: 0.75;
+  border: 1px solid var(--text-secondary);
   padding: 0.4vw 0.9vw;
   transition: opacity 140ms linear, color 140ms linear, border-color 140ms linear;
 }
@@ -172,6 +175,26 @@ h3 { font-size: 0.95rem; }
   color: var(--accent-primary);
   border-color: var(--accent-primary);
   outline: none;
+}
+
+/* One attention pulse on arrival, so the way out announces itself once and
+   then gets out of the way. Applied only on boards that AREN'T
+   auto-refreshing -- present.html reloads itself every 30s during class,
+   which would turn a single pulse into a blink every 30 seconds on a wall
+   the room is trying to read. */
+.present-exit.flash-once { animation: present-exit-flash 1700ms ease-out 1; }
+
+@keyframes present-exit-flash {
+  0%   { opacity: 0.75; color: var(--text); border-color: var(--text-secondary); box-shadow: 0 0 0 0 rgba(111, 168, 160, 0.55); }
+  15%  { opacity: 1;    color: var(--accent-primary); border-color: var(--accent-primary); box-shadow: 0 0 0 0.5vw rgba(111, 168, 160, 0.35); }
+  45%  { opacity: 1;    color: var(--accent-primary); border-color: var(--accent-primary); box-shadow: 0 0 0 0.9vw rgba(111, 168, 160, 0); }
+  100% { opacity: 0.75; color: var(--text); border-color: var(--text-secondary); box-shadow: 0 0 0 0 rgba(111, 168, 160, 0); }
+}
+
+/* Respect a viewer who has asked for less motion -- they still get the
+   lighter resting state, just no pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .present-exit.flash-once { animation: none; }
 }
 .present-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 2.2vw; padding-right: 7vw; }
 .present-title { font-family: var(--font-display); font-size: 2.6vw; color: var(--accent-primary); }

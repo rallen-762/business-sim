@@ -301,21 +301,25 @@ def test_player_sees_last_rounds_results_after_advancing(client):
 # Bots-only runs
 # --------------------------------------------------------------------------- #
 
-def test_bots_only_run_plays_every_round_and_returns_csv(client):
-    sandbox_login(client)
+def test_bots_only_run_plays_every_round_then_opens_that_games_dashboard(client):
+    # It used to return a CSV download, which gave you a file and nowhere to
+    # look. Landing on the world page puts the round tables, scouting report
+    # and Export CSV in front of you instead.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
     resp = client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
 
-    assert resp.status_code == 200
-    assert resp.mimetype == "text/csv"
-    assert "attachment" in resp.headers["Content-Disposition"]
-
     world = World.query.filter_by(mode="bots_only").one()
+    assert resp.status_code == 302
+    assert f"/teacher/worlds/{world.id}" in resp.headers["Location"]
     assert world.status == "complete"
     assert world.current_round == ROUNDS_PER_WORLD
 
+    body = client.get(f"/teacher/worlds/{world.id}").data.decode("utf-8")
+    assert "Export CSV" in body, "the CSV must still be one click away"
+
 
 def test_bots_only_world_has_no_human_firm(client):
-    sandbox_login(client)
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
     client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
 
     world = World.query.filter_by(mode="bots_only").one()
@@ -324,9 +328,10 @@ def test_bots_only_world_has_no_human_firm(client):
 
 
 def test_bots_only_csv_uses_the_existing_export_format(client):
-    sandbox_login(client)
-    resp = client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
-    body = resp.data.decode("utf-8")
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
+    world = World.query.filter_by(mode="bots_only").one()
+    body = client.get(f"/teacher/worlds/{world.id}/export.csv").data.decode("utf-8")
 
     assert "Team Name" in body  # same header row the Teacher Dashboard emits
     assert "Bot #1 (Underbidder)" in body
@@ -334,10 +339,45 @@ def test_bots_only_csv_uses_the_existing_export_format(client):
     assert body.count("Bot #1 (Underbidder)") >= ROUNDS_PER_WORLD
 
 
-def test_bots_only_requires_the_sandbox_password(client):
+def test_bots_only_requires_the_teacher_password(client):
+    # It lives on the Teacher Dashboard and hands off to a teacher-only page,
+    # so the teacher session is the right gate -- and the sandbox password
+    # must NOT be enough on its own.
     resp = client.post("/sandbox/bots", data={"bot_elite": "on"}, follow_redirects=True)
-    assert b"Sandbox Password" in resp.data
+    assert b"Teacher login required" in resp.data
     assert World.query.filter_by(mode="bots_only").count() == 0
+
+    sandbox_login(client)
+    client.post("/sandbox/bots", data={"bot_elite": "on"}, follow_redirects=True)
+    assert World.query.filter_by(mode="bots_only").count() == 0
+
+
+def test_student_sandbox_page_no_longer_offers_bots_only(client):
+    sandbox_login(client)
+    body = client.get("/sandbox/").data.decode("utf-8")
+    assert "sandbox/bots" not in body
+    assert "New Single-Player Game" in body
+
+
+def test_teacher_dashboard_offers_the_balance_run(client):
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    body = client.get("/teacher/").data.decode("utf-8")
+    assert "sandbox/bots" in body
+    assert "Bot #1 (Underbidder)" in body
+
+
+def test_finished_balance_runs_stay_reachable_without_burying_class_periods(client):
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/teacher/worlds", data={"name": "Period 3", "planned_firm_slots": "2"})
+    client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
+
+    run = World.query.filter_by(mode="bots_only").one()
+    body = client.get("/teacher/").data.decode("utf-8")
+    assert "Period 3" in body, "real class periods still listed"
+    assert f"/teacher/worlds/{run.id}" in body, "finished run must not be lost"
+    # ...but not mixed into Your Worlds.
+    your_worlds = body[body.index("Your Worlds"):]
+    assert "Bots-Only Run" not in your_worlds
 
 
 def test_sandbox_setup_collects_no_password(client):
@@ -363,3 +403,132 @@ def test_a_sandbox_player_still_gets_an_unguessable_credential(client):
     assert player.password_hash
     assert not player.check_password("sandbox")
     assert not player.check_password("")
+
+
+def test_sandbox_results_board_pulses_its_exit_once(client):
+    # The way out was hard to spot on the results board. It pulses once on
+    # arrival here because a solo player's board is frozen (hold=True); the
+    # auto-refreshing classroom board must NOT pulse, or the single flash
+    # becomes a blink every 30 seconds on a wall the room is reading.
+    sandbox_login(client)
+    start_game(client)
+    submit(client)
+    client.post("/sandbox/round")
+
+    world = World.query.filter_by(mode="sandbox").one()
+    body = client.get(f"/sandbox/results/{world.id}").data.decode("utf-8")
+    assert "present-exit flash-once" in body
+    assert "http-equiv=\"refresh\"" not in body, "a frozen board must not reload"
+
+
+def test_teacher_dashboard_offers_a_way_into_the_sandbox(client):
+    # A direct form, not a link to the sandbox password gate -- a teacher is
+    # already authenticated, so sending them off to type a second password
+    # to reach their own machine's practice mode was pure friction.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    body = client.get("/teacher/").data.decode("utf-8")
+    assert "/sandbox/new-from-teacher" in body
+    assert "Play a Single-Player Game" in body
+
+
+def test_sandbox_link_from_the_teacher_dashboard_still_asks_for_its_password(client):
+    # The link is a convenience, not a bypass -- a teacher session must not
+    # carry into the sandbox, or the two passwords would collapse into one.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    resp = client.get("/sandbox/", follow_redirects=True)
+    assert b"Sandbox Password" in resp.data
+
+
+def test_entry_points_use_american_spelling(client):
+    # "Practicing", not "Practising" -- and the British spelling must not
+    # reappear on any surface, including ones that drop the word later.
+    body = client.get("/login").data.decode("utf-8")
+    assert "Practicing" in body
+    assert "Practising" not in body
+
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    assert "Practising" not in client.get("/teacher/").data.decode("utf-8")
+
+    sandbox_login(client)
+    assert "Practising" not in client.get("/sandbox/").data.decode("utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# Two doors into the same single-player game
+# --------------------------------------------------------------------------- #
+
+def test_student_entry_points_still_offer_single_player(client):
+    # Removing the bots-only card must not have taken single-player with it.
+    body = client.get("/login").data.decode("utf-8")
+    assert "/sandbox/login" in body
+
+    sandbox_login(client)
+    home = client.get("/sandbox/").data.decode("utf-8")
+    assert "New Single-Player Game" in home
+    assert "Start Playing" in home
+
+
+def test_teacher_can_start_a_single_player_game_directly(client):
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    body = client.get("/teacher/").data.decode("utf-8")
+    assert "/sandbox/new-from-teacher" in body
+
+    resp = client.post("/sandbox/new-from-teacher", data={
+        "team_name": "Teacher Test", **{f"bot_{p}": "on" for p in BOT_ORDER},
+    })
+    assert "/firm" in resp.headers["Location"]
+
+    world = World.query.filter_by(mode="sandbox").one()
+    firms = Firm.query.filter_by(world_id=world.id).order_by(Firm.slot_number).all()
+    assert firms[0].team_name == "Teacher Test"
+    assert len(firms) == 1 + len(BOT_ORDER)
+
+
+def test_teacher_stays_signed_in_as_teacher_while_playing(client):
+    # Firm and teacher sessions are scoped separately, so starting a game
+    # must not sign the teacher out of their own dashboard.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/new-from-teacher", data={"team_name": "Teacher Test"})
+
+    assert client.get("/firm").status_code == 200
+    assert client.get("/teacher/").status_code == 200
+
+
+def test_both_doors_build_the_same_shape_of_game(client):
+    # One helper builds both, so they can't drift apart.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/new-from-teacher", data={
+        "team_name": "ViaTeacher", **{f"bot_{p}": "on" for p in BOT_ORDER}})
+    client.get("/teacher/logout")
+    client.get("/logout")
+
+    sandbox_login(client)
+    start_game(client, team_name="ViaSandbox")
+
+    a, b = World.query.filter_by(mode="sandbox").order_by(World.id).all()
+    for w in (a, b):
+        assert w.rounds == ROUNDS_PER_WORLD
+        assert w.mode == "sandbox"
+    shape = lambda w: [f.bot_profile for f in Firm.query.filter_by(world_id=w.id)
+                       .order_by(Firm.slot_number).all()]
+    assert shape(a) == shape(b)
+
+
+def test_the_teacher_door_still_requires_a_teacher(client):
+    resp = client.post("/sandbox/new-from-teacher", data={"team_name": "Nope"},
+                       follow_redirects=True)
+    assert b"Teacher login required" in resp.data
+    assert World.query.filter_by(mode="sandbox").count() == 0
+
+
+def test_balance_runs_are_not_listed_on_the_student_sandbox_page(client):
+    # They're a teacher tool now -- offering them here would list games a
+    # player has no way to open.
+    client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    client.post("/sandbox/bots", data={f"bot_{p}": "on" for p in BOT_ORDER})
+    client.get("/teacher/logout")
+
+    sandbox_login(client)
+    body = client.get("/sandbox/").data.decode("utf-8")
+    assert "Bots" not in body.split("Recent Sandbox Games")[-1] if "Recent Sandbox Games" in body else True
+    assert World.query.filter_by(mode="bots_only").count() == 1

@@ -38,21 +38,6 @@
   </form>
 </div>
 
-<div class="card">
-  <h3>Bots-Only Run</h3>
-  <p class="help-text">No human player. Plays all {{ default_rounds }} rounds start to finish, then
-    downloads the same CSV the Teacher Dashboard exports. Use it to test balance.</p>
-  <form method="post" action="{{ url_for('sandbox.run_bots_only') }}">
-    {% for profile in bot_order %}
-    <label style="display:block;font-weight:400;margin:4px 0;">
-      <input type="checkbox" name="bot_{{ profile }}" checked>
-      {{ bot_display_name(loop.index, profile) }}
-    </label>
-    {% endfor %}
-    <button class="btn full secondary" style="margin-top:18px;" type="submit">Run and Export CSV</button>
-  </form>
-</div>
-
 {% if worlds %}
 <div class="card">
   <h3>Recent Sandbox Games</h3>

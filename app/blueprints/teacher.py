@@ -111,7 +111,21 @@ def dashboard():
         World.query.filter_by(mode="classroom")
         .order_by(World.created_at.desc()).all()
     )
-    return render_template("teacher_dashboard.html", worlds=worlds)
+    # Balance runs are listed separately rather than in Your Worlds: they'd
+    # bury real class periods, but a finished run still has to be reachable
+    # after you navigate away from it.
+    balance_runs = (
+        World.query.filter_by(mode="bots_only")
+        .order_by(World.created_at.desc()).limit(10).all()
+    )
+    return render_template(
+        "teacher_dashboard.html",
+        worlds=worlds,
+        balance_runs=balance_runs,
+        bot_order=tuple(BOT_PROFILES),
+        bot_profiles=BOT_PROFILES,
+        rounds_per_world=ROUNDS_PER_WORLD,
+    )
 
 
 @bp.route("/worlds", methods=["POST"])

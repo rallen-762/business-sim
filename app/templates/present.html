@@ -25,7 +25,7 @@
      but brightens on hover/focus so it's findable when you go looking.
      It's a LINK, not a button or form -- it still can't change any game
      state, which was the point of keeping this view inert. #}
-  <a class="present-exit" href="{{ exit_url }}"
+  <a class="present-exit{% if hold %} flash-once{% endif %}" href="{{ exit_url }}"
      title="{{ exit_title }} (Esc)">&larr; Exit</a>
 
   <div class="present-header">

@@ -1334,3 +1334,18 @@ def test_google_site_verification_tag_is_present_on_every_page(client):
     # present.html is a standalone document, not a base.html child, so it
     # carries its own copy and is the one that would be missed.
     assert tag in client.get(f"/teacher/worlds/{world_id}/present").data.decode("utf-8")
+
+
+def test_auto_refreshing_projector_board_does_not_pulse_its_exit(client):
+    # Counterpart to the sandbox test: the classroom board reloads every 30s,
+    # so a one-time pulse would repeat forever behind a class discussion.
+    world_id = create_world(client, slots=1)
+    teacher_login(client)
+
+    live = client.get(f"/teacher/worlds/{world_id}/present").data.decode("utf-8")
+    assert 'http-equiv="refresh"' in live, "precondition: this board auto-reloads"
+    assert "flash-once" not in live
+
+    # Frozen with ?hold=1, a human is reading it -- pulse is welcome there.
+    held = client.get(f"/teacher/worlds/{world_id}/present?hold=1").data.decode("utf-8")
+    assert "flash-once" in held

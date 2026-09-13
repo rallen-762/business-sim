@@ -18,6 +18,71 @@
     </div>
     <button class="btn" style="margin-top:18px;" type="submit">Create World</button>
   </form>
+
+  {# Sandbox sits beside world creation because it's the other way to start
+     a game -- but it keeps its own password gate rather than riding the
+     teacher session, since the two grant different things (see
+     SANDBOX_PASSWORD in app/__init__.py). #}
+</div>
+
+<div class="card">
+  <h3>Play a Single-Player Game</h3>
+  <p class="help-text">Try the sim yourself: one company against the bots, all {{ rounds_per_world }} rounds,
+    no class and no waiting &mdash; you run each round when you're ready. Same market model the students use.
+    These never appear in Your Worlds.</p>
+  <form method="post" action="{{ url_for('sandbox.new_game_from_teacher') }}">
+    <label for="sp_team_name">Your company name</label>
+    <input type="text" id="sp_team_name" name="team_name" value="My Company" maxlength="60">
+
+    <label style="margin-top:14px;display:block;">Opponents</label>
+    {% for profile in bot_order %}
+    <label style="display:block;font-weight:400;margin:4px 0;">
+      <input type="checkbox" name="bot_{{ profile }}" checked>
+      Bot #{{ loop.index }} ({{ bot_profiles[profile] }})
+    </label>
+    {% endfor %}
+    <button class="btn" style="margin-top:18px;" type="submit">Start Playing</button>
+  </form>
+  <p class="help-text" style="margin-top:10px;">
+    You'll stay signed in as Teacher, so you can come back here any time.
+  </p>
+</div>
+
+<div class="card">
+  <h3>Balance Run (Bots Only)</h3>
+  <p class="help-text">No human player. Plays all {{ rounds_per_world }} rounds start to finish
+    on the same market model a class uses, then opens that game's dashboard so you can read the
+    results &mdash; round-by-round tables, scouting report, and Export CSV.</p>
+  <form method="post" action="{{ url_for('sandbox.run_bots_only') }}">
+    {% for profile in bot_order %}
+    <label style="display:block;font-weight:400;margin:4px 0;">
+      <input type="checkbox" name="bot_{{ profile }}" checked>
+      Bot #{{ loop.index }} ({{ bot_profiles[profile] }})
+    </label>
+    {% endfor %}
+    <button class="btn secondary" style="margin-top:18px;" type="submit">Run Balance Test</button>
+  </form>
+
+  {% if balance_runs %}
+  <h4 style="margin:20px 0 6px;">Recent Balance Runs</h4>
+  <p class="help-text" style="margin-top:0;">Kept out of Your Worlds above so they never bury a real
+    class period &mdash; listed here so a finished run isn't lost once you navigate away.</p>
+  <div style="overflow-x:auto;">
+  <table class="compact">
+    <thead><tr><th>Run</th><th>Firms</th><th>Rounds</th><th></th></tr></thead>
+    <tbody>
+      {% for w in balance_runs %}
+      <tr>
+        <td>{{ w.created_at.strftime("%b %d, %H:%M") if w.created_at else w.game_code }}</td>
+        <td>{{ w.planned_firm_slots }}</td>
+        <td>{{ w.current_round }} / {{ w.rounds }}</td>
+        <td><a class="btn secondary" style="padding:4px 10px;" href="{{ url_for('teacher.view_world', world_id=w.id) }}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
 </div>
 
 <div class="card">
