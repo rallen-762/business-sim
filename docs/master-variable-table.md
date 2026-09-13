@@ -2,6 +2,20 @@
 
 *Consolidated reference of all locked design decisions. Items still pinned for later are noted at the bottom — they are NOT reflected in these numbers yet.*
 
+**Last reconciled against the code: 13 Sept 2026.** Where this table and
+`app/constants.py` disagree, the code is what actually runs — file a correction
+here rather than changing the code to match the doc.
+
+### Changes since V1
+
+| Change | Where |
+|---|---|
+| Four celebrity endorsers replace the single on/off celebrity — same mechanic and scale, four aims. Values stay hidden from players. | §12.3 |
+| R&D now capped at **3 Quality Levels per round**; the table previously said there was no per-round cap. R&D and Ads are dropdown-only, no free-entry amount. | §5, §6 |
+| Willingness-to-pay ceilings replaced the Price Elasticity Coefficient (Sept 2026 redesign). | §12.4 |
+| Teacher can **Undo Last Round**, which reopens that one round for resubmission — the single exception to "no edit after submit". | Bottom |
+| Non-economic additions, no effect on any number here: sandbox and bots-only game modes, per-world round count, sold-out reporting, plant capacity now includes a matured expansion everywhere. | — |
+
 ---
 
 ## 1. Starting Conditions (All Firms, All Worlds)
@@ -24,7 +38,7 @@
 - Advertising Spend
 - R&D Spend
 - Tier (Entry / Mid / Premium)
-- Celebrity Endorsement (on/off — separate from Tier)
+- Celebrity Endorsement (choose one of four endorsers, or none — separate from Tier)
 - Plant Investment (pre-packaged capacity toggles)
 
 ---
@@ -83,7 +97,18 @@
 | 9 | $600,000 | $100,000 |
 | 10 | $700,000 | $100,000 |
 
-No per-round spending cap — the price itself is the constraint. Quality stock persists even across Tier switches.
+**Per-round cap: 3 Quality Levels (UPDATED Sept 2026).** A firm may climb at most
+3 levels in a single round, regardless of cash on hand — previously there was no
+cap and the price was the only constraint. The Firm Dashboard offers only the
+reachable levels and refuses an over-cap submission outright rather than accepting
+the money and silently capping the gain. See `MAX_QUALITY_LEVEL_GAIN_PER_ROUND`
+and `max_rd_spend_this_round()` in `app/constants.py`.
+
+R&D and Advertising are chosen from a dropdown of ladder amounts only — there is
+no free-entry number box, so a team cannot spend an amount that buys a fraction of
+a level and gets nothing for it.
+
+Quality stock persists even across Tier switches.
 
 ---
 
@@ -113,7 +138,7 @@ No per-round spending cap — the price itself is the constraint. Quality stock 
 | Rent, Utilities & Labor | $100,000/round base (covers starting 45,000 capacity), + $15,000/round per additional 15,000-unit capacity block invested beyond the base. E.g., 60,000 capacity (1 expansion) = $115,000/round; 90,000 capacity (3 expansions) = $145,000/round. Renamed from "Rent & Utilities" to reflect that plant expansion requires ongoing labor cost, not just a one-time capital cost — this is the recurring cost of running additional capacity, not just building it. |
 | Base Plant Capacity | 45,000 units |
 | Plant Expansion Rate | Binary toggle each round: $0 (no investment) or $100,000 (one-time capital cost, +15,000 capacity, 1-round lag as always). No larger single-round investment option — a firm wanting more capacity must invest $100,000 again in a later round. Each block also adds $15,000/round to Rent, Utilities & Labor going forward. |
-| Celebrity Endorsement Cost | Flat $50,000/round, recurring while toggled on (same rate all 10 rounds) |
+| Celebrity Endorsement Cost | Flat $50,000/round, recurring while an endorsement is running (same rate all 10 rounds). Identical for all four endorsers — the choice is about FIT, never about price. At most one per round. |
 
 **Reconciliation note:** Total buyer pool is locked at 408,000 (base 8,000 × scale factor 51 — see Section 12 pending). With 7 firms at 45,000 capacity each, total industry capacity (315,000) stays below the buyer pool, so capacity — not raw demand — is the binding constraint on sales in a typical round. This was a corrected design flaw: an earlier pass sized the buyer pool without checking it against real production capacity/cash, which allowed firms to "sell" far more units than they could ever produce. Standing note: always cross-check any demand-side or revenue-target math against capacity and cash constraints before locking numbers.
 
@@ -226,15 +251,39 @@ Price no longer appears in the Demand Pull score itself — the old Price Elasti
 | Wealthy | 0.8 | 1.6 |
 | Casual/Style-Conscious | 0.95 | 1.05 *(nearly flat)* |
 
-**3. Celebrity Endorsement Multiplier** (applies only if celebrity is ON)
+**3. Celebrity Endorsement Multiplier** (applies only if an endorsement is running)
 
-| Segment | Multiplier |
-|---|---|
-| Budget Shoppers | 1.0 |
-| Music Enthusiasts | 1.5 *(primary driver)* |
-| Fitness/Active Users | 1.1 |
-| Wealthy | 1.2 |
-| Casual/Style-Conscious | 1.0 |
+*(UPDATED Sept 2026 — four endorsers replace the single on/off celebrity. Same
+mechanic, same scale: a per-segment multiplier on Demand Pull. A firm picks at
+most ONE per round. Each endorser has one strong segment (1.5) and one secondary
+(1.2) — the same numbers the single celebrity already used at its strongest and
+second-strongest, so the magnitude of the lever is unchanged, only its aim.)*
+
+| Segment | Pro Athlete | Music Icon | Movie Star | Influencer |
+|---|---|---|---|---|
+| Budget Shoppers | 1.0 | 1.0 | 1.0 | **1.5** |
+| Music Enthusiasts | 1.2 | **1.5** | 1.0 | 1.0 |
+| Fitness/Active Users | **1.5** | 1.0 | 1.0 | 1.0 |
+| Wealthy | 1.0 | 1.0 | **1.5** | 1.0 |
+| Casual/Style-Conscious | 1.0 | 1.2 | 1.2 | 1.2 |
+
+**Hidden from players (LOCKED).** These values are never shown in the UI, exactly
+like every other Section 12 constant. The Firm Dashboard shows the four faces and
+the shared price and says only that different endorsers suit different customers.
+Which one fits a team is meant to be discovered by playing.
+
+**Legacy rounds.** Rounds played before this change carry "celebrity on" with no
+endorser named, and are still scored on the ORIGINAL single-celebrity column
+(Budget 1.0 / Music 1.5 / Fitness 1.1 / Wealthy 1.2 / Casual 1.0) so past games
+stay reproducible. See `LEGACY_CELEBRITY_MULTIPLIER` in `app/constants.py`.
+
+**Balance note (Sept 2026 simulation, ~254,000 games).** Every option, including
+running no endorsement at all, is the best choice in some tier/price situation —
+none is dead content. No endorsement wins at cheap prices (extra demand pull has
+nowhere to go when a firm is already capacity- or cash-capped); Influencer wins at
+Entry's best price; Music Icon in the middle; Pro Athlete at Premium's best price;
+Movie Star at the most expensive. An endorsement swings a ten-round result by
+roughly -$2.5M to +$1.8M depending almost entirely on price.
 
 **4. Willingness-to-Pay Ceilings** (REPLACES the old Price Elasticity Coefficient — Sept 2026 redesign)
 
@@ -296,10 +345,18 @@ Purpose: help students reason about price changes without exposing the hidden se
 - Because of this, a firm's submission is safe the instant they lock in, regardless of what happens to their own browser/session afterward (Chromebook logout, tab crash, etc. — their problem, not a data-loss risk to the app).
 - No requirement to persist a firm's unsaved, in-progress (not-yet-submitted) inputs across sessions — if they get logged out before locking in, they simply re-enter and resubmit. Not a bug to solve for.
 
-**No edit-after-submit window (LOCKED):**
+**No edit-after-submit window (LOCKED, with one deliberate exception):**
 - Once a firm presses Lock In for a round, their submission is final for that round. No unlock/resubmit flow before the teacher advances the round.
+- **Exception — Undo Last Round (added Sept 2026).** The Teacher Dashboard can
+  revert the single most recently processed round: firm financial state, the round
+  counter and phase, and that round's market outcome data. Teams' own submissions
+  are deliberately KEPT (auto-generated bot and no-show decisions are discarded,
+  since processing produced them), and that round alone becomes editable again so
+  teams can adjust and the teacher can re-process. The window closes the moment
+  the round is processed again. Normal play is unchanged — the rule above still
+  holds everywhere else. See `World.reopened_round`.
 
 **End-of-Game Export (LOCKED, new requirement):**
 - Once a world's 10-round game is complete, the Teacher Dashboard must offer a CSV export of that world's full game history.
-- Shape: one row per firm per round, covering all 10 rounds for all firms in that world — every submitted decision (Price, Production Qty, Ad Spend, R&D Spend, Tier, Celebrity toggle, Plant Investment) plus every resulting output (Units Sold, Revenue, Cost, Profit, Cash on Hand, Quality Level, Loan status) for that firm in that round.
+- Shape: one row per firm per round, covering all 10 rounds for all firms in that world — every submitted decision (Price, Production Qty, Ad Spend, R&D Spend, Tier, Celebrity (which endorser, or None), Plant Investment) plus every resulting output (Units Sold, Revenue, Cost, Profit, Cash on Hand, Quality Level, Loan status) for that firm in that round.
 - Purpose: teacher-facing review/grading only. Not connected to any LLM/API inside the app — the teacher will run their own analysis externally (e.g., uploading the CSV to an LLM themselves) if desired. The app's only job is to produce a clean, complete export.
