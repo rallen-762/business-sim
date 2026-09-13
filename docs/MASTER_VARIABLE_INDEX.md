@@ -23,8 +23,8 @@ update `master-variable-table.md` in the same change. ○ does not.
 | `STARTING_QUALITY_LEVEL` | Opening quality | int, level | `constants.py` | reference only | 1 | ● |
 | `BASE_UNIT_COST` | Mid-tier cost before the tier multiplier | float, $/unit | `constants.py` | `track_unit_cost()` | 50.00 | ● |
 | `ROUNDS_PER_WORLD` | **Default** game length | int, rounds | `constants.py` | default for `World.rounds`; bot pacing in `bots.py` | 10 | ● |
-| `BOOTSTRAP_DEFAULT_PRICE` / `_TRACK` | Platform fallback for a firm that never submits | float / str | `constants.py` | `synthesize_non_submission_decision`, firm creation | 80.00 / "Mid" | ○ |
-| `FIRMS_PER_WORLD_MIN` / `_MAX` | Intended class size | int | `constants.py` | reference only | 7 / 8 | ○ |
+| `BOOTSTRAP_DEFAULT_PRICE` / `BOOTSTRAP_DEFAULT_TRACK` | Platform fallback for a firm that never submits | float / str | `constants.py` | `synthesize_non_submission_decision`, firm creation | 80.00 / "Mid" | ○ |
+| `FIRMS_PER_WORLD_MIN` / `FIRMS_PER_WORLD_MAX` | Intended class size | int | `constants.py` | reference only | 7 / 8 | ○ |
 
 > `ROUNDS_PER_WORLD` is the **default**, not this game's length. Per-world
 > length is `World.rounds`. See LESSONS_LEARNED #3.
@@ -133,7 +133,7 @@ gate. Applied at `engine.py` Step 4a–4b.
 | `TRACK_PREFERENCE_MULTIPLIER` | How each segment rates each tier | dict[seg][tier] | `constants.py` | demand pull |
 | `QUALITY_WEIGHT_ENDPOINTS`, `quality_weight()` | Quality sensitivity, Q1→Q10 | dict / fn | `constants.py` | demand pull |
 | `WTP_CEILING_CENTER` | Per-segment, per-tier price ceiling centers | dict[seg][tier] | `constants.py` | affordability |
-| `WTP_SPREAD_LOW` / `_HIGH` | Buyer-to-buyer spread around the center | float, ×0.8 … ×1.2 | `constants.py` | `wtp_threshold_r()` |
+| `WTP_SPREAD_LOW` / `WTP_SPREAD_HIGH` | Buyer-to-buyer spread around the center | float, ×0.8 … ×1.2 | `constants.py` | `wtp_threshold_r()` |
 | `wtp_threshold_r()`, `wtp_ceiling_at_r()` | Closed-form affordability and surplus | fn | `constants.py` | engine Step 4b |
 | `WEALTHY_CEILING_PRICE` | Hard exclusion above $250 | int, $ | `constants.py` | engine, absolute rule |
 
@@ -170,7 +170,7 @@ gate. Applied at `engine.py` Step 4a–4b.
 | `CELEBRITY_LABELS` / `CELEBRITY_ICONS` | Display name and asset | dict | UI only |
 | `_CELEBRITY_TARGETS` | (strong, secondary) segment per endorser | dict | The design intent |
 | `CELEBRITY_MULTIPLIERS` | Derived per-endorser × per-segment table | dict[key][seg] | Built from the two constants below |
-| `CELEBRITY_STRONG` / `_SECONDARY` | The two multiplier tiers | float | 1.5 / 1.2 |
+| `CELEBRITY_STRONG` / `CELEBRITY_SECONDARY` | The two multiplier tiers | float | 1.5 / 1.2 |
 | `LEGACY_CELEBRITY_MULTIPLIER` | The original single celebrity | dict[seg] | **Do not use for new decisions.** Scores pre-roster rounds |
 | `celebrity_multiplier(key, segment)` | Resolver, with legacy fallback | fn | Unknown key → legacy, never raises |
 | `CELEBRITY_COST_PER_ROUND` | Flat cost | int, $/round | 50,000, identical for all four — the choice is fit, never price |
@@ -227,10 +227,10 @@ Pure logic in `app/bots.py`; a bot sees **only its own history**.
 | Variable | Profile | Purpose |
 |---|---|---|
 | `BOT_PROFILES` | — | The four: Underbidder, Marketing, Elite, Random. **Slot order defines "Bot #N"** |
-| `UNDERBIDDER_TRACK`, `_START_PRICE`, `_PRICE_STEP`, `_MIN_MARGIN`, `_PRICE_FLOOR` | Underbidder | Price floor is a real margin over its own unit cost, not a magic number |
-| `MARKETING_PRICE_BASE`, `_AD_RAMP_ROUNDS`, `_CELEBRITY_CASH_THRESHOLD` | Marketing | Ramps ads to Level 9, never 10 |
-| `MARKETING_EXPAND_MIN_LOST_UNITS`, `_EXPAND_CASH_BUFFER` | Marketing | The only profile that expands its plant, and only after actually selling out |
-| `ELITE_CELEBRITY_CASH_THRESHOLD`, `_START_ROUND` | Elite | Signs a Movie Star from round 7 |
+| `UNDERBIDDER_TRACK`, `UNDERBIDDER_START_PRICE`, `UNDERBIDDER_PRICE_STEP`, `UNDERBIDDER_MIN_MARGIN`, `UNDERBIDDER_PRICE_FLOOR` | Underbidder | Price floor is a real margin over its own unit cost, not a magic number |
+| `MARKETING_PRICE_BASE`, `MARKETING_AD_RAMP_ROUNDS`, `MARKETING_CELEBRITY_CASH_THRESHOLD` | Marketing | Ramps ads to Level 9, never 10 |
+| `MARKETING_EXPAND_MIN_LOST_UNITS`, `MARKETING_EXPAND_CASH_BUFFER` | Marketing | The only profile that expands its plant, and only after actually selling out |
+| `ELITE_CELEBRITY_CASH_THRESHOLD`, `ELITE_CELEBRITY_START_ROUND`, `ELITE_PRICE_PREMIUM` | Elite | Signs a Movie Star from round 7 |
 | `_AD_LEVEL_9_THRESHOLD`, `_RD_LEVEL_10_THRESHOLD` | shared | Ladder boundaries the profiles aim at |
 
 ---
@@ -244,7 +244,7 @@ Pure logic in `app/bots.py`; a bot sees **only its own history**.
 | `DATABASE_URL` | Postgres in prod; absent locally, which is what sets `IS_LOCAL_DEV` | env |
 | `IS_LOCAL_DEV` | Skips the teacher gate locally; forced False under TESTING | `app/__init__.py` |
 | `PERMANENT_SESSION_LIFETIME`, `SESSION_COOKIE_*` | 8-hour permanent cookie, Lax, HttpOnly, Secure only in prod | `app/__init__.py` |
-| `COMPETITIVE_INTEL_VISIBLE_FIELDS` / `_HIDDEN_FIELDS` | What one firm may learn about another | `constants.py` |
+| `COMPETITIVE_INTEL_VISIBLE_FIELDS` / `COMPETITIVE_INTEL_HIDDEN_FIELDS` | What one firm may learn about another | `constants.py` |
 | `AVATAR_CHOICES`, `BADGE_CHOICES`, `PRODUCT_CHOICES`, `TIER_ICONS` | Icon pools, validated on submit | `app/avatars.py` |
 | `SEGMENT_ACCENTS`, `TIER_ACCENTS`, `SEGMENT_TRAITS`, `PIE_COLORS` | Presentation only — never feeds the model | `app/market_data.py` |
 
