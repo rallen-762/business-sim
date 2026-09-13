@@ -2,7 +2,8 @@
 
 Classroom economics simulator. Student teams run competing headphone companies over 10 rounds;
 the teacher controls pacing from a Teacher Dashboard. Users are high-school students on school
-devices, often projected to a class — clarity beats cleverness in the UI.
+devices — Chromebooks and iPads, small screens, shared between classes, and students working
+fast. Clarity beats cleverness in the UI.
 
 - Live: https://business-sim-74hd.onrender.com (Render, auto-deploys from `main`)
 - Repo: `rallen-762/business-sim`
@@ -98,8 +99,12 @@ hardcoding a colour.
   `.avatar-choice`): radios styled as buttons, so the browser enforces the
   single selection and it works without JS.
 
-Projected to a classroom wall as often as read on a laptop — favour size and
-contrast over density.
+**Sizing is per-view, not global.** The app is read on student devices at
+normal screen distance and sizes in rem/px. The ONE exception is the projector
+view (`present.html`), which is the only thing shown on a wall and the only
+place that uses `vw` units — every `.present-*` rule scales to the viewport so
+standings are legible across a room. Don't apply wall-scale sizing anywhere
+else, and don't shrink the projector view to match the rest.
 
 **What this replaced, and don't drift back to it.** The original look was a
 conventional dashboard — generic semantic tokens (`--bg`, `--surface`,

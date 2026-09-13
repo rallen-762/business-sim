@@ -13,8 +13,9 @@ the locked economic design itself, see
 
 A classroom economics simulator. Student teams run competing headphone
 companies over ten rounds; a teacher controls pacing from a Teacher Dashboard.
-Users are high-school students on school devices, often with the results
-projected to the room.
+Users are high-school students on school devices — Chromebooks and iPads,
+small screens, shared between classes. One view, the projector board
+(`present.html`), is meant for a wall; everything else is read at arm's length.
 
 - Live: https://business-sim-74hd.onrender.com
 - Repo: `rallen-762/business-sim`
