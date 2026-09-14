@@ -422,6 +422,22 @@ def advance_round(world_id):
     return redirect(url_for("teacher.view_world", world_id=world.id))
 
 
+@bp.route("/worlds/<int:world_id>/student-standings", methods=["POST"])
+@teacher_login_required
+def toggle_student_standings(world_id):
+    """Turns the standings board on team screens on or off for this game.
+    Takes effect from the next dashboard load, including mid-round."""
+    world = World.query.get_or_404(world_id)
+    world.show_standings_to_students = request.form.get("enabled") == "1"
+    db.session.commit()
+    flash(
+        "Teams will see the standings board after each round is processed."
+        if world.show_standings_to_students
+        else "Teams will no longer see the standings board after each round."
+    )
+    return redirect(url_for("teacher.view_world", world_id=world.id))
+
+
 # Exactly the Firm fields _process_current_round mutates. If that function
 # ever starts writing another field, it MUST be added here or Undo Last Round
 # will silently leave that field at its post-round value -- which is the one
@@ -432,6 +448,7 @@ SNAPSHOT_FIELDS = (
     "plant_capacity",
     "pending_capacity_increase",
     "cumulative_rd_spend",
+    "rd_spend_by_track",
     "cumulative_ad_spend",
     "loan_outstanding",
     "loan_used_ever",
@@ -439,6 +456,27 @@ SNAPSHOT_FIELDS = (
     "last_price",
     "last_track",
 )
+
+
+def rebuild_rd_spend_by_track(firm_id):
+    """{tier: R&D} reconstructed from this firm's PROCESSED rounds -- each
+    round's R&D credited to the tier it sold that round. Only rounds with a
+    result count: a submission for a round not yet processed (or one whose
+    results were undone) never reached cumulative spend either.
+
+    Used by init-db to backfill firms from before quality was tier-bound, and
+    by undo for snapshots that predate the field."""
+    rows = (
+        db.session.query(RoundDecision.track, db.func.sum(RoundDecision.rd_spend))
+        .join(RoundResult, db.and_(
+            RoundResult.firm_id == RoundDecision.firm_id,
+            RoundResult.round_number == RoundDecision.round_number,
+        ))
+        .filter(RoundDecision.firm_id == firm_id, RoundDecision.rd_spend > 0)
+        .group_by(RoundDecision.track)
+        .all()
+    )
+    return {track: float(total) for track, total in rows if total}
 
 
 def _capture_snapshot(world, firms):
@@ -504,7 +542,7 @@ def _process_current_round(world, rng=None):
             pending_capacity_increase=firm.pending_capacity_increase,
             cumulative_rd_spend=firm.cumulative_rd_spend, cumulative_ad_spend=firm.cumulative_ad_spend,
             loan_outstanding=firm.loan_outstanding, loan_used_ever=firm.loan_used_ever,
-            bankrupt=firm.bankrupt,
+            bankrupt=firm.bankrupt, rd_spend_by_track=dict(firm.rd_spend_by_track or {}),
         )
 
     decisions = {}
@@ -536,7 +574,8 @@ def _process_current_round(world, rng=None):
             bot_decision = bot_decide(
                 profile=firm.bot_profile, firm_id=firm.id, round_number=world.current_round,
                 cash=firm.cash, capacity=firm.effective_capacity,
-                cumulative_rd_spend=firm.cumulative_rd_spend, cumulative_ad_spend=firm.cumulative_ad_spend,
+                cumulative_ad_spend=firm.cumulative_ad_spend,
+                rd_spend_by_track=dict(firm.rd_spend_by_track or {}),
                 loan_outstanding=firm.loan_outstanding,
                 last_price=last_decision.price if last_decision else None,
                 last_profit=last_result.profit if last_result else None,
@@ -605,6 +644,11 @@ def _process_current_round(world, rng=None):
             d = decisions[firm.id]
             firm.cumulative_rd_spend += d.rd_spend
             firm.cumulative_ad_spend += d.ad_spend
+            if d.rd_spend:
+                # A NEW dict -- see the JSON-column note on Firm.rd_spend_by_track.
+                by_track = dict(firm.rd_spend_by_track or {})
+                by_track[d.track] = by_track.get(d.track, 0.0) + d.rd_spend
+                firm.rd_spend_by_track = by_track
 
     # Segment-level (not firm-level) willingness-to-pay stats -- a natural
     # byproduct of the same Step 4b sweep that computed raw_units above
@@ -687,6 +731,14 @@ def undo_round(world_id):
     SegmentRoundResult.query.filter_by(
         world_id=world.id, round_number=round_number
     ).delete(synchronize_session=False)
+
+    # A snapshot taken before tier-bound quality shipped has no
+    # rd_spend_by_track to restore. Rebuild it from history instead -- the
+    # undone round's results were just deleted, so it drops out on its own.
+    for firm_id_str, saved in snapshot.firm_states.items():
+        firm = firms_by_id.get(int(firm_id_str))
+        if firm is not None and "rd_spend_by_track" not in saved:
+            firm.rd_spend_by_track = rebuild_rd_spend_by_track(firm.id)
 
     # Reopen the round that was undone. Covers both shapes: undoing straight
     # after processing (current_round is already that round) and undoing

@@ -1,5 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ firm.team_name }} -- Dashboard{% endblock %}
+{% block head %}
+{# A classroom team that has submitted is just waiting on the teacher, and
+   nothing else on this page updates itself -- without this they'd sit on
+   "Submitted" until someone thought to reload, and never see the standings
+   board or their results arrive. Only on that waiting card: it has no form
+   to lose, unlike the decision screen, and the Results card shouldn't jump
+   while it's being read. #}
+{% if world.mode == "classroom" and world.status == "collecting" and decision and not round_reopened and not firm.bankrupt %}
+<meta http-equiv="refresh" content="15">
+{% endif %}
+{% endblock %}
 {% block nav %}
   <a class="btn secondary" style="padding:6px 14px;" href="{{ url_for('market.dashboard') }}">Market Dashboard</a>
   <a href="{{ url_for('auth.logout') }}">Log Out</a>
@@ -67,9 +78,18 @@
     <div class="stat" id="stat-cash-hero" data-cash-before="{{ last_result.cash_before }}" data-cash-after="{{ last_result.cash_after }}">
       <div class="label">Cash</div><div class="value" id="stat-cash-value">{{ "${:,.0f}".format(last_result.cash_before) }}</div>
     </div>
-    <div class="stat"><div class="label">Quality Level</div><div class="value">{{ last_result.quality_level }}</div></div>
+    <div class="stat"><div class="label">Quality Level{% if last_result_track %} ({{ last_result_track }}){% endif %}</div><div class="value">{{ last_result.quality_level }}</div></div>
     <div class="stat"><div class="label">Ad Level</div><div class="value">{{ last_result.ad_level }}</div></div>
   </div>
+  <div class="stat" style="margin-top:16px;">
+    <div class="label">Quality by Tier</div>
+    {% with active_tier = last_result_track %}{% include "_tier_quality_chart.html" %}{% endwith %}
+    <p class="help-text" style="margin-bottom:0;">Quality belongs to a tier. R&amp;D builds the tier you sell that round &mdash; switch tiers and you start from that tier's own level.</p>
+  </div>
+
+  {% if standings_available %}
+  <a class="btn secondary" style="margin-top:16px;" href="{{ url_for('firm.standings') }}">View Class Standings</a>
+  {% endif %}
   <script>
     // The one hero moment (per the visual redesign brief): the Cash stat
     // flashes and counts from last round's cash to this round's, instead
@@ -155,6 +175,9 @@
 <div class="card">
   <span class="banner">Game Complete</span>
   <p>Final cash: {{ "${:,.0f}".format(firm.cash) }}</p>
+  {% if standings_available %}
+  <a class="btn secondary" href="{{ url_for('firm.standings') }}">View Final Standings</a>
+  {% endif %}
 </div>
 
 {% elif decision and not round_reopened %}
@@ -229,16 +252,28 @@
     </p>
   </div>
   {% endif %}
+  {# Three tiles, each a related pair, so no tile stretches to match the
+     tier chart's height with empty space. The middle tile follows the Tier
+     select (see onTierChange): quality is tier-bound, so tier and quality
+     are one fact, not two. #}
   <div class="grid grid-3" style="margin-bottom:16px;">
-    <div class="stat"><div class="label">Cash</div><div class="value" id="stat-cash">{{ "${:,.0f}".format(firm.cash) }}</div></div>
-    <div class="stat"><div class="label">Plant Capacity</div><div class="value">{{ "{:,}".format(firm.effective_capacity) }}</div></div>
-    <div class="stat"><div class="label">Quality Level</div><div class="value">{{ quality_level }} &mdash; {{ quality_label }}</div></div>
-    <div class="stat"><div class="label">Current Tier</div><div class="value">
-      {% if firm.last_track in tier_icons %}<img src="{{ url_for('static', filename='img/tiers/' ~ tier_icons[firm.last_track]) }}" alt="" style="width:20px;height:20px;object-fit:contain;vertical-align:-4px;margin-right:4px;">{% endif %}
-      {{ firm.last_track if firm.last_track else "&mdash;"|safe }}
-    </div></div>
-    <div class="stat"><div class="label">Loan Outstanding</div><div class="value">{{ "${:,.0f}".format(firm.loan_outstanding) }}</div></div>
-    <div class="stat"><div class="label">Loan Interest Expense (This Round)</div><div class="value">{{ "${:,.0f}".format(projected_loan_interest) }}</div></div>
+    <div class="stat">
+      <div class="label">Cash</div><div class="value" id="stat-cash">{{ "${:,.0f}".format(firm.cash) }}</div>
+      <div class="label stat-pair">Plant Capacity</div><div class="value">{{ "{:,}".format(firm.effective_capacity) }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Tier &amp; Quality</div>
+      <div class="value">
+        <img id="stat-tier-icon" src="{{ url_for('static', filename='img/tiers/' ~ tier_icons[form_track]) }}" alt="" style="width:20px;height:20px;object-fit:contain;vertical-align:-4px;margin-right:4px;">
+        <span id="stat-quality-tier">{{ form_track }}</span>
+      </div>
+      <div class="stat-note" id="stat-quality">Level {{ quality_level }} &mdash; {{ quality_label }}</div>
+      {% with active_tier = form_track %}{% include "_tier_quality_chart.html" %}{% endwith %}
+    </div>
+    <div class="stat">
+      <div class="label">Loan Outstanding</div><div class="value">{{ "${:,.0f}".format(firm.loan_outstanding) }}</div>
+      <div class="label stat-pair">Interest This Round</div><div class="value">{{ "${:,.0f}".format(projected_loan_interest) }}</div>
+    </div>
   </div>
 
   <form method="post" action="{{ url_for('firm.submit_decision') }}" id="decision-form">
@@ -256,7 +291,7 @@
       </div>
       <div>
         <label for="track">Tier</label>
-        <select id="track" name="track" required onchange="recalc()">
+        <select id="track" name="track" required onchange="onTierChange()">
           {% for t in tracks %}
           <option value="{{ t }}" {% if firm.last_track == t %}selected{% endif %}>{{ t }} (${{ "%.2f"|format(track_unit_costs[t]) }}/unit)</option>
           {% endfor %}
@@ -264,34 +299,40 @@
       </div>
 
       <div>
-        {% if rd_presets %}
-        {# The dropdown IS the field. There used to be a free-entry number box
-           underneath it, which let a team type an amount that buys a fraction
-           of a level -- money spent for no quality gain, with nothing on
-           screen explaining why. Every selectable value here lands exactly on
-           a level. #}
-        <label for="rd_spend">R&amp;D Spend</label>
-        <select id="rd_spend" name="rd_spend" onchange="recalc()">
-          <option value="0">No R&amp;D this round ($0)</option>
-          {% for level, amount in rd_presets %}
-          <option value="{{ amount|round|int }}">${{ "{:,.0f}".format(amount) }} -- reach Quality Level {{ level }}</option>
-          {% endfor %}
-        </select>
-        <p class="help-text">Max {{ max_quality_gain }} Quality Levels per round &mdash;
-          up to <strong>{{ "${:,.0f}".format(rd_cap) }}</strong> this round.</p>
-        {% else %}
-        {# Quality 10 is the ceiling -- further R&D buys literally nothing but
-           still leaves cash. Showing a live "$0" input invited teams to type a
-           number into a field that can only waste money, so the whole control
-           is locked once there's nothing left to reach. The hidden input keeps
-           the form posting rd_spend=0, and the server re-derives affordability
-           regardless. #}
-        <label for="rd_spend_locked">R&amp;D Maxed Out (Level 10)</label>
-        <input type="text" id="rd_spend_locked" value="$0 -- nothing left to unlock" disabled
-               style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
-        <input type="hidden" id="rd_spend" name="rd_spend" value="0">
-        <p class="help-text">Quality Level 10 is the maximum &mdash; more R&amp;D has no effect. Spend it elsewhere.</p>
-        {% endif %}
+        {# Quality is tier-bound, so these options belong to the tier chosen
+           above. Both states are always rendered and onTierChange() shows
+           one: a tier with levels left to buy gets the dropdown, a tier
+           already at 10 gets the locked field. Whichever is hidden is also
+           DISABLED, so only one rd_spend ever posts. With JS off the form
+           still works for the tier it opened on, and the server re-checks the
+           cap against the submitted tier regardless. #}
+        <div id="rd-choose"{% if not rd_presets %} hidden{% endif %}>
+          {# The dropdown IS the field. There used to be a free-entry number box
+             underneath it, which let a team type an amount that buys a fraction
+             of a level -- money spent for no quality gain, with nothing on
+             screen explaining why. Every selectable value here lands exactly on
+             a level. #}
+          <label for="rd_spend">R&amp;D Spend <span class="help-text" style="font-weight:400;">&mdash; builds <span class="rd-tier-name">{{ form_track }}</span> quality</span></label>
+          <select id="rd_spend" name="rd_spend" onchange="recalc()"{% if not rd_presets %} disabled{% endif %}>
+            <option value="0">No R&amp;D this round ($0)</option>
+            {% for level, amount in rd_presets %}
+            <option value="{{ amount|round|int }}">${{ "{:,.0f}".format(amount) }} -- reach Quality Level {{ level }}</option>
+            {% endfor %}
+          </select>
+          <p class="help-text">Max {{ max_quality_gain }} Quality Levels per round &mdash;
+            up to <strong id="rd-cap">{{ "${:,.0f}".format(rd_cap) if rd_cap is not none else "$0" }}</strong> this round.</p>
+        </div>
+        <div id="rd-maxed"{% if rd_presets %} hidden{% endif %}>
+          {# Quality 10 is the ceiling -- further R&D buys literally nothing but
+             still leaves cash. Showing a live "$0" input invited teams to type a
+             number into a field that can only waste money, so the whole control
+             is locked once there's nothing left to reach in this tier. #}
+          <label for="rd_spend_locked">R&amp;D Maxed Out in <span class="rd-tier-name">{{ form_track }}</span> (Level 10)</label>
+          <input type="text" id="rd_spend_locked" value="$0 -- nothing left to unlock" disabled
+                 style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
+          <input type="hidden" id="rd_spend_zero" name="rd_spend" value="0"{% if rd_presets %} disabled{% endif %}>
+          <p class="help-text">Quality Level 10 is the maximum in this tier &mdash; more R&amp;D here has no effect. Spend it elsewhere.</p>
+        </div>
       </div>
       <div>
         <label for="ad_spend">Advertising Spend</label>
@@ -394,6 +435,45 @@
   const PLANT_CAPACITY = {{ firm.effective_capacity|tojson }};
   const TRACK_UNIT_COSTS = {{ track_unit_costs|tojson }};
   const CELEBRITY_COST = {{ celebrity_cost|tojson }};
+  // {tier: {level, label, presets: [[level, amount]], cap}} -- quality is
+  // tier-bound, so the R&D choices change with the Tier select.
+  const RD_BY_TIER = {{ rd_by_tier|tojson }};
+  const TIER_ICON_URLS = {
+    {% for t in tracks %}{{ t|tojson }}: {{ url_for('static', filename='img/tiers/' ~ tier_icons[t])|tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+
+  function onTierChange() {
+    const tier = document.getElementById('track').value;
+    const info = RD_BY_TIER[tier];
+    if (info) {
+      const maxedOut = info.presets.length === 0;
+      const select = document.getElementById('rd_spend');
+      document.getElementById('rd-choose').hidden = maxedOut;
+      document.getElementById('rd-maxed').hidden = !maxedOut;
+      select.disabled = maxedOut;
+      document.getElementById('rd_spend_zero').disabled = !maxedOut;
+
+      // Amounts differ per tier, so a selection can't carry across -- reset
+      // to $0 rather than silently buying a different level in the new tier.
+      select.innerHTML = '';
+      select.add(new Option('No R&D this round ($0)', '0'));
+      info.presets.forEach(function (p) {
+        select.add(new Option('$' + p[1].toLocaleString('en-US') + ' -- reach Quality Level ' + p[0], String(p[1])));
+      });
+      select.value = '0';
+      document.getElementById('rd-cap').textContent = '$' + Math.round(info.cap || 0).toLocaleString('en-US');
+
+      document.querySelectorAll('.rd-tier-name').forEach(function (el) { el.textContent = tier; });
+      document.getElementById('stat-quality-tier').textContent = tier;
+      document.getElementById('stat-quality').textContent = 'Level ' + info.level + ' — ' + info.label;
+      document.getElementById('stat-tier-icon').src = TIER_ICON_URLS[tier];
+      document.querySelectorAll('.tier-quality-row').forEach(function (row) {
+        row.classList.toggle('is-active', row.dataset.tier === tier);
+      });
+    }
+    recalc();
+  }
 
   function recalc() {
     const trackEl = document.getElementById('track');
@@ -406,7 +486,7 @@
     const overspendMsg = document.getElementById('overspend-message');
 
     const unitCost = TRACK_UNIT_COSTS[trackEl.value] || 0;
-    const rd = parseFloat(rdEl.value) || 0;
+    const rd = rdEl.disabled ? 0 : (parseFloat(rdEl.value) || 0);
     const ad = parseFloat(adEl.value) || 0;
     const plant = plantEl.disabled ? 0 : (parseFloat(plantEl.value) || 0);
     let celeb = 0;

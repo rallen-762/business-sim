@@ -10,6 +10,7 @@ here rather than changing the code to match the doc.
 
 | Change | Where |
 |---|---|
+| **Quality is tier-bound**: each tier has its own Quality Level from R&D spent in that tier; switching tiers no longer carries quality. Bot balance, 40 seeded trials: Elite avg rank 1.40 → 1.48, others within noise. | §3, §5 |
 | Four celebrity endorsers replace the single on/off celebrity — same mechanic and scale, four aims. Values stay hidden from players. | §12.3 |
 | R&D now capped at **3 Quality Levels per round**; the table previously said there was no per-round cap. R&D and Ads are dropdown-only, no free-entry amount. | §5, §6 |
 | Willingness-to-pay ceilings replaced the Price Elasticity Coefficient (Sept 2026 redesign). | §12.4 |
@@ -49,7 +50,7 @@ here rather than changing the code to match the doc.
 |---|---|---|
 | Available Cash | $1,000,000 | Rolls forward; can go negative → triggers loan |
 | Plant Capacity | 45,000 units | 1-round lag on new investment; no decay |
-| Quality Index (1–10) | 1 | Driven purely by cumulative R&D spend; NOT capped by Tier |
+| Quality Index (1–10) | 1 **per tier** | Driven by cumulative R&D spent **in that tier** — each tier climbs its own ladder (UPDATED Sept 2026) |
 | Loan Outstanding | $0 | See Section 8 |
 
 ---
@@ -108,7 +109,14 @@ R&D and Advertising are chosen from a dropdown of ladder amounts only — there 
 no free-entry number box, so a team cannot spend an amount that buys a fraction of
 a level and gets nothing for it.
 
-Quality stock persists even across Tier switches.
+**Quality is bound to its tier (UPDATED Sept 2026) — a tech tree.** R&D spent in a
+round builds quality in the tier sold that round only. Switching tiers does not
+carry quality across: the new tier plays at its own level (Level 1 if never
+funded), and the old tier keeps its progress for if the firm switches back. The
+ladder above and the 3-level cap apply to each tier separately. Previously quality
+was one firm-wide stock that persisted across Tier switches. Existing games were
+rebuilt from round history, each round's R&D credited to the tier it sold. See
+`Firm.rd_spend_by_track` and `quality_levels_by_track()`.
 
 ---
 

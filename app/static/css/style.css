@@ -146,57 +146,49 @@ h3 { font-size: 0.95rem; }
   background: var(--bg-base);
   color: var(--text-primary);
   padding: 2.5vw 3vw;
+  /* Room under the last row for the pinned exit button, so it never sits on
+     top of a team's standing once the board scrolls. */
+  padding-bottom: calc(clamp(12px, 1.6vw, 32px) + clamp(3.5rem, 5vw, 6.5rem));
   margin: 0;
   min-height: 100vh;
 }
-/* Deliberately faint at rest so it doesn't pull the eye on a projected
-   board, full strength on hover/focus so it's obvious once looked for. */
+/* The way out: a solid, always-coloured button pinned bottom-centre on EVERY
+   projector board (classroom wall, sandbox, team screens).
+   History, so it doesn't drift back: it started as a faint top-right link
+   (0.35, then 0.75 opacity) meant not to compete with the standings, then
+   gained a one-time pulse on frozen boards. Both were still missed -- the
+   pulse fired while the rows were sliding in, and at 1vw the link was ~8px
+   on an iPad. Robert chose a persistent button instead; visibility beats
+   quietness here.
+   Sized with clamp() rather than pure vw: it has to be readable on a
+   Chromebook or iPad as well as on the wall, so it scales with the board
+   but never shrinks below normal button size. Styled like .btn, but kept a
+   link, not a <button> -- the board still can't change any game state. */
 .present-exit {
   position: fixed;
-  top: 1vw;
-  right: 1.4vw;
+  bottom: clamp(12px, 1.6vw, 32px);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 10;
-  font-size: 1vw;
-  letter-spacing: 0.06em;
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: clamp(0.8rem, 1.1vw, 1.4rem);
+  line-height: 1.6;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   text-decoration: none;
-  /* Was --text-secondary at 0.35 opacity, which read as "barely there" on a
-     projector and left people hunting for the way out. Still quiet enough
-     not to compete with the standings, but actually findable. */
-  color: var(--text);
-  opacity: 0.75;
-  border: 1px solid var(--text-secondary);
-  padding: 0.4vw 0.9vw;
-  transition: opacity 140ms linear, color 140ms linear, border-color 140ms linear;
+  white-space: nowrap;
+  color: #0a0a0a;
+  background: var(--accent-primary);
+  border: 3px solid #000;
+  padding: clamp(10px, 0.9vw, 18px) clamp(18px, 1.8vw, 36px);
+  box-shadow: 4px 4px 0 #000;
 }
-.present-exit:hover,
-.present-exit:focus {
-  opacity: 1;
-  color: var(--accent-primary);
-  border-color: var(--accent-primary);
-  outline: none;
-}
+.present-exit:hover { filter: brightness(1.1); }
+.present-exit:focus-visible { outline: 3px solid var(--text-primary); outline-offset: 3px; }
+.present-exit:active { transform: translate(calc(-50% + 4px), 4px); box-shadow: 0 0 0 #000; }
 
-/* One attention pulse on arrival, so the way out announces itself once and
-   then gets out of the way. Applied only on boards that AREN'T
-   auto-refreshing -- present.html reloads itself every 30s during class,
-   which would turn a single pulse into a blink every 30 seconds on a wall
-   the room is trying to read. */
-.present-exit.flash-once { animation: present-exit-flash 1700ms ease-out 1; }
-
-@keyframes present-exit-flash {
-  0%   { opacity: 0.75; color: var(--text); border-color: var(--text-secondary); box-shadow: 0 0 0 0 rgba(111, 168, 160, 0.55); }
-  15%  { opacity: 1;    color: var(--accent-primary); border-color: var(--accent-primary); box-shadow: 0 0 0 0.5vw rgba(111, 168, 160, 0.35); }
-  45%  { opacity: 1;    color: var(--accent-primary); border-color: var(--accent-primary); box-shadow: 0 0 0 0.9vw rgba(111, 168, 160, 0); }
-  100% { opacity: 0.75; color: var(--text); border-color: var(--text-secondary); box-shadow: 0 0 0 0 rgba(111, 168, 160, 0); }
-}
-
-/* Respect a viewer who has asked for less motion -- they still get the
-   lighter resting state, just no pulse. */
-@media (prefers-reduced-motion: reduce) {
-  .present-exit.flash-once { animation: none; }
-}
-.present-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 2.2vw; padding-right: 7vw; }
+.present-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 2.2vw; }
 .present-title { font-family: var(--font-display); font-size: 2.6vw; color: var(--accent-primary); }
 .present-round { font-size: 1.3vw; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
 .present-empty { font-family: var(--font-display); font-size: 2vw; color: var(--text-secondary); margin-top: 12vh; text-align: center; }
@@ -253,6 +245,31 @@ h3 { font-size: 0.95rem; }
 }
 .reach-bar-fill.warning { background: #FFB020; }
 .reach-bar-fill.danger { background: var(--accent-danger); }
+
+/* --- Quality by tier: three short bars, one per tier (level / 10) ---
+   Quality is tier-bound, so one number can't show it. Each bar uses its
+   tier's accent from TIER_ACCENTS (set inline as --tier-accent). The tier
+   being chosen/sold is full strength; the others are dimmed, not hidden --
+   seeing the progress you'd leave behind is the point. */
+/* A second label/value pair inside one stat tile (Cash + Plant Capacity,
+   Loan + Interest) -- spaced so the pair reads as two stats, not one. */
+.stat .label.stat-pair { margin-top: 14px; }
+.stat-note { font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px; }
+
+.tier-quality { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.tier-quality-row {
+  display: grid;
+  grid-template-columns: 4.2rem minmax(0, 1fr) 2.6rem;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+.tier-quality-row.is-active { color: var(--text-primary); opacity: 1; font-weight: 700; }
+.tier-quality-bar { height: 10px; background: var(--bg-base); border: 1px solid var(--panel-alt); overflow: hidden; }
+.tier-quality-fill { display: block; height: 100%; background: var(--tier-accent, var(--accent-primary)); }
+.tier-quality-level { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* --- Customer Segments cards ---
    Were five identical grey boxes. Each now carries its segment's accent as

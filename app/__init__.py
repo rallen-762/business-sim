@@ -222,6 +222,29 @@ def create_app(config_overrides=None):
                             conn.commit()
                         print(f"Added round_results.{col} column.")
 
+            # Tier-bound quality. firms.rd_spend_by_track is nullable with no
+            # default on purpose: NULL marks "not yet rebuilt", and the
+            # backfill at the end of this command fills exactly those rows.
+            # worlds.show_standings_to_students is NOT NULL DEFAULT false --
+            # off is the correct reading for every existing game.
+            if "firms" in inspector.get_table_names():
+                firm_cols = {c["name"] for c in inspector.get_columns("firms")}
+                if "rd_spend_by_track" not in firm_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text("ALTER TABLE firms ADD COLUMN rd_spend_by_track JSON"))
+                        conn.commit()
+                    print("Added firms.rd_spend_by_track column.")
+            if "worlds" in inspector.get_table_names():
+                world_cols = {c["name"] for c in inspector.get_columns("worlds")}
+                if "show_standings_to_students" not in world_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text(
+                            "ALTER TABLE worlds ADD COLUMN show_standings_to_students "
+                            "BOOLEAN NOT NULL DEFAULT false"
+                        ))
+                        conn.commit()
+                    print("Added worlds.show_standings_to_students column.")
+
             # Old track value -> new tier value, everywhere a track string
             # is stored. "Premium" is unchanged so it's omitted.
             track_rename = {"Budget": "Entry", "Standard": "Mid"}
@@ -292,6 +315,34 @@ def create_app(config_overrides=None):
             if renamed_json_rows:
                 db.session.commit()
                 print(f"Renamed segment 'Basketball Players' -> 'Athletes' in {renamed_json_rows} round_results.units_sold_by_segment row(s).")
+
+            # Tier-bound quality backfill (confirmed with Robert: rebuild
+            # from history, not grandfather). Each processed round's R&D is
+            # credited to the tier that round sold. Runs AFTER the track
+            # rename above, so history is already in current tier names.
+            # Only NULL rows, so it happens once per firm; new firms start at
+            # {} and are never touched. A team that switched tiers mid-game
+            # can see its current tier's quality drop -- that is the rule
+            # now, applied to history, not a bug.
+            from app.blueprints.teacher import rebuild_rd_spend_by_track
+
+            rebuilt = 0
+            for firm in Firm.query.filter(Firm.rd_spend_by_track.is_(None)).all():
+                by_track = rebuild_rd_spend_by_track(firm.id)
+                firm.rd_spend_by_track = by_track
+                rebuilt += 1
+                # Should always agree with the stored total; a mismatch means
+                # history and the running total diverged somewhere, which is
+                # worth seeing in the deploy log rather than hiding.
+                if abs(sum(by_track.values()) - (firm.cumulative_rd_spend or 0)) > 1:
+                    print(
+                        f"WARNING: firm {firm.id} R&D history sums to "
+                        f"${sum(by_track.values()):,.0f} but cumulative_rd_spend is "
+                        f"${firm.cumulative_rd_spend or 0:,.0f}."
+                    )
+            if rebuilt:
+                db.session.commit()
+                print(f"Rebuilt per-tier R&D from round history for {rebuilt} firm(s).")
         print("Database tables created (or already existed).")
 
     @app.cli.command("simulate-bots")

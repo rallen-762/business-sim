@@ -15,7 +15,9 @@ A classroom economics simulator. Student teams run competing headphone
 companies over ten rounds; a teacher controls pacing from a Teacher Dashboard.
 Users are high-school students on school devices — Chromebooks and iPads,
 small screens, shared between classes. One view, the projector board
-(`present.html`), is meant for a wall; everything else is read at arm's length.
+(`present.html`), is sized for a wall; everything else is read at arm's length.
+The same board also appears on student screens — always in sandbox, and in a
+classroom game when the teacher turns it on — so it must stay usable there too.
 
 - Live: https://business-sim-74hd.onrender.com
 - Repo: `rallen-762/business-sim`
@@ -201,7 +203,9 @@ wrong answers (LESSONS_LEARNED #6).
 - **Never ship a visible field that resembles a credential** unless it truly
   is one (LESSONS_LEARNED #1).
 - The projector view (`present.html`) is deliberately inert — it changes no
-  state. Its only control is the way out.
+  state. Its only control is the way out: a solid, always-coloured Exit button
+  pinned bottom-centre on every board. It was once a faint link with a one-time
+  pulse and was reported invisible; don't dim it again.
 - Every page is theme-aware via CSS tokens, and dynamic pages send
   `Cache-Control: no-store` — classroom devices are shared (LESSONS_LEARNED #4).
 

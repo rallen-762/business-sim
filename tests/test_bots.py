@@ -46,7 +46,7 @@ AD_LEVEL_10_THRESHOLD = next(t for lvl, t, _ in AD_LADDER if lvl == 10)
 def _decide(profile, rng=None, **overrides):
     base = dict(
         firm_id=1, round_number=1, cash=1_000_000, capacity=45_000,
-        cumulative_rd_spend=0, cumulative_ad_spend=0, loan_outstanding=0,
+        cumulative_ad_spend=0, loan_outstanding=0,
         last_price=None, last_profit=None,
     )
     base.update(overrides)
@@ -166,7 +166,7 @@ def test_elite_moves_to_top_tier_from_round_four():
 
 
 def test_elite_does_not_front_load_rd_in_round_one():
-    d = _decide("elite", round_number=1, cumulative_rd_spend=0.0)
+    d = _decide("elite", round_number=1, rd_spend_by_track={})
     # Full Level-10 target is $700,000 -- Round 1 should invest only a
     # fraction of that, not try to reach it immediately.
     assert 0 < d.rd_spend < 150_000
@@ -175,7 +175,7 @@ def test_elite_does_not_front_load_rd_in_round_one():
 def test_elite_rd_spend_is_gated_by_cash_not_just_round_number():
     # A "bad start" -- almost no cash left despite being late-game, where
     # the round-number-only target would be huge.
-    d = _decide("elite", round_number=9, cash=10_000.0, cumulative_rd_spend=0.0)
+    d = _decide("elite", round_number=9, cash=10_000.0, rd_spend_by_track={})
     assert d.rd_spend <= 10_000.0 * 0.5
 
 
@@ -254,7 +254,7 @@ def test_marketing_expands_after_selling_out():
     d = decide(
         profile="marketing", firm_id=1, round_number=5,
         cash=4_000_000, capacity=45_000,
-        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        cumulative_ad_spend=10_000_000,
         loan_outstanding=0, last_price=80.0, last_profit=500_000,
         last_units_lost_to_capacity=18_000,
     )
@@ -265,7 +265,7 @@ def test_marketing_does_not_expand_when_it_met_its_demand():
     d = decide(
         profile="marketing", firm_id=1, round_number=5,
         cash=4_000_000, capacity=45_000,
-        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        cumulative_ad_spend=10_000_000,
         loan_outstanding=0, last_price=80.0, last_profit=500_000,
         last_units_lost_to_capacity=0,
     )
@@ -278,7 +278,7 @@ def test_marketing_does_not_expand_when_it_cannot_stock_the_bigger_plant():
     d = decide(
         profile="marketing", firm_id=1, round_number=5,
         cash=250_000, capacity=45_000,
-        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        cumulative_ad_spend=10_000_000,
         loan_outstanding=0, last_price=80.0, last_profit=-50_000,
         last_units_lost_to_capacity=18_000,
     )
@@ -291,7 +291,7 @@ def test_marketing_does_not_expand_while_carrying_debt():
     d = decide(
         profile="marketing", firm_id=1, round_number=5,
         cash=4_000_000, capacity=45_000,
-        cumulative_rd_spend=0, cumulative_ad_spend=10_000_000,
+        cumulative_ad_spend=10_000_000,
         loan_outstanding=500_000, last_price=80.0, last_profit=-100_000,
         last_units_lost_to_capacity=18_000,
     )
@@ -303,7 +303,7 @@ def test_every_other_profile_still_never_expands():
         d = decide(
             profile=profile, firm_id=1, round_number=5,
             cash=4_000_000, capacity=45_000,
-            cumulative_rd_spend=0, cumulative_ad_spend=0,
+            cumulative_ad_spend=0,
             loan_outstanding=0, last_price=80.0, last_profit=500_000,
             last_units_lost_to_capacity=18_000,
         )

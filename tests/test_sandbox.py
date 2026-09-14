@@ -405,11 +405,9 @@ def test_a_sandbox_player_still_gets_an_unguessable_credential(client):
     assert not player.check_password("")
 
 
-def test_sandbox_results_board_pulses_its_exit_once(client):
-    # The way out was hard to spot on the results board. It pulses once on
-    # arrival here because a solo player's board is frozen (hold=True); the
-    # auto-refreshing classroom board must NOT pulse, or the single flash
-    # becomes a blink every 30 seconds on a wall the room is reading.
+def test_sandbox_results_board_has_the_persistent_exit_button(client):
+    # Reported live: the pulsing exit on this board didn't read as visible.
+    # Same solid, always-coloured button as every other projector board now.
     sandbox_login(client)
     start_game(client)
     submit(client)
@@ -417,7 +415,8 @@ def test_sandbox_results_board_pulses_its_exit_once(client):
 
     world = World.query.filter_by(mode="sandbox").one()
     body = client.get(f"/sandbox/results/{world.id}").data.decode("utf-8")
-    assert "present-exit flash-once" in body
+    assert '<a class="present-exit" href="/market"' in body
+    assert "flash-once" not in body
     assert "http-equiv=\"refresh\"" not in body, "a frozen board must not reload"
 
 

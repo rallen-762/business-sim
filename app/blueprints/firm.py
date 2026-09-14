@@ -33,11 +33,17 @@ Edge cases considered:
     always correct even immediately after a round changes those totals.
 """
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.auth import current_firm, current_world, firm_login_required
 from app.avatars import TIER_ICONS
-from app.market_data import affordability_breakdown, affordability_curve
+from app.market_data import (
+    TIER_ACCENTS,
+    affordability_breakdown,
+    affordability_curve,
+    latest_processed_round,
+    standings_with_rank_delta,
+)
 from app.constants import (
     CAPACITY_BLOCK_FIXED_COST,
     CELEBRITIES,
@@ -53,8 +59,9 @@ from app.constants import (
     TRACKS,
     ad_spend_presets,
     quality_descriptor,
-    quality_level_from_cumulative_rd,
+    quality_levels_by_track,
     max_rd_spend_this_round,
+    rd_spend_in_track,
     rd_spend_presets,
     track_unit_cost,
 )
@@ -115,8 +122,34 @@ def dashboard():
             firm_id=firm.id, round_number=previous_round
         ).first()
 
+    # Classroom, teacher opted in: the first dashboard load after a round is
+    # processed goes to the standings board. Once per round -- the board's
+    # exit comes back here, and that must land on the Results card, not loop.
+    if (
+        world.mode == "classroom" and world.show_standings_to_students
+        and last_result is not None
+        and session.get("standings_seen") != _standings_key(world)
+    ):
+        return redirect(url_for("firm.standings"))
+
     track_unit_costs = {t: track_unit_cost(t) for t in TRACKS}
-    quality_level = quality_level_from_cumulative_rd(firm.cumulative_rd_spend)
+
+    # Quality is tier-bound. The form opens on the tier the firm sold last
+    # (the browser's default is the first option when there isn't one), so
+    # the level and R&D options rendered server-side are for THAT tier; the
+    # page's JS swaps them when the tier select changes, from rd_by_tier.
+    form_track = firm.last_track if firm.last_track in TRACKS else TRACKS[0]
+    tier_quality = quality_levels_by_track(firm.rd_spend_by_track)
+    quality_level = tier_quality[form_track]
+    rd_by_tier = {}
+    for t in TRACKS:
+        spend = rd_spend_in_track(firm.rd_spend_by_track, t)
+        rd_by_tier[t] = {
+            "level": tier_quality[t],
+            "label": f"{quality_descriptor(tier_quality[t])} Quality",
+            "presets": [[level, round(amount)] for level, amount in rd_spend_presets(spend)],
+            "cap": max_rd_spend_this_round(spend),
+        }
 
     # Projected interest for the UPCOMING round, computed from the firm's
     # CURRENT pre-existing balance -- mirrors engine.py's Step 8 exactly
@@ -132,8 +165,14 @@ def dashboard():
         round_reopened=(world.reopened_round == world.current_round),
         cumulative=cumulative, rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         track_unit_costs=track_unit_costs, tracks=TRACKS, tier_icons=TIER_ICONS,
-        rd_presets=rd_spend_presets(firm.cumulative_rd_spend),
-        rd_cap=max_rd_spend_this_round(firm.cumulative_rd_spend),
+        rd_presets=rd_spend_presets(rd_spend_in_track(firm.rd_spend_by_track, form_track)),
+        rd_cap=rd_by_tier[form_track]["cap"],
+        rd_by_tier=rd_by_tier, tier_quality=tier_quality, form_track=form_track,
+        tier_accents=TIER_ACCENTS,
+        standings_available=(
+            world.mode == "classroom" and world.show_standings_to_students
+            and last_result is not None
+        ),
         max_quality_gain=MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
         ad_presets=ad_spend_presets(firm.cumulative_ad_spend),
         celebrity_cost=CELEBRITY_COST_PER_ROUND,
@@ -165,6 +204,43 @@ def dashboard():
         recap_round=(world.current_round - 1) if recap_result else None,
         recap_price=recap_decision.price if recap_decision else None,
         recap_affordability=affordability_breakdown(recap_decision, recap_result),
+    )
+
+
+def _standings_key(world):
+    """Marks "this team has seen the board for this round" in the session.
+    World id included so a team's next game can't inherit a stale mark."""
+    return f"{world.id}:{world.current_round}"
+
+
+@bp.route("/firm/standings")
+@firm_login_required
+def standings():
+    """The full-screen standings board on a team's own screen, in a
+    classroom game whose teacher has turned it on.
+
+    The same present.html the wall and sandbox use, not a copy. Frozen
+    (hold=True, no auto-reload): a team reads it at their own pace, and a
+    reload would replay the reveal. Exit returns to the dashboard, where
+    the Results card is waiting.
+    """
+    world = current_world()
+    if not (world.mode == "classroom" and world.show_standings_to_students):
+        return redirect(url_for("firm.dashboard"))
+    latest_round = latest_processed_round(world)
+    if latest_round is None:
+        return redirect(url_for("firm.dashboard"))
+
+    session["standings_seen"] = _standings_key(world)
+    return render_template(
+        "present.html",
+        world=world,
+        standings=standings_with_rank_delta(world),
+        latest_round=latest_round,
+        rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
+        hold=True,
+        exit_url=url_for("firm.dashboard"),
+        exit_title="Back to My Results",
     )
 
 
@@ -221,9 +297,11 @@ def submit_decision():
     # round. Reject an over-cap submission rather than accepting it and
     # silently capping the gain in the engine -- the team would have paid
     # for levels they didn't get.
-    rd_cap = max_rd_spend_this_round(firm.cumulative_rd_spend)
+    # Quality is tier-bound, so the cap is measured in the tier being SUBMITTED,
+    # not the one the firm sold last round.
+    rd_cap = max_rd_spend_this_round(rd_spend_in_track(firm.rd_spend_by_track, track))
     if rd_cap is None and rd_spend > 0:
-        flash("You're already at the maximum Quality Level -- more R&D has no effect.")
+        flash(f"You're already at the maximum Quality Level in the {track} tier -- more R&D there has no effect.")
         return redirect(url_for("firm.dashboard"))
     if rd_cap is not None and rd_spend > rd_cap:
         flash(

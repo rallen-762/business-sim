@@ -27,6 +27,8 @@ Edge cases considered before writing process_round() (per the project's
    from the pre-redesign model).
 6. R&D/Ad spend submitted THIS round count toward THIS round's Quality/Ad
    level (no lag). Plant Investment alone has the explicit 1-round lag.
+   Quality is tier-bound: R&D builds the tier sold that round, and a firm
+   that switches tiers gets that tier's own level, not its old one.
 7. A loan taken THIS round (to cover THIS round's shortfall) is not itself
    repaid or charged interest this same round -- that starts next round,
    once it's a "pre-existing balance" like any other.
@@ -99,7 +101,9 @@ from app.constants import (
     ad_level_and_multiplier,
     fixed_cost_for_capacity,
     quality_level_from_cumulative_rd,
+    quality_levels_by_track,
     quality_weight,
+    rd_spend_in_track,
     track_unit_cost,
     wtp_ceiling_at_r,
     wtp_threshold_r,
@@ -123,6 +127,10 @@ class FirmState:
     loan_outstanding: float
     loan_used_ever: bool
     bankrupt: bool
+    # {tier: cumulative R&D in that tier}. Quality is tier-bound, so THIS --
+    # not cumulative_rd_spend, which is the all-tier total -- is what sets a
+    # firm's Quality Level. Omitted means no tier has been funded yet.
+    rd_spend_by_track: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -306,8 +314,11 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
         # levels over the following rounds instead of all at once. The
         # submission route rejects an over-cap spend before it gets here; this
         # is the backstop that also binds bots and auto-decisions.
-        level_before = quality_level_from_cumulative_rd(s.cumulative_rd_spend)
-        level_after = quality_level_from_cumulative_rd(s.cumulative_rd_spend + d.rd_spend)
+        # Tier-bound: only the R&D already in the tier sold THIS round counts,
+        # and this round's spend lands in that same tier.
+        tier_spend = rd_spend_in_track(s.rd_spend_by_track, d.track)
+        level_before = quality_level_from_cumulative_rd(tier_spend)
+        level_after = quality_level_from_cumulative_rd(tier_spend + d.rd_spend)
         quality_level[fid] = min(level_after, level_before + MAX_QUALITY_LEVEL_GAIN_PER_ROUND)
         lvl, mult = ad_level_and_multiplier(s.cumulative_ad_spend + d.ad_spend)
         ad_level[fid] = lvl
@@ -521,7 +532,9 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
                 units_sold_by_segment={seg: 0.0 for seg in SEGMENTS},
                 cash_before=s.cash,
                 cash_after=s.cash,
-                quality_level=quality_level_from_cumulative_rd(s.cumulative_rd_spend),
+                # No decision (so no tier) for a frozen firm; report its best
+                # tier. Display only -- a bankrupt firm sells nothing.
+                quality_level=max(quality_levels_by_track(s.rd_spend_by_track).values()),
                 ad_level=ad_level_and_multiplier(s.cumulative_ad_spend)[0],
                 plant_capacity=s.plant_capacity,
                 loan_outstanding_after=s.loan_outstanding,

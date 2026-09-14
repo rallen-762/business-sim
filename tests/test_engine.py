@@ -101,7 +101,7 @@ def test_higher_quality_firm_outsells_lower_quality_firm_in_quality_sensitive_se
     # design for it to also shrink an unrelated segment's units (see the
     # dedicated test below), which would confound this specific assertion.
     states = {
-        1: make_state(1, cumulative_rd_spend=700_000, plant_capacity=1_000_000),  # Quality 10
+        1: make_state(1, rd_spend_by_track={"Mid": 700_000}, plant_capacity=1_000_000),  # Quality 10 in Mid
         2: make_state(2, plant_capacity=1_000_000),  # Quality 1
     }
     decisions = {1: make_decision(1, production_qty=1_000_000), 2: make_decision(2, production_qty=1_000_000)}
@@ -123,7 +123,7 @@ def test_capacity_scaling_can_indirectly_shrink_an_unrelated_segment_too():
     # itself doesn't care about quality at all. Documenting this explicitly
     # so it's never mistaken for a bug later.
     states = {
-        1: make_state(1, cumulative_rd_spend=700_000),  # Quality 10, base 45,000 capacity
+        1: make_state(1, rd_spend_by_track={"Mid": 700_000}),  # Quality 10 in Mid, base 45,000 capacity
         2: make_state(2),  # Quality 1, same capacity
     }
     decisions = {1: make_decision(1), 2: make_decision(2)}  # both request 45,000 units
@@ -501,10 +501,41 @@ def test_over_cap_rd_is_not_burned_but_the_engine_cap_only_delays_by_one_round()
     first = process_round(states, {1: make_decision(1, rd_spend=700_000)})[1]
     assert first.quality_level == 1 + MAX_QUALITY_LEVEL_GAIN_PER_ROUND  # capped
 
-    # Next round, with the spend now banked in cumulative:
-    states = {1: make_state(1, cash=10_000_000, cumulative_rd_spend=700_000)}
+    # Next round, with the spend now banked in that tier:
+    states = {1: make_state(1, cash=10_000_000, rd_spend_by_track={"Mid": 700_000})}
     second = process_round(states, {1: make_decision(1, rd_spend=0)})[1]
     assert second.quality_level == 10  # cap has nothing to hold back anymore
+
+
+# --------------------------------------------------------------------------- #
+# Quality is tier-bound -- a tech tree, not one firm-wide pool
+# --------------------------------------------------------------------------- #
+
+def test_quality_in_one_tier_does_not_carry_into_another():
+    states = {1: make_state(1, rd_spend_by_track={"Mid": 700_000})}  # Mid is Level 10
+    assert process_round(states, {1: make_decision(1, track="Mid")})[1].quality_level == 10
+    assert process_round(states, {1: make_decision(1, track="Premium")})[1].quality_level == 1
+    assert process_round(states, {1: make_decision(1, track="Entry")})[1].quality_level == 1
+
+
+def test_rd_builds_the_tier_sold_that_round_from_that_tiers_own_level():
+    # Premium already has Level 3's spend; Mid is maxed. $100,000 more while
+    # selling Premium must climb from Premium's 3, not from Mid's 10.
+    states = {1: make_state(1, cash=10_000_000, rd_spend_by_track={"Mid": 700_000, "Premium": 100_000})}
+    result = process_round(states, {1: make_decision(1, track="Premium", rd_spend=100_000)})[1]
+    assert result.quality_level == 5  # $200,000 cumulative in Premium
+
+
+def test_the_all_tier_total_no_longer_sets_quality():
+    # cumulative_rd_spend is the lifetime total across tiers; it must not
+    # leak quality into a tier that was never funded.
+    states = {1: make_state(1, cumulative_rd_spend=700_000)}
+    assert process_round(states, {1: make_decision(1)})[1].quality_level == 1
+
+
+def test_a_bankrupt_firms_frozen_row_reports_its_best_tier():
+    states = {1: make_state(1, bankrupt=True, rd_spend_by_track={"Entry": 50_000, "Premium": 200_000})}
+    assert process_round(states, {})[1].quality_level == 5
 
 
 def test_cap_does_not_interfere_with_normal_single_level_steps():

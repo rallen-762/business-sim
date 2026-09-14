@@ -66,6 +66,7 @@ from app.constants import (
     QUALITY_LADDER,
     ROUNDS_PER_WORLD,
     TRACKS,
+    rd_spend_in_track,
     track_unit_cost,
 )
 from app.engine import FirmDecision
@@ -118,13 +119,13 @@ def decide(
     round_number,
     cash,
     capacity,
-    cumulative_rd_spend,
     cumulative_ad_spend,
     loan_outstanding,
     last_price,
     last_profit,
     last_units_lost_to_capacity=0.0,
     rng=None,
+    rd_spend_by_track=None,
 ) -> FirmDecision:
     """Dispatches to one profile's decision function and returns a fully-
     formed FirmDecision (is_auto=True -- a bot's decision is never a real
@@ -132,7 +133,11 @@ def decide(
 
     Only THIS firm's own state is ever passed in -- see the module
     docstring's visibility rule. `rng` defaults to the stdlib `random`
-    module; pass a seeded random.Random(seed) for reproducible trials."""
+    module; pass a seeded random.Random(seed) for reproducible trials.
+
+    `rd_spend_by_track` ({tier: R&D}) is what quality-seeking profiles read,
+    since quality is tier-bound -- the firm's all-tier R&D total is
+    deliberately not passed, so no profile can mistake it for quality."""
     rng = rng if rng is not None else _random_module
 
     if profile == "underbidder":
@@ -141,7 +146,7 @@ def decide(
         fields = _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng,
                                    last_units_lost_to_capacity)
     elif profile == "elite":
-        fields = _decide_elite(round_number, cash, capacity, cumulative_rd_spend, loan_outstanding, rng)
+        fields = _decide_elite(round_number, cash, capacity, rd_spend_by_track, loan_outstanding, rng)
     elif profile == "random":
         fields = _decide_random(cash, capacity, rng)
     else:
@@ -266,9 +271,12 @@ ELITE_CELEBRITY_CASH_THRESHOLD = 300_000  # same reasoning as Marketing's
 ELITE_CELEBRITY_START_ROUND = 7
 
 
-def _decide_elite(round_number, cash, capacity, cumulative_rd_spend, loan_outstanding, rng):
+def _decide_elite(round_number, cash, capacity, rd_spend_by_track, loan_outstanding, rng):
     # Rounds 1-3: Mid tier. Rounds 4+: Premium tier.
     track = "Mid" if round_number <= 3 else "Premium"
+    # Quality is tier-bound, so the ramp measures progress in the tier it's
+    # selling now -- Mid R&D from rounds 1-3 doesn't carry into Premium.
+    cumulative_rd_spend = rd_spend_in_track(rd_spend_by_track, track)
 
     # R&D ramps toward the Level-10 cumulative threshold roughly evenly
     # across all 10 rounds -- NOT front-loaded in Round 1 -- and every

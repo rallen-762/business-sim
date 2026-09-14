@@ -114,6 +114,24 @@ def quality_level_from_cumulative_rd(cumulative_rd: float) -> int:
     return level
 
 
+# Quality is bound to a tier -- a tech tree, not one firm-wide pool. R&D spent
+# while selling a tier builds quality in THAT tier only; switching tiers starts
+# from whatever that tier already has (Level 1 if it's never been funded).
+# Stored as {tier: cumulative R&D spend} on Firm.rd_spend_by_track; a tier
+# that has never been funded is simply absent, so read it through these
+# rather than indexing the dict directly.
+def rd_spend_in_track(rd_spend_by_track: dict | None, track: str) -> float:
+    return float((rd_spend_by_track or {}).get(track, 0.0))
+
+
+def quality_levels_by_track(rd_spend_by_track: dict | None) -> dict[str, int]:
+    """{tier: quality level} for every tier, in TRACKS order."""
+    return {
+        t: quality_level_from_cumulative_rd(rd_spend_in_track(rd_spend_by_track, t))
+        for t in TRACKS
+    }
+
+
 # A firm can climb at most this many Quality Levels in a single round.
 # Without it, a Round-1 firm with enough cash could buy its way from Level
 # 1 straight to Level 10 in one move, which made R&D a single up-front

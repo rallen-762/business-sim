@@ -1192,10 +1192,59 @@ def test_maxed_out_firm_cannot_submit_any_rd(app, client):
     firm_id = register_firm(client, world_id, 1, "Nike")
     with app.app_context():
         firm = db.session.get(Firm, firm_id)
-        firm.cumulative_rd_spend = 700_000      # already Level 10
+        firm.rd_spend_by_track = {"Mid": 700_000}      # Mid already Level 10
         db.session.commit()
     resp = submit_decision(client, rd_spend="50000", production_qty="1000", follow_redirects=True)
     assert b"maximum Quality Level" in resp.data
+
+
+def test_a_tier_maxed_elsewhere_still_accepts_rd_in_a_new_tier(app, client):
+    # Quality is tier-bound: Level 10 in Mid means nothing for Premium, so
+    # R&D submitted with Premium is measured against Premium's own cap.
+    from app.constants import max_rd_spend_this_round
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.rd_spend_by_track = {"Mid": 700_000}
+        db.session.commit()
+    cap = max_rd_spend_this_round(0)
+    submit_decision(client, track="Premium", rd_spend=str(int(cap)), production_qty="1000")
+    with app.app_context():
+        d = RoundDecision.query.filter_by(firm_id=firm_id).first()
+        assert d is not None and d.rd_spend == cap and d.track == "Premium"
+
+
+def test_rd_is_credited_to_the_tier_it_was_spent_in(app, client):
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, track="Entry", rd_spend="50000", production_qty="1000")
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert firm.rd_spend_by_track == {"Entry": 50_000}
+        assert firm.cumulative_rd_spend == 50_000  # all-tier total still kept
+        result = RoundResult.query.filter_by(firm_id=firm_id, round_number=1).one()
+        assert result.quality_level == 2
+
+
+def test_dashboard_shows_quality_for_all_three_tiers(app, client):
+    world_id = create_world(client, slots=1)
+    firm_id = register_firm(client, world_id, 1, "Nike")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.rd_spend_by_track = {"Premium": 200_000}   # Premium Level 5
+        firm.last_track = "Mid"
+        db.session.commit()
+    body = client.get("/firm").data.decode("utf-8")
+    assert body.count('class="tier-quality-row') == 3
+    assert 'data-tier="Premium"' in body and "5/10" in body
+    # The form opens on Mid, so the headline level and R&D options are Mid's.
+    import re
+    assert re.search(r'tier-quality-row is-active"[^>]*data-tier="Mid"', body)
+    assert "reach Quality Level 2" in body
+    # Every tier's options ship to the page so switching tiers can swap them.
+    assert "const RD_BY_TIER" in body
 
 
 # --------------------------------------------------------------------------- #
@@ -1341,19 +1390,24 @@ def test_google_site_verification_tag_is_present_on_every_page(client):
     assert tag in client.get(f"/teacher/worlds/{world_id}/present").data.decode("utf-8")
 
 
-def test_auto_refreshing_projector_board_does_not_pulse_its_exit(client):
-    # Counterpart to the sandbox test: the classroom board reloads every 30s,
-    # so a one-time pulse would repeat forever behind a class discussion.
+def test_projector_exit_is_a_persistent_button_on_every_classroom_board(client):
+    # The exit used to be a faint top-right link with a one-time pulse, and
+    # was still reported as invisible. It's now the same solid button on the
+    # live board and the held one -- no pulse to miss, nothing that varies.
     world_id = create_world(client, slots=1)
     teacher_login(client)
 
-    live = client.get(f"/teacher/worlds/{world_id}/present").data.decode("utf-8")
-    assert 'http-equiv="refresh"' in live, "precondition: this board auto-reloads"
-    assert "flash-once" not in live
+    for path in (f"/teacher/worlds/{world_id}/present", f"/teacher/worlds/{world_id}/present?hold=1"):
+        body = client.get(path).data.decode("utf-8")
+        assert '<a class="present-exit" href=' in body, path
+        assert "flash-once" not in body, path
 
-    # Frozen with ?hold=1, a human is reading it -- pulse is welcome there.
-    held = client.get(f"/teacher/worlds/{world_id}/present?hold=1").data.decode("utf-8")
-    assert "flash-once" in held
+    css = client.get("/static/css/style.css").data.decode("utf-8")
+    rule = css[css.index(".present-exit {"):]
+    rule = rule[:rule.index("}")]
+    assert "bottom:" in rule and "background: var(--accent-primary)" in rule
+    assert "opacity" not in rule, "the exit must not be dimmed at rest again"
+    assert "flash-once" not in css
 
 
 # --------------------------------------------------------------------------- #

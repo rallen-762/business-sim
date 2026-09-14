@@ -71,6 +71,10 @@ rather than degrading.
   A teacher and a student may be signed in at once — the firm dashboard shows a warning banner
   with one-click teacher sign-out, because on a shared classroom device silent teacher access is
   a real security problem.
+- **Quality is tier-bound.** Quality Level comes from `Firm.rd_spend_by_track`
+  (`{tier: R&D}`), not `cumulative_rd_spend` (now just the all-tier total). Read it
+  through `quality_levels_by_track()` / `rd_spend_in_track()`. The column is
+  `JSON(none_as_null=True)` so init-db's `IS NULL` backfill can find unbuilt rows.
 - `IS_LOCAL_DEV = "DATABASE_URL" not in os.environ`, forced False under TESTING. Local dev skips
   the teacher login gate; production does not.
 
@@ -104,7 +108,10 @@ normal screen distance and sizes in rem/px. The ONE exception is the projector
 view (`present.html`), which is the only thing shown on a wall and the only
 place that uses `vw` units — every `.present-*` rule scales to the viewport so
 standings are legible across a room. Don't apply wall-scale sizing anywhere
-else, and don't shrink the projector view to match the rest.
+else, and don't shrink the projector view to match the rest. The same board
+also shows on student screens (sandbox, and classroom when the teacher enables
+`show_standings_to_students`), so its controls use `clamp()` with a rem floor —
+see `.present-exit`.
 
 **What this replaced, and don't drift back to it.** The original look was a
 conventional dashboard — generic semantic tokens (`--bg`, `--surface`,

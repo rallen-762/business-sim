@@ -32,6 +32,24 @@
     <span class="banner">Game Complete</span>
   {% endif %}
 
+  {# Optional, off by default. When on, each team's screen opens the
+     standings board once after Process Round, then returns them to their
+     own Results card. Open Round works exactly as before either way. #}
+  {% if world.mode == "classroom" %}
+  <form method="post" action="{{ url_for('teacher.toggle_student_standings', world_id=world.id) }}"
+        style="margin-top:14px;">
+    <input type="hidden" name="enabled" value="{{ '0' if world.show_standings_to_students else '1' }}">
+    <button class="btn secondary" type="submit">
+      {{ "Stop Showing Standings on Team Screens" if world.show_standings_to_students else "Show Standings on Team Screens" }}
+    </button>
+    <p class="help-text" style="margin-top:6px;">
+      {% if world.show_standings_to_students %}<strong>On:</strong> after you process a round, each team sees the
+        standings board first, then their own results.
+      {% else %}<strong>Off:</strong> teams go straight to their own results after you process a round.{% endif %}
+    </p>
+  </form>
+  {% endif %}
+
   {# Sits with the round controls because it's the fix for a premature click
      on one of them. Hidden entirely until there's something to undo -- a
      disabled control here would just invite a confused click mid-class. #}

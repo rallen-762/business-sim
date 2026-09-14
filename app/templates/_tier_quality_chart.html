@@ -1,0 +1,18 @@
+{# Quality by tier: one short bar per tier, filled to its level out of 10.
+   Quality is tier-bound (a tech tree), so this is the only honest picture of
+   it -- a single number would hide that switching tiers starts from that
+   tier's own level. `active_tier` is highlighted; the decision form's JS
+   moves the highlight when the Tier select changes (data-tier hooks).
+   Needs: tracks, tier_quality, tier_accents, active_tier. #}
+<div class="tier-quality" role="list" aria-label="Quality level in each tier">
+  {% for t in tracks %}
+  <div class="tier-quality-row{% if t == active_tier %} is-active{% endif %}" role="listitem"
+       data-tier="{{ t }}" style="--tier-accent: {{ tier_accents[t] }};">
+    <span class="tier-quality-name">{{ t }}</span>
+    <span class="tier-quality-bar" aria-hidden="true">
+      <span class="tier-quality-fill" style="width: {{ tier_quality[t] * 10 }}%;"></span>
+    </span>
+    <span class="tier-quality-level">{{ tier_quality[t] }}/10</span>
+  </div>
+  {% endfor %}
+</div>

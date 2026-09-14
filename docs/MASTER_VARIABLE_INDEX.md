@@ -42,7 +42,8 @@ only: the state-update block at the end of
 | `cash` | Money on hand | float, $ | round processing; Undo restore | affordability checks, production sizing, bot decisions | ● |
 | `plant_capacity` | Capacity in effect | int, units | round processing | `effective_capacity` | ● |
 | `pending_capacity_increase` | Expansion maturing next round | int, units | round processing | `effective_capacity` | ● |
-| `cumulative_rd_spend` | Lifetime R&D | float, $ | round processing (`+= d.rd_spend`) | `quality_level_from_cumulative_rd`, ladder presets | ● |
+| `cumulative_rd_spend` | Lifetime R&D, all tiers combined | float, $ | round processing (`+= d.rd_spend`) | informational only — quality no longer reads it | ○ |
+| `rd_spend_by_track` | R&D per tier `{tier: $}` — sets each tier's Quality Level | JSON dict | round processing (new dict, `[d.track] += d.rd_spend`); Undo restore; `init-db` rebuild from history | `quality_levels_by_track`, `rd_spend_in_track`, engine Step 3, R&D cap/presets, Elite bot | ● |
 | `cumulative_ad_spend` | Lifetime advertising | float, $ | round processing | `ad_level_and_multiplier`, presets | ● |
 | `loan_outstanding` | Debt balance | float, $ | round processing | soft-penalty gate, interest projection | ● |
 | `loan_used_ever` | One loan per firm per world | bool | round processing | bankruptcy trigger | ● |
@@ -210,6 +211,7 @@ defensively in the engine, not just in the UI.
 | `current_round` | Round in progress | int | `_open_next_round`, Undo | ○ |
 | `status` | collecting / transition / complete | str | round processing, Undo | ○ |
 | `reopened_round` | The one round Undo made editable again | int, nullable | Undo sets, processing clears | ○ |
+| `show_standings_to_students` | Classroom only: team screens open the standings board once after each processed round | bool, default false | teacher toggle (`toggle_student_standings`) | ○ |
 | `game_code` | Globally unique join code | str | creation | ○ |
 | `planned_firm_slots` | Pre-created empty slots | int | creation | ○ |
 
@@ -230,7 +232,7 @@ Pure logic in `app/bots.py`; a bot sees **only its own history**.
 | `UNDERBIDDER_TRACK`, `UNDERBIDDER_START_PRICE`, `UNDERBIDDER_PRICE_STEP`, `UNDERBIDDER_MIN_MARGIN`, `UNDERBIDDER_PRICE_FLOOR` | Underbidder | Price floor is a real margin over its own unit cost, not a magic number |
 | `MARKETING_PRICE_BASE`, `MARKETING_AD_RAMP_ROUNDS`, `MARKETING_CELEBRITY_CASH_THRESHOLD` | Marketing | Ramps ads to Level 9, never 10 |
 | `MARKETING_EXPAND_MIN_LOST_UNITS`, `MARKETING_EXPAND_CASH_BUFFER` | Marketing | The only profile that expands its plant, and only after actually selling out |
-| `ELITE_CELEBRITY_CASH_THRESHOLD`, `ELITE_CELEBRITY_START_ROUND`, `ELITE_PRICE_PREMIUM` | Elite | Signs a Movie Star from round 7 |
+| `ELITE_CELEBRITY_CASH_THRESHOLD`, `ELITE_CELEBRITY_START_ROUND`, `ELITE_PRICE_PREMIUM` | Elite | Signs a Movie Star from round 7. R&D ramp is measured in the tier it's selling (`rd_spend_by_track`), so its rounds 1–3 Mid R&D doesn't count toward Premium |
 | `_AD_LEVEL_9_THRESHOLD`, `_RD_LEVEL_10_THRESHOLD` | shared | Ladder boundaries the profiles aim at |
 
 ---

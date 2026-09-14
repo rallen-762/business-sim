@@ -62,7 +62,7 @@ def log_in_teacher():
     session["is_teacher"] = True
 
 
-FIRM_SESSION_KEYS = ("firm_id", "world_id")
+FIRM_SESSION_KEYS = ("firm_id", "world_id", "standings_seen")
 TEACHER_SESSION_KEYS = ("is_teacher", "reset_passwords")
 # Sandbox is its own role, scoped like the other two so signing into it
 # never touches a team or teacher session in the same browser. It is

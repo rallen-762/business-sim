@@ -137,6 +137,12 @@ class World(db.Model):
     # frozen and undo would help nobody.
     reopened_round = db.Column(db.Integer, nullable=True)
 
+    # Classroom only, teacher-controlled, off by default: when on, a team's
+    # screen opens the full-screen standings board once after each round is
+    # processed (see firm.dashboard / firm.standings). Sandbox always shows
+    # its board and ignores this.
+    show_standings_to_students = db.Column(db.Boolean, nullable=False, default=False)
+
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     firms = db.relationship("Firm", backref="world", cascade="all, delete-orphan")
@@ -175,7 +181,17 @@ class Firm(db.Model):
     cash = db.Column(db.Float, nullable=False)
     plant_capacity = db.Column(db.Integer, nullable=False)
     pending_capacity_increase = db.Column(db.Integer, nullable=False, default=0)
+    # Lifetime R&D across ALL tiers. Quality no longer reads this -- quality
+    # is per tier, from rd_spend_by_track below. Kept as the firm-wide total.
     cumulative_rd_spend = db.Column(db.Float, nullable=False, default=0)
+    # {tier: cumulative R&D spent while selling that tier}. Quality Level is
+    # derived per tier from this (constants.quality_levels_by_track). A plain
+    # JSON column: always assign a NEW dict, never mutate this one in place,
+    # or SQLAlchemy won't see the change. Nullable only because rows that
+    # predate it are backfilled by init-db; code treats None as {}.
+    # none_as_null: without it SQLAlchemy writes Python None as the JSON
+    # value 'null', which init-db's IS NULL backfill would never find.
+    rd_spend_by_track = db.Column(db.JSON(none_as_null=True), nullable=True, default=lambda: {})
     cumulative_ad_spend = db.Column(db.Float, nullable=False, default=0)
     loan_outstanding = db.Column(db.Float, nullable=False, default=0)
     loan_used_ever = db.Column(db.Boolean, nullable=False, default=False)
