@@ -183,19 +183,53 @@ def test_classroom_worlds_still_appear(client):
 # The round loop -- no teacher step
 # --------------------------------------------------------------------------- #
 
-def test_player_processes_a_round_themselves(client):
+def test_submitting_runs_the_round_with_no_separate_click(client):
+    # There used to be a "Run Round" button after submitting. With no one
+    # else to wait for it was a pointless extra step -- submit IS the trigger.
     sandbox_login(client)
     start_game(client)
-    submit(client)
-
     world = World.query.filter_by(mode="sandbox").one()
     assert world.current_round == 1
 
-    client.post("/sandbox/round")
+    submit(client)
 
     world = World.query.filter_by(mode="sandbox").one()
-    assert world.current_round == 2, "should advance without a teacher"
+    assert world.current_round == 2, "should advance without a teacher or a second click"
     assert world.status == "collecting", "next round should already be open"
+    assert "Run Round" not in client.get("/firm").data.decode("utf-8")
+
+
+def test_a_stale_run_round_post_does_not_play_a_round_for_the_player(client):
+    # The old button's route still exists for games left mid-round. A repeat
+    # or stale POST must NOT play the next round on the player's behalf.
+    sandbox_login(client)
+    start_game(client)
+    submit(client)                      # runs round 1, opens round 2
+    client.post("/sandbox/round")       # nothing submitted for round 2
+
+    world = World.query.filter_by(mode="sandbox").one()
+    assert world.current_round == 2
+    assert RoundResult.query.filter_by(round_number=2).count() == 0
+
+
+def test_a_game_left_with_a_submitted_unrun_round_finishes_it(client):
+    # A sandbox game that had submitted but not clicked Run Round before this
+    # change: the dashboard finishes the round itself (auto-POST), no button.
+    sandbox_login(client)
+    start_game(client)
+    world = World.query.filter_by(mode="sandbox").one()
+    player = Firm.query.filter_by(world_id=world.id, slot_number=1).one()
+    db.session.add(RoundDecision(firm_id=player.id, round_number=1, price=80,
+                                 production_qty=1000, track="Mid"))
+    db.session.commit()
+
+    body = client.get("/firm").data.decode("utf-8")
+    assert "Run Round" not in body
+    assert 'id="finish-round"' in body and "sandbox/round" in body
+
+    resp = client.post("/sandbox/round")
+    assert "/sandbox/results/" in resp.headers["Location"]
+    assert World.query.filter_by(mode="sandbox").one().current_round == 2
 
 
 def test_a_sandbox_round_produces_the_same_rows_a_classroom_round_does(client):
@@ -230,8 +264,7 @@ def test_bots_act_every_round_without_being_triggered(client):
 def test_round_results_go_to_the_projector_view_then_the_market(client):
     sandbox_login(client)
     start_game(client)
-    submit(client)
-    resp = client.post("/sandbox/round")
+    resp = submit(client)
     assert "/sandbox/results/" in resp.headers["Location"]
 
     world = World.query.filter_by(mode="sandbox").one()

@@ -184,11 +184,16 @@
 <div class="card">
   <span class="banner">Round {{ world.current_round }} Submitted</span>
   {% if world.mode == "sandbox" %}
-  <p>Your decision is locked in. Run the round whenever you're ready &mdash; there's no one else to wait for.</p>
-  <form method="post" action="{{ url_for('sandbox.play_round') }}">
-    <button class="btn full" type="submit">Run Round {{ world.current_round }}</button>
+  {# Normally unreachable: submitting in sandbox runs the round immediately.
+     This only catches a game left with a submitted-but-unrun round from
+     before that change. It finishes the round by itself -- no Run Round
+     button -- via a POST (never a GET that changes the game). The noscript
+     button is the only way through for a browser with JS off. #}
+  <p>Running Round {{ world.current_round }}&hellip;</p>
+  <form method="post" action="{{ url_for('sandbox.play_round') }}" id="finish-round">
+    <noscript><button class="btn full" type="submit">Continue</button></noscript>
   </form>
-  <p class="help-text" style="margin-top:8px;">The bots decide at the same moment you do, using only their own history.</p>
+  <script>document.getElementById('finish-round').submit();</script>
   {% else %}
   <p>You've submitted your decision for this round. Decisions can't be edited once submitted -- check back once the teacher processes the round.</p>
   {% endif %}

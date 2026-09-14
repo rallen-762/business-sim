@@ -1405,7 +1405,9 @@ def test_projector_exit_is_a_persistent_button_on_every_classroom_board(client):
     css = client.get("/static/css/style.css").data.decode("utf-8")
     rule = css[css.index(".present-exit {"):]
     rule = rule[:rule.index("}")]
-    assert "bottom:" in rule and "background: var(--accent-primary)" in rule
+    # Top right: bottom-centre covered the standings bars.
+    assert "top:" in rule and "right:" in rule and "bottom:" not in rule
+    assert "background: var(--accent-primary)" in rule
     assert "opacity" not in rule, "the exit must not be dimmed at rest again"
     assert "flash-once" not in css
 
@@ -1473,6 +1475,20 @@ def test_rd_and_ad_spend_have_no_free_entry_box(client):
         # No number input may carry these names.
         assert f'type="number"' not in body.split(f'name="{field}"')[0][-120:], \
             f"{field} still has a free-entry number box"
+
+
+def test_market_dashboard_shows_the_tier_beside_every_price(client):
+    # A price means little without its tier ($90 is cheap for Premium, steep
+    # for Entry), so both price tables carry a Tier column.
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, track="Premium", price="95", production_qty="10000")
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    body = client.get("/market").data.decode("utf-8")
+    assert body.count("<th>Tier</th><th>Price</th>") == 2
+    assert body.count('<span class="tier-chip"') >= 2
+    assert "img/tiers/premium.png" in body
 
 
 def test_price_is_still_free_entry(client):

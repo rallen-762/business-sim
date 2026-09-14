@@ -12,9 +12,10 @@ What it actually changes:
 
  1. No teacher gate. A classroom round is two deliberate steps (process,
     then open the next) so a teacher controls pacing and students see the
-    transition screen. Here one player is the whole class, so
-    play_round() calls the SAME _process_current_round/_open_next_round
-    functions back to back. The separation is removed, not reimplemented.
+    transition screen. Here one player is the whole class, so submitting a
+    decision runs run_sandbox_round(), which calls the SAME
+    _process_current_round/_open_next_round functions back to back. The
+    separation is removed, not reimplemented.
 
  2. World.mode keeps these worlds off the Teacher Dashboard, and
     World.rounds lets a sandbox world be a different length later without
@@ -29,8 +30,9 @@ Edge cases considered:
     fallback: if the player somehow triggers a round without submitting,
     engine.synthesize_non_submission_decision covers them exactly as it
     would a student who missed a round.
- 4. play_round refuses to run once the world is complete, so a stale POST
-    or a double-click can't push a finished game past its last round.
+ 4. play_round refuses to run once the world is complete, or when the
+    current round has no submission, so a stale POST or a double-click
+    can't push a game past its last round or play a round for the player.
 """
 
 import secrets
@@ -56,7 +58,7 @@ from app.constants import (
 )
 from app.extensions import db
 from app.market_data import latest_processed_round, standings_with_rank_delta
-from app.models import Firm, World
+from app.models import Firm, RoundDecision, World
 
 bp = Blueprint("sandbox", __name__, url_prefix="/sandbox")
 
@@ -274,12 +276,8 @@ def resume(world_id):
 @bp.route("/round", methods=["POST"])
 @firm_login_required
 def play_round():
-    """Process the current round and open the next one, in a single action.
-
-    This is the teacher's two-button sequence collapsed into one, calling
-    the very same functions -- the classroom flow keeps its deliberate
-    separation, and this mode skips it without forking the round logic.
-    """
+    """Run a sandbox round that was submitted but never run. No page links
+    here any more -- see run_sandbox_round, which submission calls itself."""
     firm = current_firm()
     world = current_world()
 
@@ -291,16 +289,35 @@ def play_round():
         flash("This game is already finished.")
         return redirect(url_for("market.dashboard"))
 
+    # Submitting a decision runs the round by itself now (see
+    # firm.submit_decision), so this route only acts if a submitted round is
+    # still waiting -- a game left mid-round before that change. Without the
+    # check, a stale or repeated POST would play the NEXT round on the
+    # player's behalf with an auto-decision they never made.
+    if not RoundDecision.query.filter_by(firm_id=firm.id, round_number=world.current_round).first():
+        return redirect(url_for("firm.dashboard"))
+
+    return redirect(run_sandbox_round(world))
+
+
+def run_sandbox_round(world):
+    """Process the current round and open the next, in one action, and
+    return where the player should land. Called the moment a sandbox player
+    submits -- there's no one else to wait for, so a separate "Run Round"
+    click was a pointless extra step.
+
+    This is the teacher's two-button sequence collapsed into one, calling
+    the very same functions -- the classroom flow keeps its deliberate
+    separation, and this mode skips it without forking the round logic."""
     _process_current_round(world)
     if world.status != "complete":
         _open_next_round(world)
 
     # Results first, on the same projector screen the classroom uses. Its
-    # exit control returns to the Market Dashboard (see the `return_to`
-    # parameter present.html reads), from which the player clicks back into
-    # their firm -- the review beat the spec asks for, rather than dropping
-    # them straight back into the next decision form.
-    return redirect(url_for("sandbox.results", world_id=world.id))
+    # exit returns to the Market Dashboard, from which the player clicks back
+    # into their firm -- the review beat, rather than dropping them straight
+    # back into the next decision form.
+    return url_for("sandbox.results", world_id=world.id)
 
 
 @bp.route("/results/<int:world_id>")

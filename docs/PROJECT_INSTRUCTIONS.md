@@ -204,7 +204,7 @@ wrong answers (LESSONS_LEARNED #6).
   is one (LESSONS_LEARNED #1).
 - The projector view (`present.html`) is deliberately inert — it changes no
   state. Its only control is the way out: a solid, always-coloured Exit button
-  pinned bottom-centre on every board. It was once a faint link with a one-time
+  pinned top-right on every board (bottom-centre covered the standings bars). It was once a faint link with a one-time
   pulse and was reported invisible; don't dim it again.
 - Every page is theme-aware via CSS tokens, and dynamic pages send
   `Cache-Control: no-store` — classroom devices are shared (LESSONS_LEARNED #4).

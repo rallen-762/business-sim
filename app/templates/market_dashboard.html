@@ -20,6 +20,17 @@
   {% endif %}
 {% endblock %}
 {% block content %}
+{# A price only makes sense next to the tier it's for -- $90 is cheap for
+   Premium and steep for Entry -- so every Price column sits beside a Tier
+   chip, in the same style as the Leading Tier on the segment cards. #}
+{% macro tier_cell(track) -%}
+  {%- if track -%}
+  <span class="tier-chip" style="--tier-accent: {{ tier_accents.get(track, 'var(--panel-alt)') }};">
+    {% if track in tier_icons %}<img src="{{ url_for('static', filename='img/tiers/' ~ tier_icons[track]) }}" alt="">{% endif %}
+    {{ track }}
+  </span>
+  {%- else -%}&mdash;{%- endif -%}
+{%- endmacro %}
 <div class="card">
   <h2>Market Dashboard</h2>
   {% if latest_round is none %}
@@ -48,12 +59,13 @@
 
   <div style="overflow-x:auto;">
   <table>
-    <thead><tr><th>Rank</th><th>Company</th><th>Price</th><th>Units Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
+    <thead><tr><th>Rank</th><th>Company</th><th>Tier</th><th>Price</th><th>Units Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
     <tbody>
       {% for row in standings %}
       <tr class="{{ 'bankrupt' if row.firm.bankrupt }}">
         <td>{{ loop.index }}</td>
         <td>{{ row.firm.team_name }}{% if row.firm.bankrupt %} <span class="badge bankrupt">Bankrupt</span>{% endif %}</td>
+        <td>{{ tier_cell(row.latest_track) }}</td>
         <td>{{ "${:,.2f}".format(row.latest_price) if row.latest_price is not none else "—" }}</td>
         <td>{{ "{:,.0f}".format(row.cum_units) }}</td>
         <td>{{ "${:,.0f}".format(row.cum_revenue) }}</td>
@@ -87,12 +99,13 @@
   </form>
   <div style="overflow-x:auto;">
   <table>
-    <thead><tr><th>Rank</th><th>Company</th><th>Price</th><th>Units Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
+    <thead><tr><th>Rank</th><th>Company</th><th>Tier</th><th>Price</th><th>Units Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
     <tbody>
       {% for row in totals_for_round %}
       <tr>
         <td>{{ loop.index }}</td>
         <td>{{ row.firm.team_name }}</td>
+        <td>{{ tier_cell(row.track) }}</td>
         <td>{{ "${:,.2f}".format(row.price) if row.price is not none else "—" }}</td>
         <td>{{ "{:,.0f}".format(row.units) }}</td>
         <td>{{ "${:,.0f}".format(row.revenue) }}</td>

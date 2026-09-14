@@ -349,5 +349,13 @@ def submit_decision():
     firm.last_track = track
     db.session.commit()
 
+    # Sandbox: the player is the whole class, so there's nobody to wait for --
+    # the round runs the moment they submit, straight to the results board.
+    # Imported here, not at the top: sandbox imports the teacher blueprint,
+    # and this keeps the firm module free of that dependency at load time.
+    if world.mode == "sandbox":
+        from app.blueprints.sandbox import run_sandbox_round
+        return redirect(run_sandbox_round(world))
+
     flash("Decision updated!" if existing else "Decision submitted!")
     return redirect(url_for("firm.dashboard"))

@@ -309,7 +309,8 @@ def latest_round_results(world):
 def cumulative_standings(world):
     """Returns a list of dicts, one per REGISTERED firm that has played at
     least one round, sorted by cumulative profit descending (ties broken
-    by slot_number). Each dict: firm, latest_price, cum_units, cum_revenue,
+    by slot_number). Each dict: firm, latest_price, latest_track (the tier
+    that price was for -- a price means little without it), cum_units, cum_revenue,
     cum_profit, bar_pct (0-100, this firm's |cum_profit| as a percentage of
     the largest |cum_profit| across all firms -- for the Market Dashboard's
     animated standings bar chart; 0 for every firm if the whole field is at
@@ -358,6 +359,7 @@ def cumulative_standings(world):
         rows.append({
             "firm": firm,
             "latest_price": d.price if d else None,
+            "latest_track": d.track if d else None,
             "cum_units": c.cum_units or 0,
             "cum_revenue": c.cum_revenue or 0,
             "cum_profit": c.cum_profit or 0,
@@ -375,7 +377,7 @@ def cumulative_standings(world):
 def round_totals(world, round_number):
     """Returns a list of dicts, one per registered firm with a RoundResult
     for this specific round, sorted by THAT round's profit descending.
-    Each dict: firm, price, units, revenue, profit."""
+    Each dict: firm, price, track, units, revenue, profit."""
     results = (
         RoundResult.query
         .join(Firm, Firm.id == RoundResult.firm_id)
@@ -396,6 +398,7 @@ def round_totals(world, round_number):
         rows.append({
             "firm": r.firm,
             "price": d.price if d else None,
+            "track": d.track if d else None,
             "units": r.units_sold_total,
             "revenue": r.revenue,
             "profit": r.profit,
