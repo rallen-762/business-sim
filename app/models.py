@@ -137,11 +137,11 @@ class World(db.Model):
     # frozen and undo would help nobody.
     reopened_round = db.Column(db.Integer, nullable=True)
 
-    # Classroom only, teacher-controlled, off by default: when on, a team's
-    # screen opens the full-screen standings board once after each round is
-    # processed (see firm.dashboard / firm.standings). Sandbox always shows
-    # its board and ignores this.
-    show_standings_to_students = db.Column(db.Boolean, nullable=False, default=False)
+    # Classroom only, ON by default, teacher can turn it off: when on, a
+    # team's screen opens the full-screen standings board once after each
+    # round is processed (see firm.dashboard / firm.standings). Sandbox always
+    # shows its board and ignores this.
+    show_standings_to_students = db.Column(db.Boolean, nullable=False, default=True)
 
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 

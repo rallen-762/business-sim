@@ -397,6 +397,7 @@ def test_round_results_screen_shows_cumulative_totals(client):
     client.get("/teacher/logout")
 
     client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    client.get("/firm/standings")  # standings board comes first after processing
     resp = client.get("/firm")
     body = resp.data.decode()
     assert "Cumulative Totals" in body
@@ -413,6 +414,7 @@ def test_non_submission_shows_in_universe_status_card(client):
     client.get("/teacher/logout")
 
     client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    client.get("/firm/standings")  # standings board comes first after processing
     resp = client.get("/firm")
     assert b"Emergency Production Directive Issued" in resp.data
 
@@ -487,6 +489,7 @@ def test_firm_dashboard_shows_just_processed_round_result_during_transition(clie
     client.get("/teacher/logout")
 
     client.post(f"/login/{world_id}/1", data={"password": "secret123"})
+    client.get("/firm/standings")  # standings board comes first after processing
     resp = client.get("/firm")
     assert b"Round 1 Results" in resp.data
     assert b"Units Sold" in resp.data
@@ -1362,6 +1365,7 @@ def test_sold_out_banner_appears_only_when_capacity_actually_bound(client):
     with client.application.app_context():
         firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
     client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    client.get("/firm/standings")  # standings board comes first after processing
     body = client.get("/firm").data.decode("utf-8")
     assert "You sold out" in body
     assert "more customers wanted to buy" in body
@@ -1621,6 +1625,7 @@ def test_results_name_the_endorsement_that_ran(client):
 
     firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
     client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    client.get("/firm/standings")  # standings board comes first after processing
     body = client.get("/firm").data.decode("utf-8")
     assert CELEBRITY_LABELS["athlete"] in body
     assert "endorsement ran this round" in body

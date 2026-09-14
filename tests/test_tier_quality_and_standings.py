@@ -71,13 +71,26 @@ def set_standings(client, world_id, on):
 # Standings board on classroom team screens
 # --------------------------------------------------------------------------- #
 
-def test_standings_are_off_by_default_and_teams_go_straight_to_results(client):
+def test_standings_are_on_by_default_for_a_new_classroom_game(client):
+    # Robert: after Process Round, team screens show the standings. It first
+    # shipped defaulting to off, which was not what he asked for.
     world_id = create_world(client)
     register_firm(client, world_id)
     submit(client)
     advance(client, world_id)
 
-    assert World.query.get(world_id).show_standings_to_students is False
+    assert World.query.get(world_id).show_standings_to_students is True
+    resp = client.get("/firm")
+    assert resp.status_code == 302 and resp.headers["Location"].endswith("/firm/standings")
+
+
+def test_when_turned_off_teams_go_straight_to_results(client):
+    world_id = create_world(client)
+    register_firm(client, world_id)
+    set_standings(client, world_id, False)
+    submit(client)
+    advance(client, world_id)
+
     resp = client.get("/firm")
     assert resp.status_code == 200
     assert "Round 1 Results" in resp.data.decode("utf-8")
@@ -142,17 +155,18 @@ def test_teacher_can_turn_it_off_mid_game(client):
 def test_teacher_page_shows_the_toggle_and_its_state(client):
     world_id = create_world(client)
     body = client.get(f"/teacher/worlds/{world_id}").data.decode("utf-8")
-    assert "Show Standings on Team Screens" in body
-    set_standings(client, world_id, True)
-    body = client.get(f"/teacher/worlds/{world_id}").data.decode("utf-8")
     assert "Stop Showing Standings on Team Screens" in body
+    set_standings(client, world_id, False)
+    body = client.get(f"/teacher/worlds/{world_id}").data.decode("utf-8")
+    assert "Show Standings on Team Screens" in body
+    assert "Stop Showing" not in body
 
 
 def test_toggle_requires_teacher_login(client):
     world_id = create_world(client)
     client.get("/teacher/logout")
-    client.post(f"/teacher/worlds/{world_id}/student-standings", data={"enabled": "1"})
-    assert World.query.get(world_id).show_standings_to_students is False
+    client.post(f"/teacher/worlds/{world_id}/student-standings", data={"enabled": "0"})
+    assert World.query.get(world_id).show_standings_to_students is True
 
 
 def test_a_submitted_classroom_team_page_reloads_itself_to_catch_processing(client):

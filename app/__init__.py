@@ -225,8 +225,9 @@ def create_app(config_overrides=None):
             # Tier-bound quality. firms.rd_spend_by_track is nullable with no
             # default on purpose: NULL marks "not yet rebuilt", and the
             # backfill at the end of this command fills exactly those rows.
-            # worlds.show_standings_to_students is NOT NULL DEFAULT false --
-            # off is the correct reading for every existing game.
+            # worlds.show_standings_to_students is NOT NULL DEFAULT true -- ON
+            # for every classroom game unless the teacher turns it off
+            # (confirmed with Robert; it first shipped defaulting to off).
             if "firms" in inspector.get_table_names():
                 firm_cols = {c["name"] for c in inspector.get_columns("firms")}
                 if "rd_spend_by_track" not in firm_cols:
@@ -235,15 +236,32 @@ def create_app(config_overrides=None):
                         conn.commit()
                     print("Added firms.rd_spend_by_track column.")
             if "worlds" in inspector.get_table_names():
-                world_cols = {c["name"] for c in inspector.get_columns("worlds")}
+                world_cols = {c["name"]: c for c in inspector.get_columns("worlds")}
                 if "show_standings_to_students" not in world_cols:
                     with db.engine.connect() as conn:
                         conn.execute(sa.text(
                             "ALTER TABLE worlds ADD COLUMN show_standings_to_students "
-                            "BOOLEAN NOT NULL DEFAULT false"
+                            "BOOLEAN NOT NULL DEFAULT true"
                         ))
                         conn.commit()
                     print("Added worlds.show_standings_to_students column.")
+                elif (
+                    db.engine.dialect.name == "postgresql"
+                    and "false" in str(world_cols["show_standings_to_students"].get("default")).lower()
+                ):
+                    # One-time flip for a database that got the column while it
+                    # still defaulted to off (production did). The column's own
+                    # DEFAULT is the marker: once it reads true this never runs
+                    # again, so a teacher who later turns a game OFF stays off
+                    # across deploys. Postgres only -- SQLite can't alter a
+                    # column default, and it's local dev data.
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text(
+                            "ALTER TABLE worlds ALTER COLUMN show_standings_to_students SET DEFAULT true"
+                        ))
+                        r = conn.execute(sa.text("UPDATE worlds SET show_standings_to_students = true"))
+                        conn.commit()
+                    print(f"Turned standings on team screens ON for {r.rowcount} existing world(s).")
 
             # Old track value -> new tier value, everywhere a track string
             # is stored. "Premium" is unchanged so it's omitted.

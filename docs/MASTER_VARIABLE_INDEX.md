@@ -211,7 +211,7 @@ defensively in the engine, not just in the UI.
 | `current_round` | Round in progress | int | `_open_next_round`, Undo | ○ |
 | `status` | collecting / transition / complete | str | round processing, Undo | ○ |
 | `reopened_round` | The one round Undo made editable again | int, nullable | Undo sets, processing clears | ○ |
-| `show_standings_to_students` | Classroom only: team screens open the standings board once after each processed round | bool, default false | teacher toggle (`toggle_student_standings`) | ○ |
+| `show_standings_to_students` | Classroom only: team screens open the standings board once after each processed round | bool, default **true** | teacher toggle (`toggle_student_standings`) | ○ |
 | `game_code` | Globally unique join code | str | creation | ○ |
 | `planned_firm_slots` | Pre-created empty slots | int | creation | ○ |
 
