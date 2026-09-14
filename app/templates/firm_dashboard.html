@@ -281,6 +281,26 @@
     </div>
   </div>
 
+  {# Who the customers are -- the static half of the Market Dashboard's
+     segment cards (same partial), for reference while deciding. #}
+  <section class="firm-segments" id="firm-segments" aria-labelledby="firm-segments-title">
+    <h3 id="firm-segments-title">Your Customers</h3>
+    <p class="help-text" style="margin-top:0;">Five kinds of buyers. Each cares about price, quality and brand differently &mdash; and some groups are much bigger than others.</p>
+    <div class="segment-profile-grid">
+      {% for seg in segments %}
+      {% set accent = segment_accents.get(seg.name, segment_accent_fallback) %}
+      <div class="segment-card stat" style="--segment-accent: {{ accent.color }};">
+        {% include "_segment_profile.html" %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# Once a recap or reopened-round notice sits above, the inputs start well
+     down the page; this makes the switch from "results" to "your move"
+     unmistakable. #}
+  <h2 class="section-title" id="decision-title">This Round: Price &amp; Investment</h2>
+
   <form method="post" action="{{ url_for('firm.submit_decision') }}" id="decision-form">
     {# Price gets its own full-width row: it's the biggest lever in the game,
        so it gets a slider for feel AND the number box for exact entry (the
@@ -303,6 +323,10 @@
           <div class="reach-bar"><div class="reach-bar-fill" id="reach-bar-fill"></div></div>
           <p class="help-text" id="reach-text" style="margin-top:6px;"></p>
         </div>
+        {# type="button": inside the decision form, so it must never submit. #}
+        <button type="button" class="tour-replay" onclick="window.startTour && window.startTour()">
+          <span class="info-note-icon" aria-hidden="true">?</span> Rewatch the Page Intro
+        </button>
       </div>
       <div class="production-panel">
         <div class="label">Production Quantity <span class="help-text" style="text-transform:none;">(auto-calculated)</span></div>
@@ -656,5 +680,27 @@
 
   recalc();
 </script>
+
+{# First-visit tour: three short boxes, one at a time. Only on the decision
+   screen, where the segments graphic it points at exists. #}
+{% set tour_steps = [
+  {"title": "Welcome, " ~ firm.team_name ~ "!",
+   "text": "You run a headphone company. Your goal: earn the most total profit over " ~ rounds_per_world ~ " rounds."},
+  {"target": "#firm-segments", "title": "Know your customers",
+   "text": "These are your buyers. Pay special attention to Price Sensitivity when you set your price, and to Quality Focus and Brand Pull when you make other investment decisions."},
+  {"target": "#decision-title", "title": "Learn by doing",
+   "text": "Careful: Round 2 is paid for by what you earn selling in Round 1. Invest in quality and ads — but don't overspend now."},
+] %}
+{# Sandbox: every practice game, whenever its Round 1 decision screen loads
+   (logging out and back in included) -- no memory. Classroom: once per team
+   per browser. The button under the price slider replays it either way. #}
+{% if world.mode == "sandbox" %}
+  {% set tour_key = none %}
+  {% set tour_autostart = world.current_round == 1 %}
+{% else %}
+  {% set tour_key = "hcs-tour-firm-" ~ firm.id %}
+  {% set tour_autostart = true %}
+{% endif %}
+{% include "_tour.html" %}
 {% endif %}
 {% endblock %}

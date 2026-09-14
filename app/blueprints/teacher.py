@@ -38,7 +38,7 @@ from flask import Blueprint, Response, flash, redirect, render_template, request
 from werkzeug.security import generate_password_hash
 
 from app.auth import current_firm, log_out_teacher, teacher_login_required
-from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, TIER_ICONS
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, TIER_ICONS, pick_unused_icons
 from app.bots import BOT_PROFILES
 from app.bots import decide as bot_decide
 from app.constants import (
@@ -311,18 +311,14 @@ def assign_bot(world_id, firm_id):
     # profile is assigned to multiple slots.
     firm.team_name = f"Bot #{firm.slot_number} ({BOT_PROFILES[profile]})"
     if is_new_assignment:
-        # Random avatar from the same pool real teams pick from (not a
-        # fixed one per profile) -- confirmed with the user: each bot
-        # instance gets its own random icon so multiple bots of the same
-        # profile still look distinct in the Market Dashboard standings.
-        # Rolled once at first assignment and left alone on reassignment
-        # (like a human team's avatar, it's the slot's look, not the
-        # strategy's).
-        firm.avatar = random.choice(AVATAR_CHOICES)
-        # Same "own random icon" rationale as the avatar, for the two icons
-        # a human team picks for itself at registration.
-        firm.badge = random.choice(BADGE_CHOICES)
-        firm.product_icon = random.choice(PRODUCT_CHOICES)
+        # Random icons from the same pools real teams pick from, but never
+        # one another firm in this game already shows -- a bot wearing a
+        # team's factory, logo or product read as that team. Rolled once at
+        # first assignment and left alone on reassignment (like a human
+        # team's icons, it's the slot's look, not the strategy's).
+        others = Firm.query.filter(Firm.world_id == world_id, Firm.id != firm.id).all()
+        for field, value in pick_unused_icons([f for f in others if f.is_registered]).items():
+            setattr(firm, field, value)
         # Placeholder password so is_registered is True and this slot
         # participates in process_round like any other firm -- never
         # actually used for anything (bots don't log in), just needs to be

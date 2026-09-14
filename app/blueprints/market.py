@@ -59,6 +59,7 @@ def dashboard():
         # This is the FIRM's own view -- see the nav block in the template.
         teacher_view=False,
         firm_name=current_firm().team_name if current_firm() else None,
+        firm_id=current_firm().id if current_firm() else None,
     )
 
 

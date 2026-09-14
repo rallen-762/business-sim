@@ -46,7 +46,7 @@ from app.auth import (
     current_firm, current_world, firm_login_required, log_in_firm,
     log_in_sandbox, log_out_sandbox, sandbox_login_required, teacher_login_required,
 )
-from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, pick_unused_icons
 from app.blueprints.teacher import _generate_game_code, _open_next_round, _process_current_round
 from app.bots import BOT_PROFILES
 from app.constants import (
@@ -75,7 +75,10 @@ def bot_display_name(slot_number, profile):
     return f"Bot #{slot_number} ({BOT_PROFILES[profile]})"
 
 
-def _make_bot_firm(world, slot_number, profile):
+def _make_bot_firm(world, slot_number, profile, other_firms=()):
+    """`other_firms`: firms already in this game (the player, earlier bots),
+    whose icons this bot must not reuse -- see avatars.pick_unused_icons."""
+    icons = pick_unused_icons(other_firms)
     return Firm(
         world_id=world.id,
         slot_number=slot_number,
@@ -88,9 +91,7 @@ def _make_bot_firm(world, slot_number, profile):
         plant_capacity=STARTING_PLANT_CAPACITY,
         last_price=BOOTSTRAP_DEFAULT_PRICE,
         last_track=BOOTSTRAP_DEFAULT_TRACK,
-        avatar=AVATAR_CHOICES[slot_number % len(AVATAR_CHOICES)],
-        badge=BADGE_CHOICES[(slot_number * 7) % len(BADGE_CHOICES)],
-        product_icon=PRODUCT_CHOICES[(slot_number * 3) % len(PRODUCT_CHOICES)],
+        **icons,
     )
 
 
@@ -202,8 +203,11 @@ def _create_single_player_game(team_name, profiles, icons=None):
     )
     db.session.add(player)
 
+    in_game = [player]
     for offset, profile in enumerate(profiles, start=2):
-        db.session.add(_make_bot_firm(world, offset, profile))
+        bot = _make_bot_firm(world, offset, profile, in_game)
+        in_game.append(bot)
+        db.session.add(bot)
 
     db.session.commit()
     return player
@@ -379,8 +383,11 @@ def run_bots_only():
     db.session.add(world)
     db.session.flush()
 
+    in_game = []
     for slot, profile in enumerate(profiles, start=1):
-        db.session.add(_make_bot_firm(world, slot, profile))
+        bot = _make_bot_firm(world, slot, profile, in_game)
+        in_game.append(bot)
+        db.session.add(bot)
     db.session.commit()
 
     run_to_completion(world)

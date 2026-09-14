@@ -143,36 +143,7 @@
     {% for seg in segments %}
     {% set accent = segment_accents.get(seg.name, segment_accent_fallback) %}
     <div class="segment-card stat" style="--segment-accent: {{ accent.color }};">
-      <div class="segment-head">
-        <span class="segment-icon" aria-hidden="true">{{ accent.icon }}</span>
-        <span class="segment-name">{{ seg.display_name }}</span>
-      </div>
-
-      {# Static, universal facts about WHO this segment is -- deliberately no
-         round caption, same permanence as the name and icon above. #}
-      {% if seg.traits %}
-      <div class="label">What they care about</div>
-      <ul class="segment-traits">
-        {% for trait_label, level, level_word in seg.traits %}
-        <li class="segment-trait">
-          <span class="segment-trait-name">{{ trait_label }}</span>
-          <span class="segment-trait-dots" role="img" aria-label="{{ level_word }}">
-            {% for i in range(trait_dots) %}<i class="dot{{ ' filled' if i < level else '' }}"></i>{% endfor %}
-          </span>
-          <span class="segment-trait-level">{{ level_word }}</span>
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-
-      <div class="label">Relative Size</div>
-      <div class="segment-size-row">
-        <div class="segment-bar" role="img"
-             aria-label="{{ "%.0f"|format(seg.relative_size_pct) }} percent of all buyers">
-          <div class="segment-bar-fill" style="width: {{ seg.relative_size_pct }}%;"></div>
-        </div>
-        <span class="segment-size-pct">{{ "%.0f"|format(seg.relative_size_pct) }}%</span>
-      </div>
+      {% include "_segment_profile.html" %}
 
       {# The headline economic number on this card, so it gets the weight. #}
       <div class="label">Avg. Consumer Surplus</div>
@@ -201,5 +172,20 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}
+
+{# A team's first visit (not the teacher's view), once there's actually
+   market data to use -- before Round 1 the page is empty and the advice
+   would point at nothing. One box, same component as the Firm Dashboard's
+   tour. #}
+{% if not teacher_view and latest_round is not none and firm_id %}
+{% set tour_steps = [
+  {"title": "Know your market",
+   "text": "Every rival's prices, tiers and results are here. Use them to set smarter prices and gain a competitive advantage."},
+] %}
+{# Once per team per browser; a new practice game is a new firm, so sandbox
+   players see it once in every game. #}
+{% set tour_key = "hcs-market-intro-firm-" ~ firm_id %}
+{% include "_tour.html" %}
 {% endif %}
 {% endblock %}

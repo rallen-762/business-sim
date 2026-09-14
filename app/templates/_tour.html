@@ -1,0 +1,110 @@
+{# A click-through overlay of short text boxes.
+
+   Needs: tour_steps -- [{title, text, target?}] where target is an optional
+   CSS selector to spotlight -- and tour_key.
+
+   tour_key set:  shows automatically once per browser, then remembers it
+                  (localStorage). The key carries the firm id, so on a shared
+                  classroom Chromebook the NEXT team still gets the tour.
+   tour_key none: shows automatically EVERY time the page loads, no memory.
+   tour_autostart (optional, default true): false means never open by itself
+                  -- sandbox passes current_round == 1, so each practice game
+                  opens it on its Round 1 decision screen, even after logging
+                  out and back in, and not in later rounds.
+
+   Either way window.startTour() replays it on demand (the "Rewatch the Page
+   Intro" button). If storage is blocked (private window) a keyed tour just
+   shows each visit -- never an error. Without JS nothing renders. #}
+<div class="tour" id="tour" hidden>
+  <div class="tour-backdrop"></div>
+  <div class="tour-box" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+    <div class="tour-step" id="tour-step"></div>
+    <h3 class="tour-title" id="tour-title"></h3>
+    <p class="tour-text" id="tour-text"></p>
+    <div class="tour-actions">
+      <button type="button" class="tour-skip" id="tour-skip">Skip</button>
+      <button type="button" class="btn" id="tour-next">Next</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const STEPS = {{ tour_steps|tojson }};
+    const KEY = {{ tour_key|tojson }};
+    // Whether to open by itself on load at all (the replay button works regardless).
+    const AUTO = {{ (tour_autostart if tour_autostart is defined else true)|tojson }};
+
+    const tour = document.getElementById('tour');
+    const box = tour.querySelector('.tour-box');
+    const next = document.getElementById('tour-next');
+    const skip = document.getElementById('tour-skip');
+    let index = 0;
+    let lit = null;
+
+    function clearSpotlight() {
+      if (lit) { lit.classList.remove('tour-highlight'); lit = null; }
+    }
+
+    function place(target) {
+      box.style.top = ''; box.style.left = ''; box.classList.remove('anchored');
+      if (!target || window.innerWidth < 700) return;  // centred / bottom sheet
+      const r = target.getBoundingClientRect();
+      const boxH = box.offsetHeight, boxW = box.offsetWidth, gap = 16;
+      let top = r.bottom + gap;
+      if (top + boxH > window.innerHeight - gap) top = Math.max(gap, r.top - boxH - gap);
+      const left = Math.min(Math.max(gap, r.left), window.innerWidth - boxW - gap);
+      box.classList.add('anchored');
+      box.style.top = top + 'px';
+      box.style.left = left + 'px';
+    }
+
+    function show(i) {
+      const step = STEPS[i];
+      clearSpotlight();
+      document.getElementById('tour-step').textContent = (i + 1) + ' of ' + STEPS.length;
+      document.getElementById('tour-title').textContent = step.title;
+      document.getElementById('tour-text').textContent = step.text;
+      next.textContent = i === STEPS.length - 1 ? 'Got it' : 'Next';
+
+      const target = step.target ? document.querySelector(step.target) : null;
+      if (target) {
+        target.scrollIntoView({ block: 'center' });
+        target.classList.add('tour-highlight');
+        lit = target;
+      }
+      tour.hidden = false;
+      place(target);
+      next.focus();
+    }
+
+    function onKey(e) { if (e.key === 'Escape') finish(); }
+    function onResize() { place(lit); }
+
+    function finish() {
+      clearSpotlight();
+      tour.hidden = true;
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+      if (KEY) { try { localStorage.setItem(KEY, '1'); } catch (e) { /* ignore */ } }
+    }
+
+    function start() {
+      index = 0;
+      document.addEventListener('keydown', onKey);
+      window.addEventListener('resize', onResize);
+      show(0);
+    }
+
+    next.addEventListener('click', function () {
+      if (index < STEPS.length - 1) { index += 1; show(index); } else { finish(); }
+    });
+    skip.addEventListener('click', finish);
+    if (STEPS.length < 2) skip.hidden = true;
+
+    window.startTour = start;
+
+    let seen = false;
+    if (KEY) { try { seen = !!localStorage.getItem(KEY); } catch (e) { /* storage blocked: show it */ } }
+    if (AUTO && !seen) start();
+  })();
+</script>

@@ -269,3 +269,71 @@ def test_elite_bot_measures_its_ramp_in_the_tier_it_is_selling():
     d = decide("elite", round_number=4, rd_spend_by_track={"Mid": 210_000}, **base)
     assert d.track == "Premium"
     assert d.rd_spend == 280_000
+
+
+# --------------------------------------------------------------------------- #
+# Onboarding: segments on the Firm page, section title, tours, icon note
+# --------------------------------------------------------------------------- #
+
+def test_firm_page_shows_customer_segment_profiles_and_the_decision_title(client):
+    world_id = create_world(client)
+    register_firm(client, world_id)
+    body = client.get("/firm").data.decode("utf-8")
+    assert 'id="firm-segments"' in body
+    assert body.count('class="segment-trait-dots"') == 15   # 5 segments x 3 traits
+    assert "Relative Size" in body
+    # Only the profile half comes over -- not the round's numbers.
+    section = body[body.index('id="firm-segments"'):body.index('id="decision-title"')]
+    assert "Avg. Consumer Surplus" not in section and "Leading Tier" not in section
+    assert "This Round: Price &amp; Investment" in body
+    assert body.index('id="decision-title"') < body.index('id="decision-form"')
+
+
+def test_firm_page_tour_has_three_steps_keyed_to_this_team(client):
+    import json, re
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id)
+    body = client.get("/firm").data.decode("utf-8")
+    steps = json.loads(re.search(r"const STEPS = (\[.*?\]);", body, re.S).group(1))
+    assert len(steps) == 3
+    assert "10 rounds" in steps[0]["text"] and "profit" in steps[0]["text"]
+    assert steps[1]["target"] == "#firm-segments"
+    assert "Price Sensitivity" in steps[1]["text"] and "Quality Focus" in steps[1]["text"] and "Brand Pull" in steps[1]["text"]
+    assert steps[1]["title"] == "Know your customers"
+    assert "Round 2" in steps[2]["text"] and "overspend" in steps[2]["text"]
+    assert f'"hcs-tour-firm-{firm_id}"' in body
+    assert '<button type="button" class="tour-replay"' in body
+
+
+def test_tour_is_not_on_the_results_screen(client):
+    world_id = create_world(client)
+    register_firm(client, world_id)
+    set_standings(client, world_id, False)
+    submit(client)
+    advance(client, world_id)
+    body = client.get("/firm").data.decode("utf-8")
+    assert "Round 1 Results" in body
+    assert 'id="tour"' not in body
+
+
+def test_market_dashboard_intro_only_for_teams_once_there_is_data(client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id)
+    assert 'id="tour"' not in client.get("/market").data.decode("utf-8"), "nothing to point at before round 1"
+    submit(client)
+    advance(client, world_id)
+
+    team = client.get("/market").data.decode("utf-8")
+    assert 'id="tour"' in team and "competitive advantage" in team
+    assert f'"hcs-market-intro-firm-{firm_id}"' in team
+    teacher = client.get(f"/teacher/worlds/{world_id}/market").data.decode("utf-8")
+    assert 'id="tour"' not in teacher
+
+
+def test_icon_picker_says_the_icons_are_cosmetic(client):
+    world_id = create_world(client)
+    firm = Firm.query.filter_by(world_id=world_id, slot_number=1).first()
+    body = client.get(f"/register/{world_id}/{firm.id}").data.decode("utf-8")
+    note = body[body.index('class="info-note"'):]
+    assert "Just for looks" in note[:400]
+    assert body.index('class="info-note"') < body.index('name="avatar"')

@@ -13,6 +13,9 @@ selectable/assignable without a deliberate code change (same rationale as
 the original AVATAR_CHOICES).
 """
 
+import random
+
+
 AVATAR_CHOICES = [
     "factory-01.png", "factory-02.png", "factory-03.png", "factory-04.png", "factory-05.png",
     "factory-06.png", "factory-07.png", "factory-08.png", "factory-09.png", "factory-10.png",
@@ -48,3 +51,34 @@ TIER_ICONS = {
     "Mid": "mid.png",
     "Premium": "premium.png",
 }
+
+
+ICON_FIELDS = (
+    ("avatar", AVATAR_CHOICES),
+    ("badge", BADGE_CHOICES),
+    ("product_icon", PRODUCT_CHOICES),
+)
+
+
+def pick_unused_icons(other_firms, rng=None):
+    """{avatar, badge, product_icon} for a BOT, avoiding every icon already
+    shown by another firm in the same game -- so a bot never wears the
+    player's factory, logo or product, or another bot's.
+
+    `other_firms` is anything with those three attributes (Firm rows, or
+    ones not flushed yet). Each field is picked at random from what's still
+    free; if a pool is ever exhausted (more than 10 firms in one game) it
+    falls back to the least-used icons, so it degrades to "rarely repeats"
+    rather than failing. Real teams still choose freely at registration --
+    this only governs what a bot is given."""
+    rng = rng or random
+    icons = {}
+    for field, pool in ICON_FIELDS:
+        counts = {choice: 0 for choice in pool}
+        for firm in other_firms:
+            value = getattr(firm, field, None)
+            if value in counts:
+                counts[value] += 1
+        fewest = min(counts.values())
+        icons[field] = rng.choice([c for c in pool if counts[c] == fewest])
+    return icons

@@ -483,6 +483,23 @@ def pie_slices(shares):
     return slices
 
 
+def segment_profiles():
+    """The static, round-independent part of each Customer Segments card --
+    who the segment is (name, "What they care about" dots, relative size) --
+    for the Firm Dashboard, which shows it before any round has been played.
+    No DB access: none of this depends on a world or a round."""
+    total_buyers = sum(SEGMENT_BUYER_COUNT.values())
+    return [
+        {
+            "name": seg,
+            "display_name": segment_label(seg),
+            "traits": segment_traits(seg),
+            "relative_size_pct": SEGMENT_BUYER_COUNT[seg] / total_buyers * 100,
+        }
+        for seg in SEGMENTS
+    ]
+
+
 def segment_overview(world, round_number):
     """Returns a list of dicts, one per SEGMENTS entry (in SEGMENTS order):
     name, relative_size_pct (static -- a segment's fixed share of the total

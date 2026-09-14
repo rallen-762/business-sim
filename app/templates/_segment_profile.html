@@ -1,0 +1,36 @@
+{# Who a customer segment is: name, "What they care about" dots, relative size.
+   Shared by the Market Dashboard's Customer Segments cards (which add the
+   round's numbers below it) and the Firm Dashboard (which shows only this),
+   so the two can't drift apart.
+   Needs: seg (name, display_name, traits, relative_size_pct), accent
+   ({icon, color}), trait_dots. #}
+<div class="segment-head">
+  <span class="segment-icon" aria-hidden="true">{{ accent.icon }}</span>
+  <span class="segment-name">{{ seg.display_name }}</span>
+</div>
+
+{# Static, universal facts about WHO this segment is -- deliberately no
+   round caption, same permanence as the name and icon above. #}
+{% if seg.traits %}
+<div class="label">What they care about</div>
+<ul class="segment-traits">
+  {% for trait_label, level, level_word in seg.traits %}
+  <li class="segment-trait">
+    <span class="segment-trait-name">{{ trait_label }}</span>
+    <span class="segment-trait-dots" role="img" aria-label="{{ level_word }}">
+      {% for i in range(trait_dots) %}<i class="dot{{ ' filled' if i < level else '' }}"></i>{% endfor %}
+    </span>
+    <span class="segment-trait-level">{{ level_word }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<div class="label">Relative Size</div>
+<div class="segment-size-row">
+  <div class="segment-bar" role="img"
+       aria-label="{{ "%.0f"|format(seg.relative_size_pct) }} percent of all buyers">
+    <div class="segment-bar-fill" style="width: {{ seg.relative_size_pct }}%;"></div>
+  </div>
+  <span class="segment-size-pct">{{ "%.0f"|format(seg.relative_size_pct) }}%</span>
+</div>

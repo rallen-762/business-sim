@@ -702,3 +702,47 @@ def test_resume_by_url_still_works_but_needs_the_sandbox_password(client):
     sandbox_login(client)
     resp = client.get(f"/sandbox/play/{world.id}", follow_redirects=True)
     assert b"MyOwnGame" in resp.data
+
+
+def test_sandbox_tour_opens_on_every_games_round_1_and_not_later(client):
+    import json, re
+    sandbox_login(client)
+    start_game(client)
+
+    def tour_settings(body):
+        key = json.loads(re.search(r"const KEY = (.*?);", body).group(1))
+        auto = json.loads(re.search(r"const AUTO = (.*?);", body).group(1))
+        return key, auto
+
+    round1 = client.get("/firm").data.decode("utf-8")
+    assert tour_settings(round1) == (None, True), "no memory: every load of Round 1 opens it"
+    assert "Rewatch the Page Intro" in round1
+
+    submit(client)                                  # runs round 1
+    round2 = client.get("/firm").data.decode("utf-8")
+    assert tour_settings(round2) == (None, False), "later rounds: replay button only"
+    assert "Rewatch the Page Intro" in round2
+
+
+def test_bots_never_reuse_the_players_or_each_others_icons(client):
+    from app.avatars import pick_unused_icons
+    # Repeat: picks are random, so one lucky run proves little.
+    for i in range(15):
+        sandbox_login(client)
+        start_game(client, team_name=f"Probe {i}", avatar="factory-03.png",
+                   badge="logo-03.png", product_icon="headphone-03.png")
+    for world in World.query.filter_by(mode="sandbox").all():
+        firms = Firm.query.filter_by(world_id=world.id).all()
+        assert len(firms) == 1 + len(BOT_ORDER)
+        for field in ("avatar", "badge", "product_icon"):
+            values = [getattr(f, field) for f in firms]
+            assert len(set(values)) == len(values), f"{world.name}: duplicate {field} {values}"
+
+
+def test_icon_picker_falls_back_to_least_used_when_a_pool_runs_out():
+    from types import SimpleNamespace
+    from app.avatars import AVATAR_CHOICES, pick_unused_icons
+    everyone = [SimpleNamespace(avatar=a, badge=None, product_icon=None) for a in AVATAR_CHOICES]
+    everyone.append(SimpleNamespace(avatar=AVATAR_CHOICES[0], badge=None, product_icon=None))
+    picked = pick_unused_icons(everyone)
+    assert picked["avatar"] in AVATAR_CHOICES[1:], "must pick one of the least-used, not the doubled one"

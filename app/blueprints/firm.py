@@ -38,10 +38,14 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from app.auth import current_firm, current_world, firm_login_required
 from app.avatars import TIER_ICONS
 from app.market_data import (
+    SEGMENT_ACCENTS,
+    SEGMENT_ACCENT_FALLBACK,
+    SEGMENT_TRAIT_DOTS,
     TIER_ACCENTS,
     affordability_breakdown,
     affordability_curve,
     latest_processed_round,
+    segment_profiles,
     standings_with_rank_delta,
 )
 from app.constants import (
@@ -169,6 +173,8 @@ def dashboard():
         rd_cap=rd_by_tier[form_track]["cap"],
         rd_by_tier=rd_by_tier, tier_quality=tier_quality, form_track=form_track,
         tier_accents=TIER_ACCENTS,
+        segments=segment_profiles(), segment_accents=SEGMENT_ACCENTS,
+        segment_accent_fallback=SEGMENT_ACCENT_FALLBACK, trait_dots=SEGMENT_TRAIT_DOTS,
         standings_available=(
             world.mode == "classroom" and world.show_standings_to_students
             and last_result is not None
