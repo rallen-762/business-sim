@@ -282,10 +282,20 @@
   </div>
 
   <form method="post" action="{{ url_for('firm.submit_decision') }}" id="decision-form">
-    <div class="grid grid-2">
+    {# Price gets its own full-width row: it's the biggest lever in the game,
+       so it gets a slider for feel AND the number box for exact entry (the
+       two stay in sync). Beside it, Production Quantity is featured rather
+       than tucked into a read-only box, with what's limiting it spelled out,
+       and "revenue if every unit sells" -- the number that ties price and
+       quantity together and moves as the slider does. #}
+    <div class="price-panel">
       <div>
         <label for="price">Price ($)</label>
-        <input type="number" step="0.01" min="0" id="price" name="price" value="{{ firm.last_price }}" required oninput="recalc()">
+        <div class="price-inputs">
+          <input type="range" id="price-slider" min="0" max="300" step="1" value="{{ firm.last_price|round|int }}"
+                 aria-label="Price slider" oninput="priceFromSlider()">
+          <input type="number" step="0.01" min="0" id="price" name="price" value="{{ firm.last_price }}" required oninput="priceFromBox()">
+        </div>
         {# Live reach readout. Price is by far the biggest lever in this game
            and the buyer budgets are hidden, so without this a team only
            learns they overpriced AFTER the round is scored. #}
@@ -294,6 +304,21 @@
           <p class="help-text" id="reach-text" style="margin-top:6px;"></p>
         </div>
       </div>
+      <div class="production-panel">
+        <div class="label">Production Quantity <span class="help-text" style="text-transform:none;">(auto-calculated)</span></div>
+        <div class="production-units"><span id="production-display">0</span> <small>units</small></div>
+        <div class="production-bar" aria-hidden="true"><div class="production-bar-fill" id="production-bar-fill"></div></div>
+        <p class="help-text" id="production-limit" style="margin-top:6px;"></p>
+        <div class="production-revenue">
+          <span class="label">Revenue if every unit sells</span>
+          <span id="production-revenue">$0</span>
+        </div>
+        <input type="hidden" id="production_qty" name="production_qty" value="0">
+        <p class="help-text" style="margin-bottom:0;">Capacity this round: {{ "{:,}".format(firm.effective_capacity) }}{% if firm.pending_capacity_increase %} &mdash; includes the +{{ "{:,}".format(firm.pending_capacity_increase) }} expansion you built, now online{% endif %}</p>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
       <div>
         <label for="track">Tier</label>
         <select id="track" name="track" required onchange="onTierChange()">
@@ -373,11 +398,6 @@
         <p class="help-text">Extra capacity only pays off if you can <em>sell</em> the extra units &mdash;
           the {{ "${:,.0f}".format(capacity_block_fixed_cost) }}/round is charged every round from now on, sold or not.</p>
         {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>{% endif %}
-      </div>
-      <div>
-        <label>Production Quantity <span class="help-text">(auto-calculated)</span></label>
-        <input type="number" id="production_qty" name="production_qty" readonly style="background:var(--panel-alt);">
-        <p class="help-text">Capacity this round: {{ "{:,}".format(firm.effective_capacity) }}{% if firm.pending_capacity_increase %} &mdash; includes the +{{ "{:,}".format(firm.pending_capacity_increase) }} expansion you built, now online{% endif %}</p>
       </div>
     </div>
 
@@ -480,6 +500,50 @@
     recalc();
   }
 
+  // Slider and number box are one control: either one moves the other.
+  // The box stays free entry, so a price above the slider's range is fine --
+  // the slider just sits at its end.
+  function priceFromSlider() {
+    document.getElementById('price').value = document.getElementById('price-slider').value;
+    recalc();
+  }
+  function priceFromBox() {
+    const v = parseFloat(document.getElementById('price').value);
+    if (isFinite(v)) document.getElementById('price-slider').value = Math.round(v);
+    recalc();
+  }
+
+  let lastProduction = null;
+  function updateProductionPanel(production, leftover, unitCost) {
+    const shown = document.getElementById('production-display');
+    shown.textContent = production.toLocaleString('en-US');
+    document.getElementById('production-bar-fill').style.width =
+      (PLANT_CAPACITY > 0 ? Math.min(100, production / PLANT_CAPACITY * 100) : 0) + '%';
+
+    let why;
+    if (production >= PLANT_CAPACITY) why = 'Capped by your plant capacity.';
+    else if (leftover <= 0) why = 'No cash left for production after your other spending.';
+    else why = 'Limited by cash: $' + Math.round(leftover).toLocaleString('en-US') + ' left ÷ $'
+      + unitCost.toFixed(2) + ' per unit on this tier.';
+    document.getElementById('production-limit').textContent = why;
+
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    const revenue = document.getElementById('production-revenue');
+    const next = '$' + Math.round(price * production).toLocaleString('en-US');
+    if (revenue.textContent !== next) pulse(revenue);
+    revenue.textContent = next;
+
+    // Pulse whenever the quantity actually moves, so a change made anywhere
+    // on the form visibly lands here.
+    if (lastProduction !== null && production !== lastProduction) pulse(shown);
+    lastProduction = production;
+  }
+  function pulse(el) {
+    el.classList.remove('pulse');
+    void el.offsetWidth;  // restart the animation
+    el.classList.add('pulse');
+  }
+
   function recalc() {
     const trackEl = document.getElementById('track');
     const rdEl = document.getElementById('rd_spend');
@@ -509,6 +573,7 @@
     const productionCost = production * unitCost;
 
     productionEl.value = production;
+    updateProductionPanel(production, leftover, unitCost);
     document.getElementById('unit-cost-display').textContent = '$' + unitCost.toFixed(2);
     document.getElementById('production-cost-display').textContent = '$' + Math.round(productionCost).toLocaleString();
     document.getElementById('committed-spend-display').textContent = '$' + Math.round(committed).toLocaleString();

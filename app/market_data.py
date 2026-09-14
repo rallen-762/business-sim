@@ -42,7 +42,10 @@ Edge cases considered:
     locked spec's "no dollar amount shown, just a flag."
 """
 
+import math
+
 from app.constants import (
+    ROUNDS_PER_WORLD,
     SEGMENT_BUYER_COUNT,
     SEGMENTS,
     TRACKS,
@@ -628,3 +631,105 @@ def competitive_intel_rows(world, round_number):
 
     rows.sort(key=lambda row: -row["market_share_pct"])
     return rows
+
+
+def price_history_chart(world, highlight_firm_id=None, width=720, height=340):
+    """Geometry for the Competitive Intelligence Report's price line chart:
+    one line per firm, price over rounds, each stretch coloured by the TIER
+    the firm sold -- so a firm on Mid for three rounds that drops to Entry
+    shows a Mid-coloured line through round 3 that turns Entry-coloured
+    into round 4. A price is only readable next to its tier; this shows
+    both, and every switch, at a glance.
+
+    Computed here rather than in the template so the maths is testable and
+    the template just draws. Returns None before any round is processed.
+
+    Visibility: only each firm's price and tier per PROCESSED round -- the
+    same facts the Market Dashboard's Round Totals table already shows every
+    firm. Nothing from a round still being collected, so a submission can't
+    leak before the round is scored.
+
+    A segment from round r to r+1 takes round r+1's tier colour (the tier
+    the line is heading into). A missing round (bankrupt, frozen) breaks
+    the line rather than drawing a bridge through a round nobody played.
+    `highlight_firm_id` draws the viewing team's own line heavier."""
+    latest = latest_processed_round(world)
+    if latest is None:
+        return None
+    rounds = max(world.rounds or ROUNDS_PER_WORLD, 2)
+
+    rows = (
+        db.session.query(RoundDecision, Firm)
+        .join(Firm, Firm.id == RoundDecision.firm_id)
+        .join(RoundResult, db.and_(
+            RoundResult.firm_id == RoundDecision.firm_id,
+            RoundResult.round_number == RoundDecision.round_number,
+        ))
+        .filter(Firm.world_id == world.id)
+        .order_by(Firm.slot_number, RoundDecision.round_number)
+        .all()
+    )
+    series_by_firm = {}
+    for decision, firm in rows:
+        if not firm.is_registered:
+            continue
+        s = series_by_firm.setdefault(firm.id, {"firm": firm, "points": []})
+        s["points"].append({"round": decision.round_number, "price": decision.price, "track": decision.track})
+    if not series_by_firm:
+        return None
+
+    left, right, top, bottom = 58, 150, 16, 40
+    plot_w, plot_h = width - left - right, height - top - bottom
+
+    # Round the axis up to a clean step so tick labels are whole dollars.
+    max_price = max(p["price"] for s in series_by_firm.values() for p in s["points"])
+    step = max(10, math.ceil(max_price * 1.1 / 4 / 10) * 10)
+    y_max = step * 4
+
+    def x_at(round_number):
+        return left + (round_number - 1) / (rounds - 1) * plot_w
+
+    def y_at(price):
+        return top + plot_h - (max(0.0, price) / y_max) * plot_h
+
+    def colour(track):
+        return TIER_ACCENTS.get(track, "#9AA5A8")
+
+    series = []
+    for firm_id, s in series_by_firm.items():
+        mine = firm_id == highlight_firm_id
+        pts = s["points"]
+        segments = [
+            {"x1": x_at(a["round"]), "y1": y_at(a["price"]), "x2": x_at(b["round"]), "y2": y_at(b["price"]),
+             "color": colour(b["track"])}
+            for a, b in zip(pts, pts[1:]) if b["round"] == a["round"] + 1
+        ]
+        markers = [
+            {"x": x_at(p["round"]), "y": y_at(p["price"]), "color": colour(p["track"]),
+             "title": f"{s['firm'].team_name} -- Round {p['round']}: ${p['price']:,.2f} ({p['track']})"}
+            for p in pts
+        ]
+        series.append({
+            "name": s["firm"].team_name, "mine": mine, "segments": segments, "markers": markers,
+            "label_x": markers[-1]["x"] + 10, "label_y": markers[-1]["y"],
+        })
+
+    # Name labels sit at each line's last point; spread any that would
+    # overlap so every firm stays identifiable when prices are close.
+    min_gap = 14
+    ordered = sorted(series, key=lambda s: s["label_y"])
+    for prev, cur in zip(ordered, ordered[1:]):
+        if abs(cur["label_x"] - prev["label_x"]) < 1 and cur["label_y"] - prev["label_y"] < min_gap:
+            cur["label_y"] = prev["label_y"] + min_gap
+    # Own line drawn last so it sits on top of the others.
+    series.sort(key=lambda s: s["mine"])
+
+    return {
+        "width": width, "height": height,
+        "plot": {"left": left, "right": left + plot_w, "top": top, "bottom": top + plot_h},
+        "y_ticks": [{"y": y_at(step * i), "label": f"${step * i:,}"} for i in range(5)],
+        "x_ticks": [{"x": x_at(r), "label": str(r)} for r in range(1, rounds + 1)],
+        "series": series,
+        "legend": [{"track": t, "color": colour(t)} for t in TRACKS],
+        "latest_round": latest,
+    }

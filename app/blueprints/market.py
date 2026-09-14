@@ -21,6 +21,7 @@ from app.market_data import (
     latest_processed_round,
     market_shares_for_round,
     pie_slices,
+    price_history_chart,
     round_totals,
     segment_overview,
 )
@@ -67,6 +68,8 @@ def intel():
     world = current_world()
     latest_round = latest_processed_round(world)
     rows = competitive_intel_rows(world, latest_round) if latest_round else []
+    firm = current_firm()
     return render_template(
         "competitive_intel.html", world=world, latest_round=latest_round, rows=rows,
+        price_chart=price_history_chart(world, highlight_firm_id=firm.id if firm else None),
     )

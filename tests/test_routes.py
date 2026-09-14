@@ -1495,6 +1495,46 @@ def test_market_dashboard_shows_the_tier_beside_every_price(client):
     assert "img/tiers/premium.png" in body
 
 
+def test_customer_segments_say_priced_out_not_unsold_buyers(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    body = client.get("/market").data.decode("utf-8")
+    assert "Priced Out" in body
+    assert "Unsold Buyers" not in body
+
+
+def test_intel_report_has_the_price_chart_for_teams_and_teacher(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    submit_decision(client, track="Entry", price="60")
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    team = client.get("/market/intel").data.decode("utf-8")
+    assert "Prices Over Time" in team and '<svg class="price-chart"' in team
+    assert 'class="price-line mine"' in team, "a team's own line is highlighted"
+    assert "Round 1: $60.00 (Entry)" in team
+
+    teacher = client.get(f"/teacher/worlds/{world_id}/intel").data.decode("utf-8")
+    assert '<svg class="price-chart"' in teacher
+    assert 'class="price-line mine"' not in teacher
+
+
+def test_price_has_a_slider_and_keeps_its_number_box(client):
+    world_id = create_world(client, slots=1)
+    register_firm(client, world_id, 1, "Nike")
+    body = client.get("/firm").data.decode("utf-8")
+    assert '<input type="range" id="price-slider"' in body
+    assert 'id="price" name="price"' in body
+    # The slider has no name: only the box posts, so exact prices survive.
+    slider = body[body.index('id="price-slider"'):]
+    assert "name=" not in slider[:slider.index(">")]
+    # Production is featured, and still posts as a form field.
+    assert 'id="production-display"' in body and 'id="production-revenue"' in body
+    assert 'type="hidden" id="production_qty" name="production_qty"' in body
+
+
 def test_price_is_still_free_entry(client):
     # Price is the actual decision -- it must stay typeable. Only the
     # level-based spends became dropdowns.

@@ -45,4 +45,44 @@
   </div>
   {% endif %}
 </div>
+
+{% if price_chart %}
+{% set c = price_chart %}
+<div class="card">
+  <h3>Prices Over Time</h3>
+  <p class="help-text">Each line is one company's price, round by round. The line's colour is the tier they sold
+    that round &mdash; when a company switches tiers, its line changes colour.{% if c.series|selectattr('mine')|list %}
+    Your company's line is the thick one.{% endif %}</p>
+  <div class="price-chart-legend">
+    {% for item in c.legend %}
+    <span class="price-chart-key"><i style="background: {{ item.color }};"></i>{{ item.track }}</span>
+    {% endfor %}
+  </div>
+  <div class="price-chart-wrap">
+    <svg class="price-chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Line chart of each company's price by round, coloured by tier, through round {{ c.latest_round }}">
+      {% for t in c.y_ticks %}
+      <line class="grid" x1="{{ c.plot.left }}" x2="{{ c.plot.right }}" y1="{{ '%.1f'|format(t.y) }}" y2="{{ '%.1f'|format(t.y) }}"/>
+      <text class="tick" x="{{ c.plot.left - 8 }}" y="{{ '%.1f'|format(t.y + 4) }}" text-anchor="end">{{ t.label }}</text>
+      {% endfor %}
+      {% for t in c.x_ticks %}
+      <text class="tick" x="{{ '%.1f'|format(t.x) }}" y="{{ c.plot.bottom + 18 }}" text-anchor="middle">{{ t.label }}</text>
+      {% endfor %}
+      <text class="axis-title" x="{{ (c.plot.left + c.plot.right) / 2 }}" y="{{ c.height - 4 }}" text-anchor="middle">Round</text>
+
+      {% for s in c.series %}
+      <g class="price-line{{ ' mine' if s.mine }}">
+        {% for seg in s.segments %}
+        <line x1="{{ '%.1f'|format(seg.x1) }}" y1="{{ '%.1f'|format(seg.y1) }}" x2="{{ '%.1f'|format(seg.x2) }}" y2="{{ '%.1f'|format(seg.y2) }}" stroke="{{ seg.color }}"/>
+        {% endfor %}
+        {% for m in s.markers %}
+        <circle cx="{{ '%.1f'|format(m.x) }}" cy="{{ '%.1f'|format(m.y) }}" r="{{ 5 if s.mine else 4 }}" fill="{{ m.color }}"><title>{{ m.title }}</title></circle>
+        {% endfor %}
+        <text class="line-label" x="{{ '%.1f'|format(s.label_x) }}" y="{{ '%.1f'|format(s.label_y + 4) }}">{{ s.name|truncate(18, True, '…') }}</text>
+      </g>
+      {% endfor %}
+    </svg>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

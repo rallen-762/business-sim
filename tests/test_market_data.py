@@ -545,3 +545,75 @@ def test_traits_never_expose_the_underlying_coefficients():
             assert isinstance(level, int)
             assert isinstance(word, str)
             assert not isinstance(level, float)
+
+
+# --------------------------------------------------------------------------- #
+# price_history_chart -- Competitive Intelligence price lines, tier-coloured
+# --------------------------------------------------------------------------- #
+
+def test_price_chart_colours_each_stretch_by_the_tier_it_moves_into(app):
+    # Robert's example: Mid for three rounds, then Entry, then back to Mid.
+    from app.market_data import TIER_ACCENTS, price_history_chart
+    world = make_world()
+    firm = make_firm(world, 1, "Firm A")
+    for rnd, track in enumerate(["Mid", "Mid", "Mid", "Entry", "Mid"], start=1):
+        make_decision(firm, rnd, track=track, price=80.0 + rnd)
+        make_result(firm, rnd)
+
+    chart = price_history_chart(world)
+    (series,) = chart["series"]
+    colours = [seg["color"] for seg in series["segments"]]
+    assert colours == [TIER_ACCENTS["Mid"], TIER_ACCENTS["Mid"], TIER_ACCENTS["Entry"], TIER_ACCENTS["Mid"]]
+    assert [m["color"] for m in series["markers"]][3] == TIER_ACCENTS["Entry"]
+    assert chart["latest_round"] == 5
+
+
+def test_price_chart_only_uses_processed_rounds_and_registered_firms(app):
+    from app.market_data import price_history_chart
+    world = make_world()
+    firm = make_firm(world, 1, "Firm A")
+    make_decision(firm, 1, price=80.0)
+    make_result(firm, 1)
+    make_decision(firm, 2, price=999.0)          # submitted, round not processed yet
+
+    chart = price_history_chart(world)
+    (series,) = chart["series"]
+    assert len(series["markers"]) == 1, "an unprocessed submission must not leak onto the chart"
+    assert series["segments"] == []
+
+
+def test_price_chart_breaks_the_line_over_a_missing_round(app):
+    from app.market_data import price_history_chart
+    world = make_world()
+    firm = make_firm(world, 1, "Firm A")
+    for rnd in (1, 3):
+        make_decision(firm, rnd)
+        make_result(firm, rnd)
+    make_result(firm, 2)  # a result with no decision (frozen) -- no point that round
+
+    (series,) = price_history_chart(world)["series"]
+    assert len(series["markers"]) == 2
+    assert series["segments"] == [], "no bridge drawn through a round the firm didn't price"
+
+
+def test_price_chart_is_none_before_any_round(app):
+    from app.market_data import price_history_chart
+    world = make_world()
+    make_firm(world, 1, "Firm A")
+    assert price_history_chart(world) is None
+
+
+def test_price_chart_highlights_the_viewing_firm_and_keeps_labels_apart(app):
+    from app.market_data import price_history_chart
+    world = make_world()
+    a = make_firm(world, 1, "Firm A")
+    b = make_firm(world, 2, "Firm B")
+    for f in (a, b):
+        make_decision(f, 1, price=80.0)       # identical prices -> labels would collide
+        make_result(f, 1)
+
+    chart = price_history_chart(world, highlight_firm_id=b.id)
+    mine = [s for s in chart["series"] if s["mine"]]
+    assert [s["name"] for s in mine] == ["Firm B"]
+    ys = sorted(s["label_y"] for s in chart["series"])
+    assert ys[1] - ys[0] >= 14

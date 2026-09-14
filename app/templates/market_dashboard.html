@@ -138,7 +138,7 @@
 
 <div class="card">
   <h3>Customer Segments -- Round {{ latest_round }}</h3>
-  <p class="help-text">Avg. Consumer Surplus = average (willingness-to-pay ceiling &minus; price paid) across buyers who actually purchased in this segment; buyers who couldn't afford anyone are excluded from that average but shown as Unsold Buyers.</p>
+  <p class="help-text">Avg. Consumer Surplus = average (willingness-to-pay ceiling &minus; price paid) across buyers who actually purchased in this segment; buyers who couldn't afford anyone are excluded from that average but shown as Priced Out.</p>
   <div class="grid grid-3">
     {% for seg in segments %}
     {% set accent = segment_accents.get(seg.name, segment_accent_fallback) %}
@@ -193,7 +193,9 @@
         {% else %}&mdash;{% endif %}
       </div>
 
-      <div class="label">Unsold Buyers</div>
+      {# Display label only -- the field is still unsold_buyers_pct: buyers
+         whose budget cleared no firm's price, so nobody sold to them. #}
+      <div class="label">Priced Out</div>
       <div class="value">{{ "%.1f"|format([seg.unsold_buyers_pct, 0]|max) }}%</div>
     </div>
     {% endfor %}
