@@ -4,7 +4,17 @@
   <a href="{{ url_for('auth.game_code_entry') }}">Leave Sandbox</a>
 {% endblock %}
 {% block content %}
+{# Same layout as the student login page: a fixed-aspect band carrying the
+   artwork, with the cards as a SIBLING pulled up over its lower half so they
+   sit on the empty warehouse yard rather than over the buildings. The
+   overlap is a percentage, which resolves against the container's width --
+   the same thing the band's aspect-ratio is driven by -- so the cards land
+   on the same part of the picture at every screen size. #}
+<div class="sandbox-landing">
+  <div class="sandbox-hero" role="img"
+       aria-label="A headphone factory and warehouse yard at night, lit loading bays under a city skyline"></div>
 
+  <div class="sandbox-panels">
 <div class="card">
   <h2>Sandbox</h2>
   <p class="help-text">Sandbox games run on the same market model, formulas and bot logic as a classroom
@@ -39,6 +49,6 @@
     <button class="btn full" style="margin-top:18px;" type="submit">Start Playing</button>
   </form>
 </div>
-
-
+  </div>
+</div>
 {% endblock %}

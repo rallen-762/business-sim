@@ -909,6 +909,64 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   }
 }
 
+/* --- Sandbox company-creation page ---
+   Same construction as the login landing above, and for the same reason: the
+   band is a fixed-aspect element and the content is a sibling pulled up over
+   it, so the overlap is a known share of the artwork at every width rather
+   than something that drifts with the viewport.
+
+   The artwork's buildings and skyline end at about 46% of its height and the
+   crates along each edge run to roughly 55%; everything below that is empty
+   yard, which is where the cards belong. Both the band's height and the
+   percentage margin below resolve against the same container width, so that
+   relationship holds at any size without a clamp or a breakpoint. --- */
+.sandbox-landing {
+  max-width: 1440px;
+  margin: -24px -16px 0;
+  background: var(--bg-base);
+}
+
+.sandbox-hero {
+  width: 100%;
+  aspect-ratio: 1828 / 860;
+  /* Fades the bottom of the picture into the page ground so the cards that
+     run past the band do not sit against a visible seam. */
+  background-image: linear-gradient(to bottom,
+      rgba(20, 23, 26, 0) 78%, var(--bg-base) 100%),
+    url("/static/img/company-creation-banner.png");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+
+.sandbox-panels {
+  position: relative;
+  z-index: 2;
+  /* Band height is 47.05% of width; this lifts the cards to start at ~52% of
+     it, i.e. just below the horizon. */
+  margin: -22.5% 16px 0;
+}
+
+@media (max-width: 620px) {
+  /* Only at phone widths, where the natural 2.13:1 band becomes a strip too
+     thin to read -- 620px still gives the wide band a usable 292px. Here it
+     crops to 3:2, keeping the loading bays and silos in frame.
+
+     The lift changes with it and is not optional: cover scales this crop by
+     HEIGHT (the box is taller relative to the image than the image is), so
+     the full picture height always shows and the horizon stays at 46% of the
+     band whatever the crop. Only the band's height relative to the width
+     moves, so the percentage has to move with it -- 32% of width is the same
+     52% of a 3:2 band that 22.5% is of the wide one. */
+  .sandbox-hero {
+    aspect-ratio: 3 / 2;
+    background-position: center top;
+  }
+  .sandbox-panels {
+    margin: -32% 0 0;
+  }
+}
+
 /* --- Flash messages --- */
 .flash { background: var(--panel-alt); border: 2px solid var(--accent-primary); border-radius: 0; color: var(--text); padding: 10px 14px; margin-bottom: 16px; }
 
