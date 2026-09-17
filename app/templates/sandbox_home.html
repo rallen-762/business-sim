@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Sandbox{% endblock %}
 {% block nav %}
-  <a href="{{ url_for('sandbox.logout') }}">Leave Sandbox</a>
+  <a href="{{ url_for('auth.game_code_entry') }}">Leave Sandbox</a>
 {% endblock %}
 {% block content %}
 
@@ -16,12 +16,12 @@
   <p class="help-text">You run one company against the bots. No teacher, no waiting &mdash; you submit
     your decision and process the round yourself. {{ default_rounds }} rounds.</p>
   <form method="post" action="{{ url_for('sandbox.new_game') }}">
-    {# No password field here on purpose. The sandbox password at the door
-       already authenticates you, and Resume signs you straight in, so a
-       per-game password was never used for anything -- while a visible
-       input literally named "password", prefilled, posting to a fresh URL
-       on a shared *.onrender.com domain is a phishing signature, and
-       Safe Browsing flagged this page as deceptive because of it. #}
+    {# No password field here on purpose. Creating the game signs you
+       straight in, so a per-game password was never used for anything --
+       while a visible input literally named "password", prefilled, posting
+       to a fresh URL on a shared *.onrender.com domain is a phishing
+       signature, and Safe Browsing flagged this page as deceptive because
+       of it. There is no sandbox password at the door any more either. #}
     <label for="team_name">Your company name</label>
     <input type="text" id="team_name" name="team_name" value="My Company" maxlength="60">
 

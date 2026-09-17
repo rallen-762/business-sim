@@ -18,12 +18,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import create_app
 from app.blueprints.sandbox import BOT_ORDER, bot_display_name
 from app.bots import BOT_PROFILES
-from app.constants import ROUNDS_PER_WORLD
+from app.constants import MAX_SANDBOX_WORLDS, ROUNDS_PER_WORLD
 from app.extensions import db
 from app.models import Firm, RoundDecision, RoundResult, SegmentRoundResult, World
 
 TEACHER_PASSWORD = "test-teacher-pw"
-SANDBOX_PASSWORD = "test-sandbox-pw"
 
 
 @pytest.fixture
@@ -32,7 +31,6 @@ def app():
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
         "TESTING": True,
         "TEACHER_PASSWORD": TEACHER_PASSWORD,
-        "SANDBOX_PASSWORD": SANDBOX_PASSWORD,
         "WTF_CSRF_ENABLED": False,
     })
     with app.app_context():
@@ -48,7 +46,10 @@ def client(app):
 
 
 def sandbox_login(client):
-    return client.post("/sandbox/login", data={"password": SANDBOX_PASSWORD})
+    """Kept as a no-op so the sandbox tests still read as "get into the
+    sandbox, then...". There is no gate any more -- see
+    test_sandbox_needs_no_password."""
+    return None
 
 
 def start_game(client, team_name="My Company", **bots):
@@ -71,34 +72,62 @@ def submit(client, **overrides):
 # Password gate -- sandbox must not be a weaker teacher login
 # --------------------------------------------------------------------------- #
 
-def test_sandbox_requires_its_own_password(client):
-    resp = client.get("/sandbox/", follow_redirects=True)
-    assert b"Sandbox Password" in resp.data
+def test_sandbox_needs_no_password(client):
+    # The gate is gone: the home page and game creation are both reachable
+    # cold, with no session and no secret.
+    assert client.get("/sandbox/").status_code == 200
+    assert start_game(client).status_code == 302
 
 
-def test_wrong_sandbox_password_is_rejected(client):
-    resp = client.post("/sandbox/login", data={"password": "nope"}, follow_redirects=True)
-    assert b"Wrong sandbox password" in resp.data
-    assert client.get("/sandbox/").status_code == 302
+def test_sandbox_login_route_is_gone(client):
+    # Not merely unlinked -- removed, so nothing can still post a password
+    # at it and no credential-shaped form survives on this path.
+    assert client.get("/sandbox/login").status_code == 404
+    assert client.post("/sandbox/login", data={"password": "x"}).status_code == 404
 
 
-def test_teacher_password_does_not_open_the_sandbox(client):
-    resp = client.post("/sandbox/login", data={"password": TEACHER_PASSWORD},
-                       follow_redirects=True)
-    assert b"Wrong sandbox password" in resp.data
-
-
-def test_sandbox_password_does_not_grant_teacher_access(client):
-    # The whole reason these are two secrets. A sandbox user must not be
-    # able to process a real class's rounds or reset a team's password.
-    sandbox_login(client)
+def test_open_sandbox_grants_no_teacher_access(client):
+    # The point that survives losing the sandbox password: reaching the
+    # sandbox must not let anyone process a real class's rounds or reset a
+    # team's password.
+    start_game(client)
     resp = client.get("/teacher/", follow_redirects=True)
     assert b"Teacher login required" in resp.data
 
 
+def test_sandbox_player_cannot_be_claimed_through_the_game_code_door(client):
+    # Sandbox worlds carry a game code like any other, and /login does not
+    # filter by mode -- so the thing that keeps a stranger out of someone's
+    # sandbox firm is that the firm already holds a password hash nobody was
+    # ever shown. If a sandbox firm ever became unregistered, that code would
+    # lead to the register page and hand the game away.
+    start_game(client)
+    with client.application.app_context():
+        world = World.query.filter_by(mode="sandbox").first()
+        player = Firm.query.filter_by(world_id=world.id, slot_number=1).first()
+        assert player.is_registered
+        code, world_id, firm_id = world.game_code, world.id, player.id
+
+    fresh = client.application.test_client()
+    fresh.post("/login", data={"game_code": code})
+    resp = fresh.get(f"/login/{world_id}/{firm_id}", follow_redirects=True)
+    assert b"Choose a Password" not in resp.data
+
+
+def test_resume_route_is_gone(client):
+    # It was the only way back into a sandbox game, and it logged you in by
+    # guessable integer. Removed rather than re-gated.
+    start_game(client)
+    with client.application.app_context():
+        world_id = World.query.filter_by(mode="sandbox").first().id
+    assert client.get(f"/sandbox/play/{world_id}").status_code == 404
+
+
 def test_login_screen_links_to_the_sandbox(client):
     body = client.get("/login").data.decode("utf-8")
-    assert "/sandbox/login" in body
+    assert "/sandbox/" in body
+    # and does it without asking for a credential
+    assert 'name="password"' not in body.split("login-panel-sandbox")[1].split("</section>")[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -463,12 +492,15 @@ def test_teacher_dashboard_offers_a_way_into_the_sandbox(client):
     assert "Play a Single-Player Game" in body
 
 
-def test_sandbox_link_from_the_teacher_dashboard_still_asks_for_its_password(client):
-    # The link is a convenience, not a bypass -- a teacher session must not
-    # carry into the sandbox, or the two passwords would collapse into one.
+def test_sandbox_link_from_the_teacher_dashboard_opens_directly(client):
+    # The sandbox has no password of its own to ask for any more, so the
+    # teacher's link just opens it. The direction that still matters is the
+    # other one, covered by test_open_sandbox_grants_no_teacher_access:
+    # reaching the sandbox must confer nothing on the Teacher Dashboard.
     client.post("/teacher/login", data={"password": TEACHER_PASSWORD})
-    resp = client.get("/sandbox/", follow_redirects=True)
-    assert b"Sandbox Password" in resp.data
+    resp = client.get("/sandbox/")
+    assert resp.status_code == 200
+    assert b"New Single-Player Game" in resp.data
 
 
 def test_entry_points_use_american_spelling(client):
@@ -492,7 +524,7 @@ def test_entry_points_use_american_spelling(client):
 def test_student_entry_points_still_offer_single_player(client):
     # Removing the bots-only card must not have taken single-player with it.
     body = client.get("/login").data.decode("utf-8")
-    assert "/sandbox/login" in body
+    assert "/sandbox/" in body
 
     sandbox_login(client)
     home = client.get("/sandbox/").data.decode("utf-8")
@@ -684,24 +716,24 @@ def test_teachers_own_market_view_still_gets_teacher_nav(client):
     assert "Back to" not in body
 
 
-def test_resume_by_url_still_works_but_needs_the_sandbox_password(client):
-    # Kept on purpose for Robert's own use now that nothing links to it.
-    # It must stay gated: not a way past any login, just an unlisted route.
-    sandbox_login(client)
+def test_a_sandbox_game_is_unreachable_once_its_session_ends(client):
+    # This is the property that makes eviction safe, so it is worth pinning
+    # rather than leaving implied. Resume is gone, and the player firm holds
+    # a random hash nobody was shown, so a game cannot be re-entered by URL,
+    # by game code, or by password once the session that made it is over.
     start_game(client, team_name="MyOwnGame")
     world = World.query.filter_by(mode="sandbox").one()
     client.get("/logout")
-    client.get("/sandbox/logout")
 
-    # Anonymous: bounced to the sandbox password screen, no access.
-    resp = client.get(f"/sandbox/play/{world.id}", follow_redirects=True)
-    assert b"Sandbox Password" in resp.data
-    assert b"MyOwnGame" not in resp.data
+    assert client.get(f"/sandbox/play/{world.id}").status_code == 404
 
-    # With the sandbox password: back in the game.
-    sandbox_login(client)
-    resp = client.get(f"/sandbox/play/{world.id}", follow_redirects=True)
-    assert b"MyOwnGame" in resp.data
+    resp = client.post("/login", data={"game_code": world.game_code},
+                       follow_redirects=True)
+    assert b"MyOwnGame" in resp.data          # the slot is listed...
+    firm = Firm.query.filter_by(world_id=world.id, slot_number=1).one()
+    resp = client.get(f"/login/{world.id}/{firm.id}", follow_redirects=True)
+    assert b"Choose a Password" not in resp.data   # ...but not claimable
+    assert b"Enter Team Password" in resp.data or b"Password" in resp.data
 
 
 def test_sandbox_tour_opens_on_every_games_round_1_and_not_later(client):
@@ -746,3 +778,96 @@ def test_icon_picker_falls_back_to_least_used_when_a_pool_runs_out():
     everyone.append(SimpleNamespace(avatar=AVATAR_CHOICES[0], badge=None, product_icon=None))
     picked = pick_unused_icons(everyone)
     assert picked["avatar"] in AVATAR_CHOICES[1:], "must pick one of the least-used, not the doubled one"
+
+
+# --------------------------------------------------------------------------- #
+# Capacity: the brake that replaced the password
+# --------------------------------------------------------------------------- #
+
+def _make_sandbox_worlds(n):
+    """Bare sandbox worlds, straight into the DB. Deliberately not via
+    start_game -- this is about the count, and building n real games with
+    firms and round rows would make the test slow for no extra coverage."""
+    from app.blueprints.teacher import _generate_game_code
+    made = []
+    for _ in range(n):
+        w = World(name="Sandbox -- filler", game_code=_generate_game_code(),
+                  planned_firm_slots=1, mode="sandbox", rounds=ROUNDS_PER_WORLD)
+        db.session.add(w)
+        made.append(w)
+    db.session.commit()
+    return [w.id for w in made]
+
+
+def test_sandbox_worlds_are_capped(app, client):
+    with app.app_context():
+        _make_sandbox_worlds(MAX_SANDBOX_WORLDS)
+        assert World.query.filter_by(mode="sandbox").count() == MAX_SANDBOX_WORLDS
+
+    start_game(client)
+
+    with app.app_context():
+        # The new game is in, and the count did not grow past the ceiling.
+        assert World.query.filter_by(mode="sandbox").count() == MAX_SANDBOX_WORLDS
+
+
+def test_cap_evicts_the_oldest_and_keeps_the_newest(app, client):
+    with app.app_context():
+        ids = _make_sandbox_worlds(MAX_SANDBOX_WORLDS)
+        oldest, newest = ids[0], ids[-1]
+
+    start_game(client)
+
+    with app.app_context():
+        assert World.query.get(oldest) is None
+        assert World.query.get(newest) is not None
+
+
+def test_cap_leaves_classroom_worlds_alone(app, client):
+    # The cap exists to protect the classroom game, so it must never be the
+    # thing that deletes one.
+    with app.app_context():
+        classroom = World(name="Period 1", game_code="CLASS1",
+                          planned_firm_slots=4, mode="classroom",
+                          rounds=ROUNDS_PER_WORLD)
+        db.session.add(classroom)
+        db.session.commit()
+        classroom_id = classroom.id
+        _make_sandbox_worlds(MAX_SANDBOX_WORLDS)
+
+    start_game(client)
+
+    with app.app_context():
+        assert World.query.get(classroom_id) is not None
+
+
+def test_eviction_takes_the_whole_world_with_it(app, client):
+    # Eviction leans on World's cascades; a partial delete would leave
+    # orphaned firms and round rows behind, which is the exact growth the
+    # cap is meant to stop.
+    start_game(client, team_name="Doomed")
+    with app.app_context():
+        world = World.query.filter_by(mode="sandbox").first()
+        doomed_id = world.id
+        assert Firm.query.filter_by(world_id=doomed_id).count() > 0
+        # Fill to the ceiling so the next creation evicts this one.
+        _make_sandbox_worlds(MAX_SANDBOX_WORLDS)
+
+    start_game(client, team_name="Survivor")
+
+    with app.app_context():
+        assert World.query.get(doomed_id) is None
+        assert Firm.query.filter_by(world_id=doomed_id).count() == 0
+        assert SegmentRoundResult.query.filter_by(world_id=doomed_id).count() == 0
+
+
+def test_under_the_cap_nothing_is_evicted(app, client):
+    start_game(client, team_name="First")
+    with app.app_context():
+        first_id = World.query.filter_by(mode="sandbox").first().id
+
+    start_game(client, team_name="Second")
+
+    with app.app_context():
+        assert World.query.get(first_id) is not None
+        assert World.query.filter_by(mode="sandbox").count() == 2

@@ -38,13 +38,13 @@ Edge cases considered:
 import secrets
 
 from flask import (
-    Blueprint, current_app, flash, redirect, render_template, request, url_for
+    Blueprint, flash, redirect, render_template, request, url_for
 )
 from werkzeug.security import generate_password_hash
 
 from app.auth import (
     current_firm, current_world, firm_login_required, log_in_firm,
-    log_in_sandbox, log_out_sandbox, sandbox_login_required, teacher_login_required,
+    teacher_login_required,
 )
 from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, pick_unused_icons
 from app.blueprints.teacher import _generate_game_code, _open_next_round, _process_current_round
@@ -52,6 +52,7 @@ from app.bots import BOT_PROFILES
 from app.constants import (
     BOOTSTRAP_DEFAULT_PRICE,
     BOOTSTRAP_DEFAULT_TRACK,
+    MAX_SANDBOX_WORLDS,
     ROUNDS_PER_WORLD,
     STARTING_CASH,
     STARTING_PLANT_CAPACITY,
@@ -126,34 +127,24 @@ def _requested_profiles(form):
 
 
 # --------------------------------------------------------------------------- #
-# Entry / password gate
+# Entry -- open, no gate
 # --------------------------------------------------------------------------- #
-
-@bp.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        password = request.form.get("password", "")
-        if password and password == current_app.config["SANDBOX_PASSWORD"]:
-            log_in_sandbox()
-            return redirect(url_for("sandbox.home"))
-        flash("Wrong sandbox password.")
-    return render_template("sandbox_login.html")
-
-
-@bp.route("/logout")
-def logout():
-    log_out_sandbox()
-    return redirect(url_for("auth.game_code_entry"))
+#
+# There is no sandbox password any more. It was a single secret shared with a
+# whole class, so it never kept anyone out; what it actually did was cap world
+# creation by accident. That job is now explicit and enforced where worlds are
+# made -- see _evict_oldest_sandbox_worlds.
 
 
 @bp.route("/")
-@sandbox_login_required
 def home():
     # No list of existing games here on purpose. It showed EVERY sandbox
     # world anyone had created, and its Resume button signed you into that
     # world's firm -- so on a shared classroom device one student could drop
     # straight into another's practice game. Removed rather than filtered,
     # since there is no per-player ownership on a sandbox world to filter by.
+    # The /play/<id> route that survived it is gone too: a sandbox game now
+    # lives and dies with the session that started it.
     return render_template(
         "sandbox_home.html",
         bot_order=BOT_ORDER,
@@ -167,6 +158,46 @@ def home():
 # --------------------------------------------------------------------------- #
 # Single-player: one human, configurable bots, no teacher
 # --------------------------------------------------------------------------- #
+
+def _evict_oldest_sandbox_worlds():
+    """Keep the number of sandbox worlds at or below MAX_SANDBOX_WORLDS by
+    deleting the oldest ones, and return how many were removed.
+
+    Creating a sandbox game needs no login, so without this nothing bounds
+    how many worlds exist -- and a sandbox world is not cheap: one World,
+    one player Firm, a Firm per bot, and per round a RoundDecision and
+    RoundResult for every firm plus a SegmentRoundResult per segment. A
+    filled database takes the CLASSROOM game down with it, which is the
+    blast radius worth caring about.
+
+    Eviction rather than refusal: a student mid-lesson should never be told
+    the sandbox is full. It is safe because a sandbox game was never
+    recoverable anyway -- the player firm's password is a random hash that is
+    generated, hashed and discarded, so a game is reachable only from the
+    session that made it and is already garbage once that session ends.
+
+    Oldest is by primary key, not a timestamp. World has no created_at, and
+    adding one would mean an ALTER TABLE step in flask init-db -- the change
+    shape this app is least forgiving of. Ids are monotonic, so they order
+    creation exactly as well for this purpose.
+
+    Deletion relies on the cascades configured on World (firms, segment
+    round results, round snapshots), which tests/test_routes.py pins in
+    test_delete_world_cascades_everything.
+    """
+    doomed = (
+        World.query
+        .filter_by(mode="sandbox")
+        .order_by(World.id.desc())
+        .offset(MAX_SANDBOX_WORLDS - 1)
+        .all()
+    )
+    for world in doomed:
+        db.session.delete(world)
+    if doomed:
+        db.session.commit()
+    return len(doomed)
+
 
 def _create_single_player_game(team_name, profiles, icons=None):
     """Build a sandbox world with one human firm plus the chosen bots, and
@@ -191,9 +222,16 @@ def _create_single_player_game(team_name, profiles, icons=None):
     player = Firm(
         world_id=world.id, slot_number=1, team_name=team_name,
         # Random and never shown. Firm requires a hash, but a sandbox player
-        # never types one: the sandbox password gates the door and Resume
-        # signs them in directly. Asking for one added no security and cost
-        # us a Safe Browsing "deceptive site" flag (see sandbox_home.html).
+        # never types one -- creating the game signs them straight in.
+        # Asking for one added no security and cost us a Safe Browsing
+        # "deceptive site" flag (see sandbox_home.html).
+        #
+        # This hash is also what keeps the game from being claimed by
+        # someone else: sandbox worlds carry a game code and /login does not
+        # filter by mode, so the slot is reachable -- but is_registered is
+        # "password_hash is not None", so it asks for a password that exists
+        # nowhere instead of offering to set one. Pinned by
+        # test_sandbox_player_cannot_be_claimed_through_the_game_code_door.
         password_hash=generate_password_hash(secrets.token_hex(16)),
         cash=STARTING_CASH, plant_capacity=STARTING_PLANT_CAPACITY,
         last_price=BOOTSTRAP_DEFAULT_PRICE, last_track=BOOTSTRAP_DEFAULT_TRACK,
@@ -214,9 +252,9 @@ def _create_single_player_game(team_name, profiles, icons=None):
 
 
 @bp.route("/new", methods=["POST"])
-@sandbox_login_required
 def new_game():
     """Start a single-player game from the student-side sandbox page."""
+    _evict_oldest_sandbox_worlds()
     player = _create_single_player_game(
         request.form.get("team_name", "").strip() or "My Company",
         _requested_profiles(request.form),
@@ -244,35 +282,6 @@ def new_game_from_teacher():
         _requested_profiles(request.form),
         _picked_icons(request.form),
     )
-    log_in_firm(player)
-    return redirect(url_for("firm.dashboard"))
-
-
-@bp.route("/play/<int:world_id>")
-@sandbox_login_required
-def resume(world_id):
-    """Sign back into an existing sandbox game by its world id.
-
-    DELIBERATELY KEPT with nothing linking to it. The sandbox page used to
-    list every game with a Resume button, which let one student walk into
-    another's practice run on a shared device -- that list is gone. This
-    route stays because Robert asked for it: a way back into a game he
-    started, for his own use, reached by typing the URL.
-
-    Still gated by the sandbox password, so it is not a way past any login;
-    the exposure is only that someone who already has that password could
-    guess an id. Sandbox worlds hold nothing but a made-up company name and
-    a practice game, which is why that trade is acceptable here and would
-    not be for a classroom world.
-    """
-    world = World.query.get_or_404(world_id)
-    if world.mode != "sandbox":
-        flash("That isn't a single-player sandbox game.")
-        return redirect(url_for("sandbox.home"))
-    player = Firm.query.filter_by(world_id=world.id, slot_number=1).first()
-    if player is None:
-        flash("That game has no player firm.")
-        return redirect(url_for("sandbox.home"))
     log_in_firm(player)
     return redirect(url_for("firm.dashboard"))
 

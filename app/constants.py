@@ -514,3 +514,25 @@ COMPETITIVE_INTEL_VISIBLE_FIELDS = (
     "price", "track", "quality_level", "ad_spend", "units_sold", "market_share", "loan_flag",
 )
 COMPETITIVE_INTEL_HIDDEN_FIELDS = ("plant_capacity", "cash", "rd_spend")
+
+
+# --------------------------------------------------------------------------- #
+# Section 11: Sandbox capacity
+# --------------------------------------------------------------------------- #
+
+# Hard ceiling on how many sandbox worlds may exist at once. Creating one is
+# unauthenticated -- anyone who can reach /login can start a practice game --
+# so this is the only brake on unbounded growth, and it replaces the shared
+# sandbox password that used to serve that purpose by accident.
+#
+# Enforced by eviction, not refusal: creating world N+1 deletes the oldest
+# sandbox world rather than turning a student away mid-lesson. Deleting is
+# safe because a sandbox game was never recoverable in the first place -- the
+# player firm's password is a random hash nobody is ever shown, so once the
+# session ends the game is unreachable by design.
+#
+# Ordering is by primary key, which is monotonic, rather than a timestamp:
+# World carries no created_at column and adding one would mean an ALTER TABLE
+# step in flask init-db, which is the highest-risk change shape in this app
+# (a missed migration 500s every page, it does not degrade).
+MAX_SANDBOX_WORLDS = 500

@@ -178,9 +178,11 @@ Patterns worth copying:
   corrupt a game rather than visibly break.
 - **Test the migration, including the no-op case.** Build the pre-change table
   shape and assert `init-db` both adds the column and leaves old rows alone.
-- **Test the security boundary in both directions.** The teacher password must
-  not open the sandbox, and the sandbox password must not reach the Teacher
-  Dashboard.
+- **Test the security boundary.** The sandbox has no password of its own any
+  more, so the direction that still matters is outward: reaching the sandbox
+  must confer nothing on the Teacher Dashboard. Sandbox capacity is bounded by
+  `MAX_SANDBOX_WORLDS` rather than by a gate, and that cap must never evict a
+  classroom world.
 
 For economics changes, a test is not enough — run a simulation across
 **randomized opponent fields**. A single fixed field produces confident,

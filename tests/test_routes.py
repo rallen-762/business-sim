@@ -87,7 +87,7 @@ def test_student_login_page_shows_banner_and_three_entry_paths(client):
     assert "Sandbox Mode" in body
     assert "Teacher Login" in body
     assert "game_code" in body
-    assert "sandbox/login" in body
+    assert "sandbox/" in body
     assert "teacher/login" in body
 
 

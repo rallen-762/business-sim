@@ -28,11 +28,6 @@ def create_app(config_overrides=None):
     # Single global teacher password (not per-World) -- confirmed as the
     # simplest option for one teacher running several class periods.
     app.config["TEACHER_PASSWORD"] = os.environ.get("TEACHER_PASSWORD", "dev-teacher-change-me")
-    # Separate from TEACHER_PASSWORD on purpose: sandbox is for practice and
-    # balance runs, so knowing it must NOT confer Teacher Dashboard access
-    # (processing real class rounds, resetting team passwords, deleting
-    # worlds). Two secrets, two capabilities.
-    app.config["SANDBOX_PASSWORD"] = os.environ.get("SANDBOX_PASSWORD", "dev-sandbox-change-me")
     # True only when running locally: Render always injects a real DATABASE_URL
     # (see _normalized_database_url above), so this is never true in production
     # regardless of what TEACHER_PASSWORD happens to be set to. Used to skip

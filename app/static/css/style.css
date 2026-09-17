@@ -31,6 +31,10 @@
   --accent-primary-dark: #4C7B74; /* shadow offset for accent-primary */
   --accent-positive: #39FF14;     /* punchy green -- cash-up/wins, must pop */
   --accent-positive-dark: #1E8A0A;
+  /* Height of one label + input + its margin inside a login card. Pins the
+     spacer that keeps the field-less sandbox card's button level with the
+     other two -- see .login-panel-action. */
+  --login-field-block: 5.8rem;
   --accent-sandbox: #B8AE74;      /* muted mustard -- practice mode */
   --accent-sandbox-dark: #6F6238;
   --accent-teacher: #94A6B1;      /* muted steel blue -- teacher actions */
@@ -822,6 +826,24 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   display: flex;
   flex-direction: column;
   margin-top: auto;
+}
+/* The sandbox card has no password any more, so it carries a bare link
+   instead of a form. Both blocks bottom-anchor, and the spacer below stands
+   in for the label+input the other two cards have, so all three accent
+   buttons land on the same line rather than the lone one sitting lower. */
+.login-panel-action {
+  margin: auto 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.login-panel-action::after {
+  content: "";
+  display: block;
+  height: var(--login-field-block);
+}
+.login-panel-action .btn {
+  text-decoration: none;
+  box-sizing: border-box;
 }
 .login-panel h2 {
   margin-bottom: 10px;

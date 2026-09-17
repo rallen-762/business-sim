@@ -20,9 +20,9 @@
   </form>
 
   {# Sandbox sits beside world creation because it's the other way to start
-     a game -- but it keeps its own password gate rather than riding the
-     teacher session, since the two grant different things (see
-     SANDBOX_PASSWORD in app/__init__.py). #}
+     a game. It has no gate of its own any more -- the shared sandbox
+     password is gone, and sandbox capacity is bounded by MAX_SANDBOX_WORLDS
+     instead. #}
 </div>
 
 <div class="card">

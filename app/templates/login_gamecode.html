@@ -16,14 +16,16 @@
       </form>
     </section>
 
+    {# No password here any more, so this card has no form: it is a plain
+       link styled as the same button the other two submit with. One fewer
+       credential-shaped input on a page that has been flagged by Safe
+       Browsing before (see LESSONS_LEARNED 1). #}
     <section class="card login-panel login-panel-sandbox">
       <h2>Sandbox Mode</h2>
       <p class="help-text">Practicing on your own? Play against bots without joining a classroom game.</p>
-      <form method="post" action="{{ url_for('sandbox.login') }}">
-        <button class="btn full login-button-sandbox" type="submit">Sandbox Mode</button>
-        <label for="sandbox_password">Password</label>
-        <input type="password" id="sandbox_password" name="password" autocomplete="current-password" required>
-      </form>
+      <p class="login-panel-action">
+        <a class="btn full login-button-sandbox" href="{{ url_for('sandbox.home') }}">Sandbox Mode</a>
+      </p>
     </section>
 
     <section class="card login-panel login-panel-teacher">
