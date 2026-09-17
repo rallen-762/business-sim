@@ -331,3 +331,156 @@ exist.** Before adding a new option, ask what feedback tells someone it
 mattered. And when explaining an outcome, **attribute it to the constraint that
 actually bound** — plausible-but-wrong advice teaches the wrong lesson more
 effectively than silence.
+
+---
+
+## 11. "Optional" did not say whether it starts on or off
+
+*Evidence: commit `93e688c` shipped `World.show_standings_to_students` defaulting
+to off; commit `eeaf216` flipped it to on. The one-time flip is the
+`SET DEFAULT true` step in `init-db` (`app/__init__.py`); test
+`test_standings_are_on_by_default_for_a_new_classroom_game`.*
+
+### Problem
+The request was to show the standings board on student screens after a round,
+"optional/teacher-controlled". It shipped **off** by default. Robert meant
+**on**, so students saw nothing new until a second deploy.
+
+### Cause
+"Optional" only says a teacher *can* switch it. It does not say which way it
+starts — and most teachers never touch a setting, so the starting position is
+what nearly every class actually gets. The default was guessed instead of asked.
+
+### Solution
+Changed the default to on. Existing games needed flipping too, but a plain
+"set every game to on" would run on every deploy and undo any teacher who later
+turned it off. So the flip runs **once**: the column's own database default is
+the marker. It changes from false to true in the same step, and once it reads
+true the step never runs again.
+
+### Rule for Future Changes
+**When a feature is described as optional, ask whether it starts on or off
+before building it.** And when changing a default on live data, flip existing
+rows once, with a marker — never on every run, or deliberate choices get
+silently reverted.
+
+---
+
+## 12. A JSON column saved `None` as the text `null`, so the backfill found nothing
+
+*Evidence: `JSON(none_as_null=True)` and its comment on `Firm.rd_spend_by_track`
+in `app/models.py`; test
+`test_init_db_rebuilds_per_tier_rd_from_processed_rounds_only` in
+`tests/test_tier_quality_and_standings.py`, which failed before the fix.*
+
+### Problem
+Making quality tier-bound added `firms.rd_spend_by_track`, filled once by
+`init-db` for every firm whose value was still empty. The test set a firm's value
+to `None`, ran `init-db`, and nothing was rebuilt.
+
+### Cause
+SQLAlchemy's JSON type writes Python `None` as the JSON value `null` — a real
+stored value — not as an empty database cell. The backfill looked for empty
+cells (`IS NULL`), so a row the code had "cleared" was invisible to it. In
+production the column is added empty, so the deploy itself would have worked;
+anything that ever wrote `None` later would not have been.
+
+### Solution
+`JSON(none_as_null=True)`, so `None` always means an empty cell and the backfill
+and the code agree on what "not built yet" looks like.
+
+### Rule for Future Changes
+**Before a backfill keys on "empty", check what the code actually stores for
+empty.** A JSON `null`, `""`, `0` and a real empty cell all look empty to a
+person and are different to a query. This is #7's failure again — a migration
+that silently does nothing — reached by a different route; test that it changed
+rows, not just that it ran.
+
+---
+
+## 13. The local server loaded the new model before the database had the column
+
+*Evidence: observed 13 Sept 2026 while building `93e688c`. The local Teacher
+Dashboard returned 500 with `no such column: worlds.show_standings_to_students`;
+running `flask init-db` fixed it with no code change. The production form of the
+same failure is the `init-db` warning in `CLAUDE.md`.*
+
+### Problem
+The local Teacher Dashboard stopped loading partway through a feature, before
+anything had been committed or deployed.
+
+### Cause
+The dev server runs with `--debug`, which reloads the moment a Python file is
+saved. It picked up a model with two new columns while `dev.db` still had the
+old shape. SQLAlchemy selects every column on every query, so every page that
+read a world failed. The error points at a missing column, which looks like a
+bug in the new code rather than a migration that simply has not run.
+
+### Solution
+Backed up `dev.db`, ran `flask init-db`, and every page loaded again.
+
+### Rule for Future Changes
+**After adding a model column, run `flask init-db` locally straight away** — the
+reloader will not wait. A sudden site-wide 500 reading `no such column` right
+after editing `models.py` means "migration not run", not "code broken". It is the
+same failure `CLAUDE.md` warns about on Render, arriving on localhost first.
+
+---
+
+## 14. "The exit button doesn't show" was a design problem, not a missing button
+
+*Evidence: the `.present-exit` history comment in `app/static/css/style.css`;
+commits `93e688c` (persistent button) and `eaaf049` (moved top-right); test
+`test_projector_exit_is_a_persistent_button_on_every_classroom_board`.*
+
+### Problem
+On the sandbox results board, the exit button was reported as not appearing and
+not flashing.
+
+### Cause
+Checked before fixing (#2): the button was in the served HTML with the right
+class, above every layer, and the CSS reaching browsers was current. Nothing was
+broken. It was **hard to see**: its one attention pulse played in the same second
+the standings rows slid in, it rested at 75% opacity, and it was sized in screen
+widths — about 8px tall on an iPad in portrait.
+
+### Solution
+A solid, always-coloured button with no pulse to miss, sized with a
+minimum so it stays readable on small screens. A first placement at bottom-centre
+covered the standings bars, so it moved to the top right, with header space
+reserved for it.
+
+### Rule for Future Changes
+**"It isn't there" can mean "nobody can see it".** Once the markup and CSS check
+out, look at timing (what else moves at that moment), resting contrast, and the
+real size on the smallest device. Anything sized in `vw` must be checked on a
+student-sized screen, not only on a wall.
+
+---
+
+## 15. Removing a button left its route able to play a round for the player
+
+*Evidence: commit `eaaf049`; the submission check in `sandbox.play_round`; test
+`test_a_stale_run_round_post_does_not_play_a_round_for_the_player` in
+`tests/test_sandbox.py`.*
+
+### Problem
+Sandbox rounds were changed to run the moment a player submits, so the separate
+"Run Round" button was removed.
+
+### Cause
+The button's route was still there. Its old job was "process whatever round is
+open", which made sense when it could only be pressed after submitting. Once
+submitting already ran the round, a repeated click, back-button re-send or
+bookmarked request would process the **next** round too — with an auto-decision
+the player never made.
+
+### Solution
+The route now acts only if the current round has a real submission waiting,
+which covers games left mid-round before the change and nothing else. A test
+posts to it after an automatic round and asserts nothing further is processed.
+
+### Rule for Future Changes
+**When a flow changes, re-check what every old entry point would now do**, not
+only whether anything still links to it. A route that was safe because of the
+page around it is not safe once that page is gone.
