@@ -80,6 +80,17 @@ def test_teacher_login_wrong_password_rejected(client):
     assert b"Wrong teacher password" in resp.data
 
 
+def test_student_login_page_shows_banner_and_three_entry_paths(client):
+    resp = client.get("/login")
+    body = resp.data.decode("utf-8")
+    assert "Classroom Game" in body
+    assert "Sandbox Mode" in body
+    assert "Teacher Login" in body
+    assert "game_code" in body
+    assert "sandbox/login" in body
+    assert "teacher/login" in body
+
+
 def test_create_world_pre_creates_firm_slots(app, client):
     world_id = create_world(client, slots=3)
     with app.app_context():

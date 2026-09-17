@@ -31,6 +31,10 @@
   --accent-primary-dark: #4C7B74; /* shadow offset for accent-primary */
   --accent-positive: #39FF14;     /* punchy green -- cash-up/wins, must pop */
   --accent-positive-dark: #1E8A0A;
+  --accent-sandbox: #B8AE74;      /* muted mustard -- practice mode */
+  --accent-sandbox-dark: #6F6238;
+  --accent-teacher: #94A6B1;      /* muted steel blue -- teacher actions */
+  --accent-teacher-dark: #536A75;
   --accent-danger: #FF3355;       /* punchy red -- negative-cash/loan states */
   --accent-danger-dark: #B3253C;
   --text-primary: #F0F0EC;   /* warm off-white */
@@ -109,13 +113,22 @@ h3 { font-size: 0.95rem; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .topbar .brand {
   font-family: var(--font-display);
   color: var(--text);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: clamp(0.68rem, 1vw, 0.86rem);
   line-height: 1.4;
+  white-space: normal;
+  max-width: min(70vw, 480px);
+}
+.topbar nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 }
 .topbar nav a {
   margin-left: 16px;
@@ -742,6 +755,123 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 .celeb-choice input:checked + .celeb-face .celeb-name { color: #0a0a0a; font-weight: 700; }
 .celeb-choice input:checked + .celeb-face .celeb-nomark { color: #0a0a0a; }
 .celeb-choice input:disabled + .celeb-face { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+/* --- Student login landing page ---
+   The hero is a fixed-aspect band carrying the 2048x768 banner, and the
+   three login cards are a SIBLING pulled up over its bottom edge -- not a
+   child positioned down from its top. That ordering matters: the cards
+   overlap a known fraction of the artwork at every width, so the skyline
+   and the listener stay clear above them instead of being covered
+   whenever the viewport aspect changed. Cancels .container's top/side
+   padding so the band runs the full width of the page column. --- */
+.login-landing {
+  max-width: 1440px;
+  margin: -24px -16px 0;
+}
+
+.login-hero {
+  width: 100%;
+  aspect-ratio: 2048 / 768;
+  /* Deliberately generous: this only binds on a genuinely short viewport.
+     At 58vh it bound on an ordinary 568px-tall laptop window, squashing the
+     band below its natural aspect and letting cover crop the sides. When it
+     does bind, cover crops the bottom, never the top, so the title stays
+     whole. */
+  max-height: min(78vh, 620px);
+  /* No flat overlay -- the artwork is the point. The gradient darkens only
+     the bottom strip the cards sit on, so their text stays readable
+     against the water reflections. */
+  background-image: linear-gradient(to bottom,
+      rgba(20, 23, 26, 0) 58%, rgba(20, 23, 26, 0.88) 100%),
+    url("/static/img/headphone-market-banner.png");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+
+.login-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+  /* Overlap ~15% of the banner: the foreground water/ledge strip only. */
+  margin: clamp(-84px, -6vw, -40px) 16px 0;
+  padding-bottom: 12px;
+}
+
+.login-panel {
+  margin: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  background: rgba(46, 58, 64, 0.94);
+  border: 3px solid var(--accent-primary);
+  box-shadow: var(--shadow-hard);
+}
+.login-panel-classroom { border-color: var(--accent-primary); }
+.login-panel-sandbox { border-color: var(--accent-sandbox); }
+.login-panel-teacher { border-color: var(--accent-teacher); }
+.login-panel form {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+}
+.login-panel h2 {
+  margin-bottom: 10px;
+  line-height: 1.2;
+  font-size: clamp(1.2rem, 2.1vw, 2.1rem);
+}
+.login-panel .help-text {
+  margin-bottom: 14px;
+  min-height: 54px;
+}
+.login-panel label {
+  margin-top: 10px;
+  margin-bottom: 8px;
+  display: block;
+}
+.login-panel input {
+  margin-bottom: 14px;
+}
+/* The submit button sits above its field in each card -- deliberate, so the
+   three choices read as three buttons at a glance on a classroom screen. */
+.login-button-classroom {
+  background: var(--accent-primary);
+  box-shadow: 4px 4px 0 var(--accent-primary-dark);
+  order: 0;
+}
+.login-button-sandbox {
+  background: var(--accent-sandbox);
+  color: #0a0a0a;
+  box-shadow: 4px 4px 0 var(--accent-sandbox-dark);
+  order: 0;
+}
+.login-button-teacher {
+  background: var(--accent-teacher);
+  color: #0a0a0a;
+  box-shadow: 4px 4px 0 var(--accent-teacher-dark);
+  order: 0;
+}
+.login-button-sandbox:active { box-shadow: 0 0 0 var(--accent-sandbox-dark); }
+.login-button-teacher:active { box-shadow: 0 0 0 var(--accent-teacher-dark); }
+
+@media (max-width: 900px) {
+  /* Stacked cards are far taller than the band, so the banner crops to a
+     wider slice and shifts left to keep the listener and skyline in frame. */
+  .login-hero {
+    aspect-ratio: 16 / 9;
+    max-height: 34vh;
+    background-position: 26% top;
+  }
+  .login-grid {
+    grid-template-columns: 1fr;
+    margin: -28px 0 0;
+  }
+}
 
 /* --- Flash messages --- */
 .flash { background: var(--panel-alt); border: 2px solid var(--accent-primary); border-radius: 0; color: var(--text); padding: 10px 14px; margin-bottom: 16px; }
