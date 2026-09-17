@@ -66,6 +66,12 @@
 
 * { box-sizing: border-box; }
 
+/* Lets the two hero bands break out of .container to the window edges
+   without a 100vw-wide element triggering a horizontal scrollbar. `clip`
+   rather than `hidden`: hidden would make <html> a scroll container, which
+   silently disables position: sticky anywhere in the app. */
+html { overflow-x: clip; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -768,20 +774,25 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    and the listener stay clear above them instead of being covered
    whenever the viewport aspect changed. Cancels .container's top/side
    padding so the band runs the full width of the page column. --- */
+/* Full-bleed: the band spans the window, not the 1100px content column.
+   width:100vw plus this margin cancels .container's centring, and because the
+   cards' negative margin is a percentage of THIS element, both the band's
+   height and the lift are now measured against the same viewport width -- so
+   the cards still land on a fixed share of the picture. */
 .login-landing {
-  max-width: 1440px;
-  margin: -24px -16px 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: -24px;
 }
 
 .login-hero {
   width: 100%;
   aspect-ratio: 2048 / 768;
-  /* Deliberately generous: this only binds on a genuinely short viewport.
-     At 58vh it bound on an ordinary 568px-tall laptop window, squashing the
-     band below its natural aspect and letting cover crop the sides. When it
-     does bind, cover crops the bottom, never the top, so the title stays
-     whole. */
-  max-height: min(78vh, 620px);
+  /* No height cap. Full-bleed makes the band 37.5% of WINDOW width, so a vh
+     cap now binds at ordinary sizes rather than rarely -- and a bound cap
+     squashes the band below its aspect, which is what put the cards over the
+     skyline before. The cost is a tall band on a wide monitor. */
   /* No flat overlay -- the artwork is the point. The gradient darkens only
      the bottom strip the cards sit on, so their text stays readable
      against the water reflections. */
@@ -800,9 +811,13 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   align-items: stretch;
-  /* Overlap only the very bottom of the banner -- the foreground water
-     below the skyline's waterline. */
-  margin: clamp(-48px, -3.2vw, -20px) 16px 0;
+  /* Band is 37.5vw tall; 4.1vw lifts the cards to start at ~89% of it, the
+     foreground water below the skyline's waterline. Centred and capped so
+     the cards stay a readable column inside the full-width band. */
+  max-width: 1132px;
+  box-sizing: border-box;
+  margin: -4.1vw auto 0;
+  padding: 0 16px;
   padding-bottom: 12px;
 }
 
@@ -900,12 +915,12 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
      wider slice and shifts left to keep the listener and skyline in frame. */
   .login-hero {
     aspect-ratio: 16 / 9;
-    max-height: 34vh;
     background-position: 26% top;
   }
   .login-grid {
     grid-template-columns: 1fr;
-    margin: -16px 0 0;
+    /* 16/9 band is 56.25vw tall; 4.5vw puts the cards at ~92% of it. */
+    margin: -4.5vw auto 0;
   }
 }
 
@@ -920,9 +935,12 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    yard, which is where the cards belong. Both the band's height and the
    percentage margin below resolve against the same container width, so that
    relationship holds at any size without a clamp or a breakpoint. --- */
+/* Full-bleed, same construction as .login-landing above. */
 .sandbox-landing {
-  max-width: 1440px;
-  margin: -24px -16px 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: -24px;
   background: var(--bg-base);
 }
 
@@ -942,9 +960,13 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 .sandbox-panels {
   position: relative;
   z-index: 2;
-  /* Band height is 47.05% of width; this lifts the cards to start at ~52% of
-     it, i.e. just below the horizon. */
-  margin: -22.5% 16px 0;
+  /* Band is 47.05vw tall; 22.5vw lifts the cards to start at ~52% of it,
+     just below the horizon. Centred and capped so the form stays a readable
+     column inside the full-width band. */
+  max-width: 1132px;
+  box-sizing: border-box;
+  margin: -22.5vw auto 0;
+  padding: 0 16px;
 }
 
 @media (max-width: 620px) {
@@ -963,7 +985,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
     background-position: center top;
   }
   .sandbox-panels {
-    margin: -32% 0 0;
+    margin: -32vw auto 0;
   }
 }
 

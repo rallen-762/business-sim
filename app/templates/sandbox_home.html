@@ -16,13 +16,9 @@
 
   <div class="sandbox-panels">
 <div class="card">
-  <h2>Sandbox</h2>
+  <h2>New Single-Player Game</h2>
   <p class="help-text">Sandbox games run on the same market model, formulas and bot logic as a classroom
     game &mdash; nothing about the math changes. They never appear on the Teacher Dashboard.</p>
-</div>
-
-<div class="card">
-  <h3>New Single-Player Game</h3>
   <p class="help-text">You run one company against the bots. No teacher, no waiting &mdash; you submit
     your decision and process the round yourself. {{ default_rounds }} rounds.</p>
   <form method="post" action="{{ url_for('sandbox.new_game') }}">
