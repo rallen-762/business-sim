@@ -1,4 +1,4 @@
-# Headphone Company Simulator — Master Variable Table (V1)
+# Headphone Market Simulator — Master Variable Table (V1)
 
 *Consolidated reference of all locked design decisions. Items still pinned for later are noted at the bottom — they are NOT reflected in these numbers yet.*
 

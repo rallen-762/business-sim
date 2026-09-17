@@ -1,4 +1,4 @@
-# business-sim — Headphone Company Simulator
+# business-sim — Headphone Market Simulator
 
 Classroom economics simulator. Student teams run competing headphone companies over 10 rounds;
 the teacher controls pacing from a Teacher Dashboard. Users are high-school students on school

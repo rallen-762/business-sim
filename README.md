@@ -1,4 +1,4 @@
-# Headphone Company Simulator
+# Headphone Market Simulator
 
 A classroom economics simulation: teams of students run competing headphone
 companies over 10 rounds per class period ("World"), with a teacher
