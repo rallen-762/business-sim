@@ -912,10 +912,19 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 
 @media (max-width: 900px) {
   /* Stacked cards are far taller than the band, so the banner crops to a
-     wider slice and shifts left to keep the listener and skyline in frame. */
+     wider slice; see the anchor note below for which part it keeps. */
   .login-hero {
     aspect-ratio: 16 / 9;
-    background-position: 26% top;
+    /* This crop hides ~33% of the image's width, so where it is anchored
+       decides whether the title survives. The title occupies x 22.6%-77.4%
+       of the artwork, which needs an anchor of at least 32.2% -- the same
+       figure at every width here, because the crop is self-similar. At the
+       26% this used to be, the title's right edge fell 24px outside the
+       frame at 768px wide. 40% clears it at both ends while keeping more of
+       the listener in shot than centring would. This matters more than it
+       used to: the top bar is gone on this page, so the artwork's title is
+       now the only one. */
+    background-position: 40% top;
   }
   .login-grid {
     grid-template-columns: 1fr;

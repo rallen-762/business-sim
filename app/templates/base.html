@@ -7,17 +7,24 @@
      be present in the HTML when Google checks. Needed to request a Safe
      Browsing review after the sandbox setup form was flagged. #}
   <meta name="google-site-verification" content="akq_48c9nEDM8mhcfV3QzCo2moVZU6QwHZjvEGL7fhc" />
-  <title>{% block title %}Headphone Company Simulator{% endblock %}</title>
+  <title>{% block title %}Headphone Market Simulator{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
+  {# Overridable so the student login page can drop it: that page's banner
+     already carries the title in the artwork, so the bar was repeating it
+     directly above a much larger version of itself. Every other page keeps
+     it -- it is the only route back to the index and the only home for the
+     per-page nav. #}
+  {% block topbar %}
   <div class="topbar">
-    <a class="brand" href="{{ url_for('auth.index') }}">Headphone Company Simulator</a>
+    <a class="brand" href="{{ url_for('auth.index') }}">Headphone Market Simulator</a>
     <nav>
       {% block nav %}{% endblock %}
     </nav>
   </div>
+  {% endblock %}
   <div class="container">
     {% with messages = get_flashed_messages() %}
       {% if messages %}
