@@ -796,12 +796,15 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   align-items: stretch;
-  /* Overlap ~15% of the banner: the foreground water/ledge strip only. */
-  margin: clamp(-84px, -6vw, -40px) 16px 0;
+  /* Overlap only the very bottom of the banner -- the foreground water
+     below the skyline's waterline. */
+  margin: clamp(-48px, -3.2vw, -20px) 16px 0;
   padding-bottom: 12px;
 }
 
 .login-panel {
+  /* Titles size off the card, not the viewport -- see .login-panel h2. */
+  container-type: inline-size;
   margin: 0;
   min-height: 100%;
   display: flex;
@@ -823,7 +826,18 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 .login-panel h2 {
   margin-bottom: 10px;
   line-height: 1.2;
-  font-size: clamp(1.2rem, 2.1vw, 2.1rem);
+  /* Sized in cqw -- a share of THIS card's width -- so the longest word
+     ("Classroom", 9 characters of a monospace display face) always fits on
+     one line. At 2.1vw it cleared the card's inner width by about 5px, so
+     any narrowing split the word. Breaking mid-word is also explicitly off
+     here: the global h1-h3 rule sets overflow-wrap: break-word, which is
+     what pushed the "m" of Classroom onto a second line. Titles still wrap
+     between their two words -- all three read as two lines, which is the
+     intended look. */
+  font-size: clamp(0.95rem, 8.5cqw, 1.9rem);
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
 }
 .login-panel .help-text {
   margin-bottom: 14px;
@@ -869,7 +883,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   }
   .login-grid {
     grid-template-columns: 1fr;
-    margin: -28px 0 0;
+    margin: -16px 0 0;
   }
 }
 
