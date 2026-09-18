@@ -1010,6 +1010,46 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    busy store is obviously busier at a glance rather than by a few pixels.
    Everything is CSS keyframes on a sprite strip -- no JS, no library, which
    matters on the school Chromebooks this runs on. --- */
+/* --- The mall interstitial ---
+   The mall is the round's story: the shopping happened, then we score it.
+   It plays first, full height, and collapses out; the standings are held
+   back by the same --mall-intro so the handover is one timeline rather than
+   two animations racing. Collapsing (not just fading) is what lets the
+   standings rise into the space instead of appearing below a gap. --- */
+.present-stage {
+  overflow: hidden;
+  animation: mall-stage var(--mall-intro, 6s) ease-in forwards;
+}
+@keyframes mall-stage {
+  0%        { opacity: 0; max-height: 60vh; transform: translateY(8px); }
+  6%        { opacity: 1; transform: translateY(0); }
+  84%       { opacity: 1; max-height: 60vh; }
+  100%      { opacity: 0; max-height: 0; margin: 0; padding: 0; }
+}
+.mall-caption {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(0.7rem, 1.5vw, 1.5rem);
+  color: var(--accent-primary);
+  margin-top: 1.2vh;
+}
+/* Held back until the mall has folded away, by delaying each row's own
+   reveal. Nothing else is needed: .present-row already sits at opacity 0
+   with fill-mode forwards, so a row is invisible for the whole of its
+   delay. An earlier version also drove `visibility` from a step-end
+   animation here, which stuck on hidden and left the board permanently
+   blank -- the rows were never the thing that needed hiding. */
+.present-rows-after-mall > .present-row {
+  animation-delay: calc(var(--mall-intro, 6s) + var(--row-delay, 0ms)) !important;
+}
+
+/* Reduced motion: no interstitial at all. A six-second hold that cannot
+   animate is just a delay in front of the scoreboard. */
+@media (prefers-reduced-motion: reduce) {
+  .present-stage { animation: none; }
+  .present-rows-after-mall > .present-row { animation-delay: var(--row-delay, 0ms) !important; }
+}
+
 .mall {
   display: flex;
   justify-content: center;

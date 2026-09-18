@@ -33,12 +33,55 @@
   {% if not standings %}
     <div class="present-empty">Waiting for Round 1 results&hellip;</div>
   {% else %}
+    {# The round's shopping happens BEFORE the scoreboard. The mall plays as
+       an interstitial -- shoppers walk into each shopfront in numbers set by
+       what that firm sold -- and then hands over to the standings, which are
+       held back by the same duration so the two never compete for attention.
+       One custom property drives both, so the handover cannot drift.
+
+       ?hold=1 skips the intro: that flag exists for talking over a frozen
+       board, and replaying a six-second animation under discussion (the
+       board also self-refreshes every 30s) would be the opposite of
+       helpful. #}
+    {% if mall and not hold %}
+    <div class="present-stage" style="--mall-intro: 6s;">
+    {# The mall, rebuilt each round from one bay per firm. Shopper numbers
+       are relative to the round's best seller, so the busiest shopfront is
+       obviously the busiest -- see market_data.mall_scene. #}
+    <div class="mall">
+      <div class="mall-strip">
+        {% for bay in mall %}
+        <div class="mall-bay" style="--bay-w: {{ bay_width }};">
+          <div class="mall-sign">
+            {% if bay.badge %}<img src="{{ url_for('static', filename='img/badges-ink/' ~ bay.badge) }}" alt="">{% endif %}
+          </div>
+          <div class="mall-shoppers">
+            {% for i in range(bay.shoppers) %}
+            {# Staggered starts and slightly different speeds, so a busy bay
+               reads as a stream of people rather than one rank moving in
+               step. #}
+            <div class="shopper shopper-{{ '%02d'|format(bay.shopper_type) }}"
+                 style="--delay: {{ (loop.index0 * 0.62)|round(2) }}s;
+                        --walk-secs: {{ (5.2 + (loop.index0 % 3) * 0.45)|round(2) }}s;
+                        --rest: {{ 6 + loop.index0 * 9 }}%;"></div>
+            {% endfor %}
+          </div>
+          {% if bay.shoppers == 0 %}<div class="mall-empty">No sales</div>{% endif %}
+          <div class="mall-name">{{ bay.firm.team_name or 'Open slot' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+      <div class="mall-caption">Round {{ latest_round }} &mdash; who got the customers?</div>
+    </div>
+    {% endif %}
+
     {% set top = standings[0].cum_profit if standings[0].cum_profit > 0 else 1 %}
-    <div class="present-rows">
+    <div class="present-rows{% if mall and not hold %} present-rows-after-mall{% endif %}">
       {# Reveal runs LAST place first so the leader lands last -- the
          animation delay is inverted against the row index. #}
       {% for row in standings %}
-      <div class="present-row" style="animation-delay: {{ (standings|length - loop.index) * 220 }}ms;">
+      <div class="present-row" style="--row-delay: {{ (standings|length - loop.index) * 220 }}ms; animation-delay: {{ (standings|length - loop.index) * 220 }}ms;">
         <div class="present-rank">{{ row.rank }}</div>
         <div class="present-marks">
           {% if row.firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ row.firm.avatar) }}" alt="">{% endif %}
@@ -68,36 +111,6 @@
       </div>
       {% endfor %}
     </div>
-
-    {# The mall, rebuilt each round from one bay per firm. Shopper numbers
-       are relative to the round's best seller, so the busiest shopfront is
-       obviously the busiest -- see market_data.mall_scene. #}
-    {% if mall %}
-    <div class="mall">
-      <div class="mall-strip">
-        {% for bay in mall %}
-        <div class="mall-bay" style="--bay-w: {{ bay_width }};">
-          <div class="mall-sign">
-            {% if bay.badge %}<img src="{{ url_for('static', filename='img/badges-ink/' ~ bay.badge) }}" alt="">{% endif %}
-          </div>
-          <div class="mall-shoppers">
-            {% for i in range(bay.shoppers) %}
-            {# Staggered starts and slightly different speeds, so a busy bay
-               reads as a stream of people rather than one rank moving in
-               step. #}
-            <div class="shopper shopper-{{ '%02d'|format(bay.shopper_type) }}"
-                 style="--delay: {{ (loop.index0 * 0.62)|round(2) }}s;
-                        --walk-secs: {{ (5.2 + (loop.index0 % 3) * 0.45)|round(2) }}s;
-                        --rest: {{ 6 + loop.index0 * 9 }}%;"></div>
-            {% endfor %}
-          </div>
-          {% if bay.shoppers == 0 %}<div class="mall-empty">No sales</div>{% endif %}
-          <div class="mall-name">{{ bay.firm.team_name or 'Open slot' }}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
 
     {# End of game: the three blank billboards in the skyline art go to the
        top three firms, most dominant board first. Only firms that exist are

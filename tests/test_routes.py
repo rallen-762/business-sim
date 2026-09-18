@@ -2093,3 +2093,40 @@ def test_an_exhausted_badge_pool_degrades_instead_of_locking_a_team_out(app, cli
             firm.badge = badge
         db.session.commit()
         assert available_badges(world_id) == list(BADGE_CHOICES)
+
+
+def test_the_mall_is_staged_before_the_standings_not_inside_them(app, client):
+    # The mall is the round's story and plays first; the scoreboard follows.
+    # Order in the document is what drives that, so it is pinned here --
+    # a later edit that moves the mall back under the rows would otherwise
+    # only show up by eye.
+    world_id = create_world(client, slots=3)
+    for slot in range(1, 4):
+        register_firm(client, world_id, slot, f"T{slot}")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "present-stage" in body
+    assert body.index("present-stage") < body.index("present-rows")
+    assert "present-rows-after-mall" in body
+
+
+def test_holding_the_board_skips_the_mall_intro(app, client):
+    # ?hold=1 freezes the board so a teacher can talk over it. Replaying a
+    # six-second animation under discussion is the opposite of useful, so
+    # the intro is skipped and the standings show immediately.
+    world_id = create_world(client, slots=2)
+    for slot in (1, 2):
+        register_firm(client, world_id, slot, f"T{slot}")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    body = client.get(f"/teacher/worlds/{world_id}/present?hold=1").data.decode()
+    assert "present-stage" not in body
+    assert "present-rows-after-mall" not in body
+    assert "present-rows" in body
