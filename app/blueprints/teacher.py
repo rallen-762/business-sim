@@ -268,6 +268,8 @@ def present(world_id):
         mall=scene,
         bay_width=mall_bay_width_css(len(scene)),
         hold=request.args.get("hold") == "1",
+        # Skipped only when the board is deliberately frozen for discussion.
+        mall_intro=request.args.get("hold") != "1",
         exit_url=url_for("teacher.view_world", world_id=world.id),
         exit_title="Back to the Teacher Dashboard",
     )

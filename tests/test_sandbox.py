@@ -896,3 +896,22 @@ def test_a_sandbox_bot_never_wears_the_players_chosen_badge(app, client):
         assert player.badge == "logo-03.png"
         bots = Firm.query.filter(Firm.world_id == world.id, Firm.id != player.id).all()
         assert "logo-03.png" not in [b.badge for b in bots]
+
+
+def test_the_sandbox_results_board_plays_the_mall_intro(app, client):
+    # Regression: the sandbox board sets hold=True to stop it auto-
+    # refreshing, and the mall used to be gated on `not hold`. That turned
+    # the animation off on the one screen a solo player actually sees after
+    # a round -- the board looked identical to before the feature existed.
+    start_game(client, team_name="Shopper Check")
+    client.post("/firm/decisions", data={
+        "price": "80", "production_qty": "10000", "ad_spend": "0",
+        "rd_spend": "0", "track": "Mid", "plant_investment": "0",
+    })
+    with app.app_context():
+        world = World.query.filter_by(mode="sandbox").one()
+    body = client.get(f"/sandbox/results/{world.id}").data.decode()
+    assert "present-stage" in body
+    assert "mall-bay" in body
+    assert "present-rows-after-mall" in body
+    assert body.index("present-stage") < body.index("present-rows")

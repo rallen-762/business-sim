@@ -39,11 +39,14 @@
        held back by the same duration so the two never compete for attention.
        One custom property drives both, so the handover cannot drift.
 
-       ?hold=1 skips the intro: that flag exists for talking over a frozen
-       board, and replaying a six-second animation under discussion (the
-       board also self-refreshes every 30s) would be the opposite of
-       helpful. #}
-    {% if mall and not hold %}
+       Driven by its own `mall_intro` flag, NOT by `hold`. Those look
+       interchangeable and are not: `hold` means "do not auto-refresh", and
+       the two student-facing boards (sandbox results, and the classroom
+       standings a team opens) both set it for that reason alone. Gating the
+       intro on `hold` therefore switched the animation off on exactly the
+       screens students look at, leaving it running only on the teacher's
+       projector. #}
+    {% if mall and mall_intro %}
     <div class="present-stage" style="--mall-intro: 6s;">
     {# The mall, rebuilt each round from one bay per firm. Shopper numbers
        are relative to the round's best seller, so the busiest shopfront is
@@ -77,7 +80,7 @@
     {% endif %}
 
     {% set top = standings[0].cum_profit if standings[0].cum_profit > 0 else 1 %}
-    <div class="present-rows{% if mall and not hold %} present-rows-after-mall{% endif %}">
+    <div class="present-rows{% if mall and mall_intro %} present-rows-after-mall{% endif %}">
       {# Reveal runs LAST place first so the leader lands last -- the
          animation delay is inverted against the row index. #}
       {% for row in standings %}

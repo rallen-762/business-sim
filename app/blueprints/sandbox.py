@@ -366,6 +366,7 @@ def results(world_id):
         # No auto-refresh: a solo player is reading at their own pace, not
         # watching a board that has to stay current for a room.
         hold=True,
+        mall_intro=True,
         exit_url=url_for("market.dashboard"),
         exit_title="Back to the Market Dashboard",
     )

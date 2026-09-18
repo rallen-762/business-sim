@@ -2130,3 +2130,27 @@ def test_holding_the_board_skips_the_mall_intro(app, client):
     assert "present-stage" not in body
     assert "present-rows-after-mall" not in body
     assert "present-rows" in body
+
+
+def test_the_student_standings_board_plays_the_mall_intro(app, client):
+    # Same regression as the sandbox board: this view sets hold=True purely
+    # to stop the auto-refresh, and must still play the intro.
+    world_id = create_world(client, slots=2)
+    with app.app_context():
+        world = db.session.get(World, world_id)
+        world.show_standings_to_students = True
+        db.session.commit()
+    for slot in (1, 2):
+        register_firm(client, world_id, slot, f"T{slot}")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+    client.get("/teacher/logout")
+
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
+    client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
+    body = client.get("/firm/standings").data.decode()
+    assert "present-stage" in body
+    assert "mall-bay" in body

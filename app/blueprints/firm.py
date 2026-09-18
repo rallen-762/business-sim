@@ -276,6 +276,7 @@ def standings():
         mall=scene,
         bay_width=mall_bay_width_css(len(scene)),
         hold=True,
+        mall_intro=True,
         exit_url=url_for("firm.dashboard"),
         exit_title="Back to My Results",
     )
