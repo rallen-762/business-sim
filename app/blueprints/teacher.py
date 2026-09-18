@@ -58,7 +58,9 @@ from app.market_data import (
     SEGMENT_ACCENT_FALLBACK,
     SEGMENT_TRAIT_DOTS,
     TIER_ACCENTS,
+    mall_bay_width_css,
     build_pie_gradient,
+    mall_scene,
     competitive_intel_rows,
     consumer_surplus_by_segment,
     cumulative_standings,
@@ -256,12 +258,15 @@ def present(world_id):
     refresh) so processing a round on the laptop updates the projection
     without anyone touching it."""
     world = World.query.get_or_404(world_id)
+    scene = mall_scene(world)
     return render_template(
         "present.html",
         world=world,
         standings=standings_with_rank_delta(world),
         latest_round=latest_processed_round(world),
         rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
+        mall=scene,
+        bay_width=mall_bay_width_css(len(scene)),
         hold=request.args.get("hold") == "1",
         exit_url=url_for("teacher.view_world", world_id=world.id),
         exit_title="Back to the Teacher Dashboard",

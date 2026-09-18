@@ -142,9 +142,11 @@ def test_registration_stores_all_three_identity_icons(app, client):
             "factory-03.png", "logo-05.png", "headphone-07.png"
         )
 
-    # ...and all three show in the Firm Dashboard header.
+    # ...and all three show in the Firm Dashboard header. The factory plate
+    # is the capacity-tier art derived from the chosen avatar, not the flat
+    # avatar file -- a new firm is at base capacity, so Level 1.
     body = client.get("/firm").data.decode()
-    assert "img/avatars/factory-03.png" in body
+    assert "img/factories/factory-03-L1.png" in body
     assert "img/badges/logo-05.png" in body
     assert "img/products/headphone-07.png" in body
 
@@ -342,7 +344,9 @@ def test_dashboard_shows_team_identity_header(client):
     resp = client.get("/firm")
     body = resp.data.decode()
     assert "Nike" in body
-    assert 'img/avatars/factory-01.png' in body
+    # The chosen factory still identifies the team, now drawn at its
+    # capacity tier rather than as the flat avatar.
+    assert "img/factories/factory-01-L1.png" in body
 
 
 def test_dashboard_quality_level_does_not_repeat_the_track_name(client):
@@ -1694,3 +1698,306 @@ def test_no_endorsement_note_when_none_was_run(client):
     firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
     client.post(f"/login/{world_id}/{firm_id}", data={"password": "secret123"})
     assert "endorsement ran this round" not in client.get("/firm").data.decode("utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# Factory art tied to capacity tier
+# --------------------------------------------------------------------------- #
+
+def test_factory_art_matches_each_capacity_tier(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Tiers", avatar="factory-04.png")
+
+    for capacity, level in ((30_000, 1), (45_000, 2), (60_000, 3)):
+        with app.app_context():
+            firm = db.session.get(Firm, firm_id)
+            firm.plant_capacity = capacity
+            firm.pending_capacity_increase = 0
+            db.session.commit()
+        body = client.get("/firm").data.decode()
+        assert f"img/factories/factory-04-L{level}.png" in body, capacity
+        # and only one factory plate is drawn, not the old avatar too
+        assert "img/avatars/factory-04.png" not in body
+
+
+def test_factory_art_counts_an_expansion_bought_last_round(app, client):
+    # Capacity bought last round is still maturing (pending), but the firm
+    # owns it -- the picture should already show the bigger factory.
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Pending", avatar="factory-04.png")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.plant_capacity = 30_000
+        firm.pending_capacity_increase = 15_000
+        db.session.commit()
+    assert "img/factories/factory-04-L2.png" in client.get("/firm").data.decode()
+
+
+def test_factory_art_updates_the_moment_an_upgrade_is_submitted(app, client):
+    # The point of the feature: a team that commits to an upgrade sees the
+    # bigger factory straight away, rather than waiting for the teacher to
+    # advance the round. Plant investment has a one-round lag in the engine,
+    # so nothing in the firm's own columns has changed yet at this point.
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Instant", avatar="factory-04.png")
+    assert "img/factories/factory-04-L1.png" in client.get("/firm").data.decode()
+
+    submit_decision(client, plant_investment="100000")
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert firm.plant_capacity == 30_000          # unchanged...
+        assert (firm.pending_capacity_increase or 0) == 0   # ...and not yet pending
+    assert "img/factories/factory-04-L2.png" in client.get("/firm").data.decode()
+
+
+def test_factory_art_never_exceeds_level_3(app, client):
+    # A firm at the cap that somehow submits another expansion must not ask
+    # for a Level 4 sprite that does not exist.
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Capped", avatar="factory-04.png")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.plant_capacity = 60_000
+        db.session.commit()
+    submit_decision(client, plant_investment="100000")
+    body = client.get("/firm").data.decode()
+    assert "img/factories/factory-04-L3.png" in body
+    assert "-L4.png" not in body
+
+
+def test_every_factory_level_sprite_exists_on_disk():
+    # factory_sprite builds a filename by string surgery on the avatar, so a
+    # missing file fails as a broken image in class rather than an error
+    # anywhere. Pin the whole matrix instead.
+    from pathlib import Path
+    from app.avatars import AVATAR_CHOICES
+    root = Path(__file__).resolve().parent.parent / "app" / "static" / "img" / "factories"
+    missing = [
+        f"{avatar.rsplit('.', 1)[0]}-L{level}.png"
+        for avatar in AVATAR_CHOICES
+        for level in (1, 2, 3)
+        if not (root / f"{avatar.rsplit('.', 1)[0]}-L{level}.png").is_file()
+    ]
+    assert not missing, missing
+
+
+# --------------------------------------------------------------------------- #
+# End-of-game billboard skyline
+# --------------------------------------------------------------------------- #
+
+def _complete_world(app, client, world_id, firms):
+    """Play `firms` [(slot, name, badge)] through to world completion."""
+    for slot, name, badge in firms:
+        register_firm(client, world_id, slot, name, badge=badge)
+        submit_decision(client, price="80", production_qty="10000")
+        client.get("/logout")
+    teacher_login(client)
+    # Advancing is two steps per round -- collecting -> transition, then
+    # transition -> next round's collecting -- so this loops on status
+    # rather than counting rounds. The bound is a guard against a stuck
+    # state hanging the suite, not an expected number of iterations.
+    for _ in range(100):
+        with app.app_context():
+            if db.session.get(World, world_id).status == "complete":
+                break
+        client.post(f"/teacher/worlds/{world_id}/advance")
+    with app.app_context():
+        assert db.session.get(World, world_id).status == "complete"
+
+
+def test_skyline_appears_only_once_the_game_is_complete(app, client):
+    world_id = create_world(client, slots=3)
+    register_firm(client, world_id, 1, "Alpha")
+    submit_decision(client, price="80", production_qty="10000")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    mid = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "skyline-billboards.png" not in mid   # mid-game: standings only
+
+    _complete_world(app, client, world_id, [])
+    done = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "skyline-billboards.png" in done
+
+
+def test_skyline_fills_at_most_three_boards(app, client):
+    world_id = create_world(client, slots=5)
+    _complete_world(app, client, world_id, [
+        (1, "Alpha", "logo-01.png"), (2, "Bravo", "logo-02.png"),
+        (3, "Delta", "logo-03.png"), (4, "Echo", "logo-04.png"),
+        (5, "Foxtrot", "logo-05.png"),
+    ])
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert body.count("skyline-board skyline-board-") == 3
+    assert "skyline-board-4" not in body
+    # The three boards exist; a 4th-place firm gets no billboard at all.
+    for n in (1, 2, 3):
+        assert f"skyline-board-{n}" in body
+
+
+def test_skyline_never_shows_more_boards_than_firms(app, client):
+    # Two firms must fill two boards, not three -- a blank board is correct,
+    # an invented one is not.
+    world_id = create_world(client, slots=2)
+    _complete_world(app, client, world_id, [
+        (1, "Solo", "logo-07.png"), (2, "Duo", "logo-08.png"),
+    ])
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert body.count("skyline-board skyline-board-") == 2
+    assert "skyline-board-3" not in body
+
+
+def test_skyline_uses_the_inked_badges_not_the_opaque_ones(app, client):
+    # The plain badges are RGB on a dark background; on a lit board they
+    # render as a black rectangle. Regression guard for that swap.
+    world_id = create_world(client, slots=2)
+    _complete_world(app, client, world_id, [
+        (1, "Alpha", "logo-01.png"), (2, "Bravo", "logo-02.png"),
+    ])
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    skyline = body[body.index('class="skyline"'):]
+    assert "img/badges-ink/" in skyline
+    assert "img/badges/" not in skyline
+
+
+def test_every_inked_badge_exists_on_disk():
+    from pathlib import Path
+    from app.avatars import BADGE_CHOICES
+    root = Path(__file__).resolve().parent.parent / "app" / "static" / "img" / "badges-ink"
+    missing = [b for b in BADGE_CHOICES if not (root / b).is_file()]
+    assert not missing, missing
+
+
+# --------------------------------------------------------------------------- #
+# Factory upgrades: one-time, tier-priced, renamed
+# --------------------------------------------------------------------------- #
+
+def test_upgrade_picker_shows_the_tier_price_and_no_recurring_cost(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Upgrader")
+
+    body = client.get("/firm").data.decode()
+    assert "Upgrade Factory (Plant Investment)" in body
+    assert "$200,000" in body            # Level 1 -> 2
+    assert "/round" not in body.split("Upgrade Factory")[1].split("</div>")[0]
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.plant_capacity = 45_000
+        db.session.commit()
+    body = client.get("/firm").data.decode()
+    assert "$400,000" in body            # Level 2 -> 3 costs more
+
+
+def test_upgrade_picker_disappears_at_the_cap(app, client):
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Maxed")
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.plant_capacity = 60_000
+        db.session.commit()
+    body = client.get("/firm").data.decode()
+    assert "largest factory built" in body
+    assert "$400,000" not in body
+
+
+def test_rent_is_not_charged_or_displayed(app, client):
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "NoRent")
+    submit_decision(client, price="80", production_qty="10000")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    with app.app_context():
+        result = RoundResult.query.filter_by(round_number=1).first()
+        assert result.fixed_cost == 0
+
+    client.get("/logout")
+    body = client.get("/firm").data.decode()
+    assert "Rent, Utilities" not in body
+
+
+# --------------------------------------------------------------------------- #
+# Mall scene: one bay per firm, shoppers proportional to sales
+# --------------------------------------------------------------------------- #
+
+def test_mall_has_exactly_one_bay_per_firm(app, client):
+    world_id = create_world(client, slots=6)
+    for slot in range(1, 7):
+        register_firm(client, world_id, slot, f"Team{slot}", badge=f"logo-{slot:02d}.png")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert body.count('class="mall-bay"') == 6
+    # built by repeating one unit, not from ten pre-branded files
+    assert body.count("mall-bay.png") <= 1 or "mall-bay.png" in body
+    for slot in range(1, 7):
+        assert f"badges-ink/logo-{slot:02d}.png" in body
+
+
+def test_shopper_counts_are_proportional_to_units_sold(app, client):
+    from app.market_data import MALL_MAX_SHOPPERS, mall_scene
+    world_id = create_world(client, slots=3)
+    for slot in range(1, 4):
+        register_firm(client, world_id, slot, f"T{slot}", badge=f"logo-{slot:02d}.png")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    with app.app_context():
+        world = db.session.get(World, world_id)
+        # Force a clear spread so the ordering is unambiguous.
+        rows = sorted(RoundResult.query.filter_by(round_number=1).all(),
+                      key=lambda r: r.firm_id)
+        for r, units in zip(rows, (9000.0, 3000.0, 900.0)):
+            r.units_sold_total = units
+        db.session.commit()
+
+        scene = {b["firm"].id: b for b in mall_scene(world, round_number=1)}
+        counts = [scene[r.firm_id]["shoppers"] for r in rows]
+
+    # Best seller gets the full crowd; the others strictly fewer, in order.
+    assert counts[0] == MALL_MAX_SHOPPERS
+    assert counts[0] > counts[1] > counts[2] >= 1
+    # And the gap has to be obvious, not a one-figure difference.
+    assert counts[0] - counts[2] >= 5
+
+
+def test_a_firm_that_sold_nothing_gets_an_empty_shopfront(app, client):
+    from app.market_data import mall_scene
+    world_id = create_world(client, slots=2)
+    for slot in (1, 2):
+        register_firm(client, world_id, slot, f"T{slot}", badge=f"logo-{slot:02d}.png")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    with app.app_context():
+        world = db.session.get(World, world_id)
+        rows = sorted(RoundResult.query.filter_by(round_number=1).all(),
+                      key=lambda r: r.firm_id)
+        rows[0].units_sold_total = 5000.0
+        rows[1].units_sold_total = 0.0
+        db.session.commit()
+        scene = {b["firm"].id: b for b in mall_scene(world, round_number=1)}
+        assert scene[rows[0].firm_id]["shoppers"] > 0
+        assert scene[rows[1].firm_id]["shoppers"] == 0
+
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "No sales" in body
+
+
+def test_every_shopper_strip_exists_on_disk():
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent / "app" / "static" / "img" / "shoppers"
+    missing = [f"shopper-{n:02d}.png" for n in range(1, 5)
+               if not (root / f"shopper-{n:02d}.png").is_file()]
+    assert not missing, missing

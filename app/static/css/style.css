@@ -998,6 +998,200 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   }
 }
 
+/* --- Mall scene: one bay per firm, with proportional foot traffic ---
+   The strip mall is built at runtime from a SINGLE bay unit
+   (img/mall-bay.png, 379x317) repeated once per firm, so it fits any class
+   size seamlessly -- the bay was chosen for edge continuity precisely so
+   repeats join without a visible seam. Each bay's blank sign carries that
+   firm's badge, positioned by percentage of the bay so it tracks any scale.
+
+   Shoppers walk in after a round resolves. The COUNT is the message: it is
+   scaled against the round's best seller (see market_data.mall_scene), so a
+   busy store is obviously busier at a glance rather than by a few pixels.
+   Everything is CSS keyframes on a sprite strip -- no JS, no library, which
+   matters on the school Chromebooks this runs on. --- */
+.mall {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  margin: 2vh 0 0;
+  padding-bottom: 6px;
+}
+.mall-strip { display: flex; flex-wrap: nowrap; }
+
+.mall-bay {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--bay-w, 379px);
+  aspect-ratio: 379 / 317;
+  background-image: url("/static/img/mall-bay.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+/* Measured off mall-bay.png: the blank sign panel. */
+.mall-sign {
+  position: absolute;
+  left: 23.48%;
+  top: 26.50%;
+  width: 52.51%;
+  height: 23.66%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mall-sign img {
+  max-width: 78%;
+  max-height: 74%;
+  object-fit: contain;
+}
+.mall-name {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 2%;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(0.4rem, 0.72vw, 0.72rem);
+  color: var(--text-primary);
+  text-shadow: 0 0 6px #000, 0 0 3px #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Shoppers ---------------------------------------------------------- */
+.mall-shoppers {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4%;
+  height: 34%;
+  overflow: hidden;
+}
+.shopper {
+  position: absolute;
+  bottom: 0;
+  height: 100%;
+  aspect-ratio: var(--cell-w) / var(--cell-h);
+  background-image: var(--strip);
+  background-repeat: no-repeat;
+  /* 9 frames laid out horizontally: the box shows one cell at a time. */
+  background-size: 900% 100%;
+  /* Two animations at once -- the legs cycle while the body crosses the
+     bay. steps(9) is what makes it read as a walk instead of a slide. */
+  animation:
+    shopper-walk 0.75s steps(9) infinite,
+    shopper-approach var(--walk-secs, 6s) linear var(--delay, 0s) infinite;
+  opacity: 0;
+}
+@keyframes shopper-walk {
+  from { background-position: 0 0; }
+  to   { background-position: -900% 0; }
+}
+/* Enters from the kerb, walks to the doorway, fades as it steps inside.
+   The figure turns away from the viewer over its own frames, so reaching
+   the door already looks like going in -- no separate door sprite needed. */
+@keyframes shopper-approach {
+  0%   { left: -18%; opacity: 0; }
+  8%   { opacity: 1; }
+  82%  { opacity: 1; }
+  96%  { left: 46%; opacity: 0; }
+  100% { left: 46%; opacity: 0; }
+}
+.shopper-01 { --strip: url("/static/img/shoppers/shopper-01.png"); --cell-w: 99; --cell-h: 157; }
+.shopper-02 { --strip: url("/static/img/shoppers/shopper-02.png"); --cell-w: 98; --cell-h: 163; }
+.shopper-03 { --strip: url("/static/img/shoppers/shopper-03.png"); --cell-w: 94; --cell-h: 161; }
+.shopper-04 { --strip: url("/static/img/shoppers/shopper-04.png"); --cell-w: 74; --cell-h: 123; }
+
+.mall-empty {
+  position: absolute;
+  left: 0; right: 0; bottom: 16%;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(0.35rem, 0.6vw, 0.6rem);
+  color: var(--accent-danger);
+  text-shadow: 0 0 6px #000;
+}
+
+/* Respect a reduced-motion preference: the crowd still shows, it just
+   stands still rather than marching. The COUNT is the information here, so
+   nothing is lost by holding it still. */
+@media (prefers-reduced-motion: reduce) {
+  .shopper {
+    animation: none;
+    opacity: 1;
+    left: var(--rest, 20%);
+  }
+}
+
+/* --- End-of-game billboard skyline (projector view) ---
+   Shown once a world completes. The artwork carries three blank,
+   forward-facing billboards; the top three firms' brand logos are placed
+   into them with percentage geometry measured off the file itself, so the
+   overlay tracks the picture at any width instead of needing a fixed size.
+
+   Rank is expressed by which board a firm gets, and the art already does
+   the work: the centre board is the largest and most dominant, then the
+   left, then the right. Nothing is scaled by rank in CSS -- the prominence
+   is in the asset. --- */
+.skyline {
+  position: relative;
+  width: 100%;
+  margin: 2vh 0 0;
+  aspect-ratio: 2172 / 724;
+}
+.skyline-art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.skyline-board {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2%;
+  box-sizing: border-box;
+}
+/* Measured from skyline-billboards.png: the three blank faces, largest
+   first. Order here IS the rank order. */
+.skyline-board-1 { left: 39.92%; top: 24.72%; width: 21.78%; height: 30.39%; }
+.skyline-board-2 { left:  8.01%; top: 32.87%; width: 16.76%; height: 25.55%; }
+.skyline-board-3 { left: 79.65%; top: 40.33%; width: 13.58%; height: 21.13%; }
+
+.skyline-board img {
+  max-width: 100%;
+  max-height: 72%;
+  object-fit: contain;
+  /* Uses img/badges-ink/, not img/badges/. The normal badges are RGB with a
+     dark background baked in, so on a lit board they render as a black
+     rectangle rather than a logo; the ink versions are the same glyph keyed
+     to transparency in dark ink. No CSS filter -- the asset is already
+     correct, which also means it looks right if filters are unsupported. */
+}
+.skyline-board-name {
+  position: absolute;
+  bottom: 4%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.05vw;
+  color: #0c2a2e;
+  padding: 0 4%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skyline-caption {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.6vw;
+  color: var(--accent-primary);
+  margin: 1vh 0 0;
+}
+
 /* --- Flash messages --- */
 .flash { background: var(--panel-alt); border: 2px solid var(--accent-primary); border-radius: 0; color: var(--text); padding: 10px 14px; margin-bottom: 16px; }
 

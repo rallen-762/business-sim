@@ -750,3 +750,82 @@ def price_history_chart(world, highlight_firm_id=None, width=720, height=340):
         "legend": [{"track": t, "color": colour(t)} for t in TRACKS],
         "latest_round": latest,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Mall scene: storefronts and proportional foot traffic
+# --------------------------------------------------------------------------- #
+
+MALL_MAX_SHOPPERS = 9      # figures at the busiest store
+MALL_SHOPPER_TYPES = 4     # app/static/img/shoppers/shopper-01..04.png
+
+
+def mall_scene(world, round_number=None):
+    """One entry per firm for the mall: its bay, its badge, and how many
+    shopper figures walk in.
+
+    Figure count is RELATIVE, not a unit count. It is scaled against the
+    best-selling firm of the round, so the leader always shows the full
+    crowd and everyone else reads as a fraction of it. Scaling against a
+    fixed units-per-figure instead would make a whole class look identical
+    in a slow round and identically mobbed in a fast one -- the comparison
+    between firms is the thing this has to show.
+
+    A firm that sold anything gets at least one figure, so "sold a little"
+    and "sold nothing" stay visibly different: an empty shopfront means zero
+    sales, and it should be unmistakable.
+    """
+    if round_number is None:
+        round_number = latest_processed_round(world)
+
+    firms = (
+        Firm.query.filter_by(world_id=world.id)
+        .order_by(Firm.slot_number)
+        .all()
+    )
+    results = {}
+    if round_number:
+        for r in (
+            RoundResult.query.join(Firm)
+            .filter(Firm.world_id == world.id, RoundResult.round_number == round_number)
+            .all()
+        ):
+            results[r.firm_id] = r.units_sold_total or 0.0
+
+    best = max(results.values(), default=0.0)
+    scene = []
+    for index, firm in enumerate(firms):
+        sold = results.get(firm.id, 0.0)
+        if not sold or best <= 0:
+            shoppers = 0
+        else:
+            shoppers = max(1, round(MALL_MAX_SHOPPERS * sold / best))
+        scene.append({
+            "firm": firm,
+            "badge": firm.badge,
+            "units_sold": sold,
+            "shoppers": shoppers,
+            # Rotates the four walk cycles so neighbouring bays don't march
+            # in lockstep, which reads as one repeated sprite rather than a
+            # crowd.
+            "shopper_type": (index % MALL_SHOPPER_TYPES) + 1,
+        })
+    return scene
+
+
+def mall_bay_width_css(bay_count):
+    """CSS width for one mall bay, sized so the whole row fills the board.
+
+    A fixed width cannot work for both class sizes: set it for ten firms and
+    a six-firm mall is a small strip in the middle of the wall; set it for
+    six and ten firms overflow. So the bay is a share of the viewport
+    divided by however many bays there are -- a four-firm mall gets big
+    buildings, a ten-firm mall gets smaller ones, and both span the board.
+
+    This is the projector view, which is the one place in the app that sizes
+    in vw on purpose (see present.html and the CLAUDE.md note on per-view
+    sizing) -- it is read from across a room, not at desk distance. The
+    upper bound stops a two-firm mall rendering as two enormous shopfronts.
+    """
+    count = max(1, bay_count or 1)
+    return f"min({round(94 / count, 2)}vw, 320px)"

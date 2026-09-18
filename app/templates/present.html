@@ -68,6 +68,57 @@
       </div>
       {% endfor %}
     </div>
+
+    {# The mall, rebuilt each round from one bay per firm. Shopper numbers
+       are relative to the round's best seller, so the busiest shopfront is
+       obviously the busiest -- see market_data.mall_scene. #}
+    {% if mall %}
+    <div class="mall">
+      <div class="mall-strip">
+        {% for bay in mall %}
+        <div class="mall-bay" style="--bay-w: {{ bay_width }};">
+          <div class="mall-sign">
+            {% if bay.badge %}<img src="{{ url_for('static', filename='img/badges-ink/' ~ bay.badge) }}" alt="">{% endif %}
+          </div>
+          <div class="mall-shoppers">
+            {% for i in range(bay.shoppers) %}
+            {# Staggered starts and slightly different speeds, so a busy bay
+               reads as a stream of people rather than one rank moving in
+               step. #}
+            <div class="shopper shopper-{{ '%02d'|format(bay.shopper_type) }}"
+                 style="--delay: {{ (loop.index0 * 0.62)|round(2) }}s;
+                        --walk-secs: {{ (5.2 + (loop.index0 % 3) * 0.45)|round(2) }}s;
+                        --rest: {{ 6 + loop.index0 * 9 }}%;"></div>
+            {% endfor %}
+          </div>
+          {% if bay.shoppers == 0 %}<div class="mall-empty">No sales</div>{% endif %}
+          <div class="mall-name">{{ bay.firm.team_name or 'Open slot' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# End of game: the three blank billboards in the skyline art go to the
+       top three firms, most dominant board first. Only firms that exist are
+       drawn -- a four-firm world fills three boards, a two-firm world fills
+       two, and the rest stay blank rather than being padded. Firms below
+       third do not appear; the board is the podium, not the standings. #}
+    {% if world.status == 'complete' %}
+    <div class="skyline">
+      <img class="skyline-art" src="{{ url_for('static', filename='img/skyline-billboards.png') }}"
+           alt="City skyline with billboards for the top three companies">
+      {% for row in standings[:3] %}
+      <div class="skyline-board skyline-board-{{ loop.index }}">
+        {% if row.firm.badge %}
+        <img src="{{ url_for('static', filename='img/badges-ink/' ~ row.firm.badge) }}" alt="">
+        {% endif %}
+        <div class="skyline-board-name">{{ row.firm.team_name }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="skyline-caption">Final Standings &mdash; {{ world.name }}</div>
+    {% endif %}
   {% endif %}
 
   {# Way out -- a persistent, solid button pinned top-right on every

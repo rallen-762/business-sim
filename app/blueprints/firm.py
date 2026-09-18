@@ -41,11 +41,13 @@ from app.market_data import (
     SEGMENT_ACCENTS,
     SEGMENT_ACCENT_FALLBACK,
     SEGMENT_TRAIT_DOTS,
+    mall_bay_width_css,
     TIER_ACCENTS,
     affordability_breakdown,
     affordability_curve,
     latest_processed_round,
     segment_profiles,
+    mall_scene,
     standings_with_rank_delta,
 )
 from app.constants import (
@@ -56,12 +58,15 @@ from app.constants import (
     CELEBRITY_LABELS,
     LOAN_INTEREST_RATE,
     LOAN_REPAYMENT_PRINCIPAL,
+    MAX_PLANT_CAPACITY,
     MAX_QUALITY_LEVEL_GAIN_PER_ROUND,
     PLANT_INVESTMENT_CAPACITY_GAIN,
     PLANT_INVESTMENT_COST,
     ROUNDS_PER_WORLD,
     TRACKS,
     ad_spend_presets,
+    factory_level_for_capacity,
+    plant_upgrade_cost,
     quality_descriptor,
     quality_levels_by_track,
     max_rd_spend_this_round,
@@ -163,9 +168,32 @@ def dashboard():
     remaining_after_principal = max(0.0, firm.loan_outstanding - LOAN_REPAYMENT_PRINCIPAL)
     projected_loan_interest = remaining_after_principal * LOAN_INTEREST_RATE
 
+    # Factory art level. firm.factory_level already counts an expansion
+    # bought in a PREVIOUS round (it reads effective_capacity, which includes
+    # the pending increase). It cannot see one submitted in the round still
+    # in progress, because that only becomes pending_capacity_increase when
+    # the round is processed -- so the art would sit unchanged until the
+    # teacher advanced, which is exactly the wait this feature exists to
+    # remove. Counting the submitted buy here is what makes the picture
+    # change the moment a team commits to the upgrade.
+    committed_capacity = firm.effective_capacity
+    if decision is not None and (decision.plant_investment or 0) > 0:
+        committed_capacity += PLANT_INVESTMENT_CAPACITY_GAIN
+    committed_capacity = min(committed_capacity, MAX_PLANT_CAPACITY)
+    factory_sprite = (
+        f"{firm.avatar.rsplit('.', 1)[0]}-L{factory_level_for_capacity(committed_capacity)}.png"
+        if firm.avatar else None
+    )
+
     return render_template(
         "firm_dashboard.html",
         firm=firm, world=world, decision=decision, last_result=last_result,
+        factory_sprite=factory_sprite,
+        factory_capacity_committed=committed_capacity,
+        # None at the cap, which the form uses to swap the picker for a
+        # "fully upgraded" state rather than offering a purchase that the
+        # engine would refuse.
+        upgrade_cost=plant_upgrade_cost(firm.effective_capacity),
         round_reopened=(world.reopened_round == world.current_round),
         cumulative=cumulative, rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         track_unit_costs=track_unit_costs, tracks=TRACKS, tier_icons=TIER_ICONS,
@@ -238,12 +266,15 @@ def standings():
         return redirect(url_for("firm.dashboard"))
 
     session["standings_seen"] = _standings_key(world)
+    scene = mall_scene(world)
     return render_template(
         "present.html",
         world=world,
         standings=standings_with_rank_delta(world),
         latest_round=latest_round,
         rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
+        mall=scene,
+        bay_width=mall_bay_width_css(len(scene)),
         hold=True,
         exit_url=url_for("firm.dashboard"),
         exit_title="Back to My Results",

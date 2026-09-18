@@ -93,6 +93,7 @@ from datetime import datetime, timezone
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from app.constants import factory_level_for_capacity
 from app.extensions import db
 
 
@@ -211,6 +212,27 @@ class Firm(db.Model):
         amount -- used theirs. Read this instead of re-deriving it.
         """
         return self.plant_capacity + (self.pending_capacity_increase or 0)
+
+    @property
+    def factory_level(self):
+        """Art level (1-3) for this firm's CURRENT capacity.
+
+        Reads effective_capacity, so a firm that bought an expansion last
+        round is already drawn at its new level while that capacity matures
+        -- the picture tracks what the firm owns, not what it can run this
+        round. The dashboard goes one step further and also counts an
+        expansion submitted in the round in progress; see firm.dashboard.
+        """
+        return factory_level_for_capacity(self.effective_capacity)
+
+    @property
+    def factory_sprite(self):
+        """Filename of the level art, derived from the chosen factory avatar
+        ("factory-03.png" -> "factory-03-L2.png"). None if this firm has no
+        avatar, so callers can fall back rather than render a broken image."""
+        if not self.avatar:
+            return None
+        return f"{self.avatar.rsplit('.', 1)[0]}-L{self.factory_level}.png"
 
     # Carried forward for synthesizing next round's auto-decision on non-submission.
     last_price = db.Column(db.Float, nullable=True)

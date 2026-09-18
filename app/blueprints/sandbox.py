@@ -58,7 +58,12 @@ from app.constants import (
     STARTING_PLANT_CAPACITY,
 )
 from app.extensions import db
-from app.market_data import latest_processed_round, standings_with_rank_delta
+from app.market_data import (
+    mall_bay_width_css,
+    latest_processed_round,
+    mall_scene,
+    standings_with_rank_delta,
+)
 from app.models import Firm, RoundDecision, World
 
 bp = Blueprint("sandbox", __name__, url_prefix="/sandbox")
@@ -349,12 +354,15 @@ def results(world_id):
         flash("That game isn't yours.")
         return redirect(url_for("firm.dashboard"))
 
+    scene = mall_scene(world)
     return render_template(
         "present.html",
         world=world,
         standings=standings_with_rank_delta(world),
         latest_round=latest_processed_round(world),
         rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
+        mall=scene,
+        bay_width=mall_bay_width_css(len(scene)),
         # No auto-refresh: a solo player is reading at their own pace, not
         # watching a board that has to stay current for a room.
         hold=True,

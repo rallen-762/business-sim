@@ -19,7 +19,15 @@
 
 <div class="card firm-hero">
   <div class="firm-hero-marks">
-    {% if firm.avatar %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="Factory">{% endif %}
+    {# The factory plate shows the CAPACITY-TIER art, not the flat avatar:
+       it grows as the team upgrades. The avatar stays the team's identity
+       mark everywhere else (standings, projector, teacher list, slot
+       picker), where a picture that changed mid-game would stop working as
+       a way to recognise a team. #}
+    {% if factory_sprite %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/factories/' ~ factory_sprite) }}"
+         alt="Factory at {{ '{:,}'.format(factory_capacity_committed) }} units capacity"
+         title="{{ '{:,}'.format(factory_capacity_committed) }} units capacity">
+    {% elif firm.avatar %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="Factory">{% endif %}
     {% if firm.badge %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="Brand logo">{% endif %}
     {% if firm.product_icon %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/products/' ~ firm.product_icon) }}" alt="Product">{% endif %}
   </div>
@@ -409,19 +417,30 @@
       </div>
 
       <div>
-        <label for="plant_investment">Plant Investment</label>
+        <label for="plant_investment">Upgrade Factory (Plant Investment)</label>
+        {% if upgrade_cost %}
         <select id="plant_investment" name="plant_investment" onchange="recalc()" {% if firm.loan_outstanding > 0 %}disabled{% endif %}>
           <option value="0">None ($0)</option>
-          <option value="{{ plant_investment_cost|round|int }}">Expand +{{ "{:,}".format(plant_capacity_gain) }} capacity &mdash; {{ "${:,.0f}".format(plant_investment_cost) }} now, then {{ "${:,.0f}".format(capacity_block_fixed_cost) }}/round</option>
+          <option value="{{ upgrade_cost|round|int }}">Upgrade to Level {{ firm.factory_level + 1 }} &mdash; +{{ "{:,}".format(plant_capacity_gain) }} capacity for {{ "${:,.0f}".format(upgrade_cost) }}, one time</option>
         </select>
-        {# The recurring cost used to be invisible here: the option read just
-           "($100,000)", so a team had no way to know each block also adds a
-           permanent fixed cost. Simulation showed expanding could turn a
-           winning position into bankruptcy purely through that ongoing
-           charge, which read as a gotcha rather than a lesson. #}
-        <p class="help-text">Extra capacity only pays off if you can <em>sell</em> the extra units &mdash;
-          the {{ "${:,.0f}".format(capacity_block_fixed_cost) }}/round is charged every round from now on, sold or not.</p>
+        {# Upgrades are one-time purchases now. The old option carried a
+           "+$15,000/round" tail, which simulation showed could turn a
+           winning position into bankruptcy through the ongoing charge alone
+           -- that read as a gotcha rather than a lesson. Rent is off and the
+           recurring component is gone with it, so the price shown here is
+           the whole price. #}
+        <p class="help-text">A one-time cost &mdash; nothing is charged in later rounds.
+          Extra capacity only pays off if you can <em>sell</em> the extra units.</p>
         {% if firm.loan_outstanding > 0 %}<p class="help-text">Blocked while carrying loan debt.</p>{% endif %}
+        {% else %}
+        {# At the cap: no upgrade to offer. Hidden field keeps the form
+           posting plant_investment=0 and keeps recalc()'s lookup working,
+           the same way the maxed-out Ad Level branch above does. #}
+        <input type="text" value="Level 3 -- largest factory built" disabled
+               style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
+        <input type="hidden" id="plant_investment" name="plant_investment" value="0">
+        <p class="help-text">Your factory is fully upgraded at {{ "{:,}".format(firm.effective_capacity) }} units.</p>
+        {% endif %}
       </div>
     </div>
 
