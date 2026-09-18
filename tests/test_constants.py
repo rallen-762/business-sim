@@ -134,13 +134,34 @@ def test_quality_weight_midpoint_interpolation():
 # Fixed cost ("Rent, Utilities & Labor") scaling with capacity
 # --------------------------------------------------------------------------- #
 
-def test_fixed_cost_at_base_capacity():
-    assert c.fixed_cost_for_capacity(45_000) == 100_000
+def test_rent_is_switched_off_at_every_capacity():
+    # Rent is disabled, not deleted. Nothing a firm can do to its plant
+    # should produce a per-round charge while RENT_ENABLED is False.
+    assert c.RENT_ENABLED is False
+    for capacity in (0, 30_000, 45_000, 60_000, 90_000):
+        assert c.fixed_cost_for_capacity(capacity) == 0, capacity
 
 
-def test_fixed_cost_matches_given_examples():
-    assert c.fixed_cost_for_capacity(60_000) == 115_000  # 1 expansion block
-    assert c.fixed_cost_for_capacity(90_000) == 145_000  # 3 expansion blocks
+def test_the_rent_model_is_preserved_and_correct_when_re_enabled():
+    # The mechanic is meant to be recoverable by flipping one flag, so the
+    # ladder underneath still has to be right. Pins it without leaving rent
+    # on: base, one block, two blocks (the cap), and past the cap for worlds
+    # built before it existed.
+    original = c.RENT_ENABLED
+    c.RENT_ENABLED = True
+    try:
+        assert c.fixed_cost_for_capacity(30_000) == 100_000
+        assert c.fixed_cost_for_capacity(45_000) == 115_000
+        assert c.fixed_cost_for_capacity(60_000) == 130_000
+        assert c.fixed_cost_for_capacity(90_000) == 160_000
+    finally:
+        c.RENT_ENABLED = original
+
+
+def test_upgrades_are_priced_per_tier_and_stop_at_the_cap():
+    assert c.plant_upgrade_cost(30_000) == 200_000
+    assert c.plant_upgrade_cost(45_000) == 400_000
+    assert c.plant_upgrade_cost(60_000) is None   # nothing left to buy
 
 
 # --------------------------------------------------------------------------- #

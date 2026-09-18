@@ -19,7 +19,7 @@ from __future__ import annotations
 # --------------------------------------------------------------------------- #
 
 STARTING_CASH = 1_000_000
-STARTING_PLANT_CAPACITY = 45_000
+STARTING_PLANT_CAPACITY = 30_000
 STARTING_QUALITY_LEVEL = 1
 BASE_UNIT_COST = 50.00  # Mid tier, before tier multiplier
 ROUNDS_PER_WORLD = 10
@@ -222,20 +222,83 @@ def ad_spend_presets(cumulative_ad_spend: float) -> list[tuple[int, float]]:
 # Section 7: Fixed costs & capacity ("Rent, Utilities & Labor")
 # --------------------------------------------------------------------------- #
 
-BASE_FIXED_COST = 100_000            # covers the starting 45,000 capacity
+# --- Rent, temporarily removed -------------------------------------------
+# Rent ("Rent, Utilities & Labor") is switched OFF, not deleted: the whole
+# cost model below is intact and fixed_cost_for_capacity() still computes it
+# correctly, but RENT_ENABLED short-circuits the result to $0 so it has no
+# effect on play. Flip this back to True to restore the mechanic exactly as
+# it was. Everything downstream already reads the function rather than the
+# constants, so nothing else needs to change either way.
+RENT_ENABLED = False
+
+BASE_FIXED_COST = 100_000            # covers the starting 30,000 capacity
 CAPACITY_BLOCK_SIZE = 15_000         # units gained per expansion block
 CAPACITY_BLOCK_FIXED_COST = 15_000   # extra $/round per block beyond base
 
-# Plant Investment: binary choice each round, no larger preset tiers.
-PLANT_INVESTMENT_COST = 100_000
+# Factory upgrades: flat, ONE-TIME purchases. Each is bought once and never
+# charged again -- there is no recurring component any more (rent, which used
+# to add $15,000/round per block, is off; see RENT_ENABLED).
+#
+# Priced per step rather than flat, so the second upgrade is a real decision
+# rather than an automatic repeat of the first.
 PLANT_INVESTMENT_CAPACITY_GAIN = 15_000
-PLANT_INVESTMENT_CHOICES = (0, PLANT_INVESTMENT_COST)
+PLANT_UPGRADE_COSTS = {
+    30_000: 200_000,   # Level 1 -> Level 2
+    45_000: 400_000,   # Level 2 -> Level 3
+}
+# Kept as the "an upgrade was bought" sentinel for code and tests that only
+# care whether a firm expanded, not what it paid.
+PLANT_INVESTMENT_COST = PLANT_UPGRADE_COSTS[30_000]
+
+
+def plant_upgrade_cost(capacity: int):
+    """One-time cost to upgrade FROM this capacity, or None at the cap.
+
+    Keyed on the capacity a firm currently holds, so the price steps up with
+    the tier. Returns None at (or above) MAX_PLANT_CAPACITY, which callers
+    use to mean "no upgrade is available" -- the form hides the option and
+    the engine refuses the spend."""
+    return PLANT_UPGRADE_COSTS.get(capacity)
+
+# Hard ceiling on plant capacity: the starting 30,000 plus exactly two
+# +15,000 upgrades. Expansion used to be unlimited -- a firm could keep
+# buying blocks every round -- and the cap is what ties capacity to the
+# three-level factory art (30,000 = Level 1, 45,000 = Level 2, 60,000 =
+# Level 3). The engine refuses investment at the cap rather than taking the
+# money for nothing; see process_round's Step 2.
+MAX_PLANT_CAPACITY = 60_000
+
+# The three capacity tiers, and the factory art level each one shows on the
+# Firm Dashboard. One mapping, used by both the model property and the
+# dashboard, so the picture can never disagree with the number printed
+# beside it. Thresholds are "at least this much capacity", read high to low.
+FACTORY_LEVEL_THRESHOLDS = (
+    (60_000, 3),
+    (45_000, 2),
+    (30_000, 1),
+)
+
+
+def factory_level_for_capacity(capacity: int) -> int:
+    """Art level (1-3) for a plant capacity. Anything below the 30,000 base
+    still reads as Level 1 rather than 0 -- there is no smaller factory to
+    draw, and a world created before this change can hold odd capacities."""
+    for threshold, level in FACTORY_LEVEL_THRESHOLDS:
+        if capacity >= threshold:
+            return level
+    return 1
 
 
 def fixed_cost_for_capacity(plant_capacity: int) -> float:
     """"Rent, Utilities & Labor" -- $100,000/round base + $15,000/round per
-    15,000-unit expansion block beyond the starting 45,000 capacity.
-    e.g. 60,000 -> $115,000; 90,000 -> $145,000."""
+    15,000-unit expansion block beyond the starting 30,000 capacity.
+    e.g. 45,000 -> $115,000; 60,000 (the cap) -> $130,000.
+
+    Base rent stayed at $100,000 when the base capacity dropped from 45,000
+    to 30,000 -- a deliberate, flagged tradeoff (same fixed cost, less
+    capacity), to be revisited after classroom play."""
+    if not RENT_ENABLED:
+        return 0.0
     extra_blocks = (plant_capacity - STARTING_PLANT_CAPACITY) / CAPACITY_BLOCK_SIZE
     extra_blocks = round(extra_blocks)  # defensive: capacity should only ever move in whole blocks
     return BASE_FIXED_COST + CAPACITY_BLOCK_FIXED_COST * max(0, extra_blocks)

@@ -63,6 +63,7 @@ from app.constants import (
     CELEBRITY_COST_PER_ROUND,
     PLANT_INVESTMENT_CAPACITY_GAIN,
     PLANT_INVESTMENT_COST,
+    plant_upgrade_cost,
     QUALITY_LADDER,
     ROUNDS_PER_WORLD,
     TRACKS,
@@ -242,14 +243,20 @@ def _decide_marketing(cash, capacity, cumulative_ad_spend, loan_outstanding, rng
     # clear (plant spend is blocked while carrying debt anyway), and there's
     # enough left over to stock the extra capacity once it matures.
     cost_to_fill_extra = PLANT_INVESTMENT_CAPACITY_GAIN * track_unit_cost(track)
+    # Upgrades cost more at each tier, so budget against THIS firm's next
+    # step, not a flat figure -- otherwise the bot cheerfully commits to a
+    # $400,000 upgrade having only checked it could afford $200,000. None
+    # means it is at the cap and there is nothing left to buy.
+    upgrade_price = plant_upgrade_cost(capacity)
     plant_investment = 0
     if (
-        last_units_lost_to_capacity >= MARKETING_EXPAND_MIN_LOST_UNITS
+        upgrade_price is not None
+        and last_units_lost_to_capacity >= MARKETING_EXPAND_MIN_LOST_UNITS
         and loan_outstanding == 0
-        and remaining_cash >= (PLANT_INVESTMENT_COST + cost_to_fill_extra) * MARKETING_EXPAND_CASH_BUFFER
+        and remaining_cash >= (upgrade_price + cost_to_fill_extra) * MARKETING_EXPAND_CASH_BUFFER
     ):
-        plant_investment = PLANT_INVESTMENT_COST
-        remaining_cash -= PLANT_INVESTMENT_COST
+        plant_investment = upgrade_price
+        remaining_cash -= upgrade_price
 
     production_qty = _affordable_production_qty(remaining_cash, track, capacity)
 

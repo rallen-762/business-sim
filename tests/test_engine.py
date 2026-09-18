@@ -190,7 +190,7 @@ def test_fixed_cost_reflects_capacity_maturing_this_round():
     decisions = {1: make_decision(1)}
     results = process_round(states, decisions)
     assert results[1].plant_capacity == 60_000
-    assert results[1].fixed_cost == 115_000
+    assert results[1].fixed_cost == 0  # rent is switched off (RENT_ENABLED)
 
 
 def test_plant_investment_this_round_does_not_affect_this_rounds_capacity():
@@ -200,7 +200,41 @@ def test_plant_investment_this_round_does_not_affect_this_rounds_capacity():
     decisions = {1: make_decision(1, plant_investment=100_000)}
     results = process_round(states, decisions)
     assert results[1].plant_capacity == STARTING_PLANT_CAPACITY
-    assert results[1].fixed_cost == 100_000
+    assert results[1].fixed_cost == 0  # rent is switched off (RENT_ENABLED)
+    assert results[1].new_pending_capacity_increase == 15_000
+
+
+def test_plant_investment_is_refused_at_the_capacity_cap():
+    # At MAX_PLANT_CAPACITY the buy is blocked, not silently charged. Taking
+    # $100,000 for capacity a firm can never receive would be the worst of
+    # both outcomes, so the money stays put and the block is reported.
+    states = {1: make_state(1, plant_capacity=60_000)}
+    decisions = {1: make_decision(1, plant_investment=100_000)}
+    results = process_round(states, decisions)
+    assert results[1].plant_investment_blocked is True
+    assert results[1].plant_investment_cost == 0
+    assert results[1].new_pending_capacity_increase == 0
+
+
+def test_capacity_already_in_the_pipeline_counts_toward_the_cap():
+    # A firm at 45,000 with an unmatured +15,000 is already committed to the
+    # ceiling. Counting only current capacity would let it buy a third block
+    # and land at 75,000, past the cap the art is tied to.
+    states = {1: make_state(1, plant_capacity=45_000, pending_capacity_increase=15_000)}
+    decisions = {1: make_decision(1, plant_investment=100_000)}
+    results = process_round(states, decisions)
+    assert results[1].plant_investment_blocked is True
+    assert results[1].new_pending_capacity_increase == 0
+
+
+def test_the_second_upgrade_is_still_allowed():
+    # The cap must not block the buy that REACHES it -- 45,000 + 15,000 is
+    # exactly 60,000 and has to go through, or the third art level is
+    # unreachable.
+    states = {1: make_state(1, plant_capacity=45_000)}
+    decisions = {1: make_decision(1, plant_investment=100_000)}
+    results = process_round(states, decisions)
+    assert results[1].plant_investment_blocked is False
     assert results[1].new_pending_capacity_increase == 15_000
 
 
@@ -227,9 +261,12 @@ def test_celebrity_multiplier_boosts_nba_fans_segment():
 # --------------------------------------------------------------------------- #
 
 def test_loan_triggers_on_first_negative_cash():
-    # Tiny cash, big mandatory costs -> guaranteed negative.
+    # Tiny cash against a spend it cannot cover -> guaranteed negative. The
+    # spend has to be explicit now: rent is switched off, so a firm that
+    # produces nothing and buys nothing simply has no costs to go negative
+    # on (see RENT_ENABLED).
     states = {1: make_state(1, cash=10_000)}
-    decisions = {1: make_decision(1, production_qty=0, ad_spend=0, rd_spend=0)}
+    decisions = {1: make_decision(1, production_qty=0, ad_spend=300_000, rd_spend=0)}
     results = process_round(states, decisions)
     assert results[1].loan_taken_this_round == 500_000
     assert results[1].loan_used_ever_after is True
@@ -238,7 +275,7 @@ def test_loan_triggers_on_first_negative_cash():
 
 def test_newly_issued_loan_is_not_repaid_or_charged_interest_same_round():
     states = {1: make_state(1, cash=10_000)}
-    decisions = {1: make_decision(1, production_qty=0)}
+    decisions = {1: make_decision(1, production_qty=0, ad_spend=300_000)}
     results = process_round(states, decisions)
     assert results[1].loan_principal_paid == 0
     assert results[1].loan_interest_charged == 0
@@ -267,7 +304,7 @@ def test_loan_fully_paid_off_charges_no_interest_on_zero_balance():
 
 def test_second_negative_cash_after_loan_already_used_causes_bankruptcy_not_a_second_loan():
     states = {1: make_state(1, cash=10_000, loan_used_ever=True, loan_outstanding=0)}
-    decisions = {1: make_decision(1, production_qty=0)}
+    decisions = {1: make_decision(1, production_qty=0, ad_spend=300_000)}
     results = process_round(states, decisions)
     assert results[1].went_bankrupt_this_round is True
     assert results[1].loan_taken_this_round == 0
@@ -324,7 +361,8 @@ def test_non_indebted_firm_is_not_blocked():
     results = process_round(states, decisions)
     assert results[1].plant_investment_blocked is False
     assert results[1].celebrity_blocked is False
-    assert results[1].plant_investment_cost == 100_000
+    # Charged the tier price for its own capacity, not the submitted number.
+    assert results[1].plant_investment_cost == 200_000
     assert results[1].celebrity_cost == 50_000
 
 
@@ -682,3 +720,26 @@ def test_debt_still_blocks_every_endorser(app=None):
         r = process_round(states, decisions)[1]
         assert r.celebrity_blocked is True
         assert r.celebrity_cost == 0
+
+
+def test_only_one_upgrade_may_be_in_flight_at_a_time():
+    # A firm with an expansion still maturing cannot buy another. Stacking
+    # two blocks would reach the cap a round earlier than the 1-round lag
+    # allows, turning the lag from a real cost into a formality.
+    states = {1: make_state(1, plant_capacity=30_000, pending_capacity_increase=15_000)}
+    decisions = {1: make_decision(1, plant_investment=200_000)}
+    results = process_round(states, decisions)
+    assert results[1].plant_investment_blocked is True
+    assert results[1].plant_investment_cost == 0
+    assert results[1].new_pending_capacity_increase == 0
+
+
+def test_a_second_upgrade_is_allowed_once_the_first_has_matured():
+    # Same firm a round later: the block has landed in plant_capacity and
+    # nothing is pending, so the next upgrade goes through at its tier price.
+    states = {1: make_state(1, plant_capacity=45_000, pending_capacity_increase=0)}
+    decisions = {1: make_decision(1, plant_investment=400_000)}
+    results = process_round(states, decisions)
+    assert results[1].plant_investment_blocked is False
+    assert results[1].plant_investment_cost == 400_000
+    assert results[1].new_pending_capacity_increase == 15_000

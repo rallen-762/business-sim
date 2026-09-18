@@ -100,6 +100,8 @@ from app.constants import (
     WEALTHY_CEILING_PRICE,
     ad_level_and_multiplier,
     fixed_cost_for_capacity,
+    MAX_PLANT_CAPACITY,
+    plant_upgrade_cost,
     quality_level_from_cumulative_rd,
     quality_levels_by_track,
     quality_weight,
@@ -293,7 +295,28 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
     for fid in active_ids:
         d = decisions[fid]
         indebted = states[fid].loan_outstanding > 0
-        plant_blocked[fid] = indebted and d.plant_investment > 0
+        # At the cap the investment is refused outright rather than charged.
+        # Capacity already in the pipeline counts: a firm at 45,000 with an
+        # unmatured +15,000 is effectively at the ceiling, and letting it buy
+        # a third block would take $100,000 for capacity it can never use.
+        committed = states[fid].plant_capacity + states[fid].pending_capacity_increase
+        upgrade_price = plant_upgrade_cost(committed)
+        at_capacity_cap = upgrade_price is None
+        # One upgrade at a time: a firm with an expansion still maturing
+        # cannot start another. Without this a firm could buy in consecutive
+        # rounds and have two blocks in flight, arriving at the cap a round
+        # sooner than the 1-round lag is supposed to allow -- the lag is the
+        # cost of expanding, and stacking buys would let cash skip it.
+        upgrade_in_flight = (states[fid].pending_capacity_increase or 0) > 0
+        plant_blocked[fid] = d.plant_investment > 0 and (
+            indebted or at_capacity_cap or upgrade_in_flight
+        )
+        # Upgrades are priced per tier, so what a firm OWES is decided here
+        # from its own capacity -- never from the number that arrived on the
+        # decision. A stale form, or a second firm's price, cannot buy the
+        # $400,000 step for $200,000.
+        if d.plant_investment > 0 and not plant_blocked[fid]:
+            d.plant_investment = upgrade_price
         celebrity_blocked[fid] = indebted and d.celebrity_on
         if plant_blocked[fid]:
             d.plant_investment = 0
