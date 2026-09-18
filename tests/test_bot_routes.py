@@ -236,3 +236,29 @@ def test_removed_bots_slot_can_be_claimed_by_a_real_student_mid_game(app, client
         assert firm.bot_profile is None
         assert firm.is_registered is True
         assert RoundResult.query.filter_by(firm_id=firm_id).count() == 1  # the bot's round 1 is still there
+
+
+def test_removing_a_bot_returns_its_badge_to_the_pool(app, client):
+    # Badges are unique per world, so a removed bot that kept its badge
+    # would hold one hostage on an empty slot: nobody is wearing it, and
+    # nobody can pick it. Cash and capacity stay on the slot by design --
+    # the icons do not.
+    from app.avatars import available_badges
+    world_id = create_world(client, slots=2)
+    teacher_login(client)
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=1).one().id
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot",
+                data={"profile": "underbidder"})
+
+    with app.app_context():
+        bot_badge = db.session.get(Firm, firm_id).badge
+        assert bot_badge is not None
+        assert bot_badge not in available_badges(world_id)
+
+    client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot/remove")
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        assert firm.badge is None
+        assert bot_badge in available_badges(world_id)

@@ -69,8 +69,15 @@ def pick_unused_icons(other_firms, rng=None):
     ones not flushed yet). Each field is picked at random from what's still
     free; if a pool is ever exhausted (more than 10 firms in one game) it
     falls back to the least-used icons, so it degrades to "rarely repeats"
-    rather than failing. Real teams still choose freely at registration --
-    this only governs what a bot is given."""
+    rather than failing.
+
+    BADGE is stricter than the other two: it is the sign over a firm's shop
+    in the mall, so it has to be unique while any badge is still unclaimed.
+    The generic least-used rule is not enough for that -- with two bots and
+    ten badges every badge is equally "least used" at zero, so a tie can
+    hand out one that a human already holds if that human is not in
+    `other_firms`. Registration enforces the same rule from the other side;
+    this is the bot half of one policy, not a second one."""
     rng = rng or random
     icons = {}
     for field, pool in ICON_FIELDS:
@@ -79,6 +86,47 @@ def pick_unused_icons(other_firms, rng=None):
             value = getattr(firm, field, None)
             if value in counts:
                 counts[value] += 1
+        if field == "badge":
+            free = [c for c in pool if counts[c] == 0]
+            icons[field] = rng.choice(free or pool)
+            continue
         fewest = min(counts.values())
         icons[field] = rng.choice([c for c in pool if counts[c] == fewest])
     return icons
+
+
+def taken_badges(world_id):
+    """Badges held by a CLAIMED firm in this world -- human or bot.
+
+    Unclaimed slots are excluded deliberately. A slot can carry a leftover
+    badge without anyone being in it (a bot removed mid-game is the usual
+    way), and counting those would burn a badge permanently: nobody holds
+    it, but nobody can pick it either. is_registered is the same test the
+    rest of the app uses for "is anyone actually in this slot".
+    """
+    from app.models import Firm  # local: avatars.py is imported by constants-level code
+    return {
+        firm.badge
+        for firm in Firm.query.filter(Firm.world_id == world_id).all()
+        if firm.badge and firm.is_registered
+    }
+
+
+def available_badges(world_id, keep=None):
+    """Badges a firm may still choose in this world, first-come-first-served.
+
+    Once any firm in the session holds a badge it leaves the list, so every
+    firm ends up with its own sign in the mall. `keep` re-admits one badge
+    (the caller's own current choice) so re-rendering a form does not strip
+    the option the user already picked.
+
+    Falls back to the FULL pool once every badge is taken, which can only
+    happen in a world with more than ten firms. Duplicates are a cosmetic
+    problem -- two identical signs -- whereas an empty picker would be a
+    student unable to register at all, and the mall now composites badges
+    onto one shared bay module, so a repeat no longer means a shared
+    building the way it would have with pre-branded storefronts.
+    """
+    taken = taken_badges(world_id) - ({keep} if keep else set())
+    free = [b for b in BADGE_CHOICES if b not in taken]
+    return free or list(BADGE_CHOICES)

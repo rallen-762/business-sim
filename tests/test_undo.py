@@ -58,7 +58,10 @@ def register_firm(client, world_id, slot_number, team_name, password="secret123"
     firm_id = Firm.query.filter_by(world_id=world_id, slot_number=slot_number).first().id
     client.post(f"/register/{world_id}/{firm_id}", data={
         "team_name": team_name, "password": password, "avatar": "factory-01.png",
-        "badge": "logo-01.png", "product_icon": "headphone-01.png",
+        # Badges are unique per world, so this is derived from the slot --
+        # a shared logo-01 meant the second registration in a world was
+        # rejected on the badge check and silently never created.
+        "badge": f"logo-{slot_number:02d}.png", "product_icon": "headphone-01.png",
     })
     return firm_id
 

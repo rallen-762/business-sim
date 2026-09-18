@@ -25,7 +25,7 @@ import string
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 
 from app.auth import current_firm, current_world, is_teacher, log_in_firm, log_in_teacher, log_out_firm
-from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES
+from app.avatars import AVATAR_CHOICES, BADGE_CHOICES, PRODUCT_CHOICES, available_badges
 from app.extensions import db
 from app.models import Firm, World
 
@@ -114,6 +114,11 @@ def register(world_id, firm_id):
         badge = request.form.get("badge", "")
         product_icon = request.form.get("product_icon", "")
 
+        # Re-read what is free at POST time, not at GET time. Two teams
+        # registering at once both loaded a picker showing the same badge as
+        # available; only the one that submits first may keep it.
+        free_badges = available_badges(world_id)
+
         error = None
         if not team_name or not password:
             error = "Team name and password are both required."
@@ -121,6 +126,8 @@ def register(world_id, firm_id):
             error = "Please pick a factory."
         elif badge not in BADGE_CHOICES:
             error = "Please pick a brand logo."
+        elif badge not in free_badges:
+            error = "Another team just took that brand logo -- pick a different one."
         elif product_icon not in PRODUCT_CHOICES:
             error = "Please pick a product."
         elif Firm.query.filter_by(world_id=world_id, team_name=team_name).first():
@@ -129,7 +136,7 @@ def register(world_id, firm_id):
         if error:
             flash(error)
             return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES,
-                                   badges=BADGE_CHOICES, products=PRODUCT_CHOICES)
+                                   badges=free_badges, products=PRODUCT_CHOICES)
 
         # All three icons are the team's own choice (badge and product_icon
         # were each auto-assigned at random before their pickers existed) --
@@ -141,7 +148,7 @@ def register(world_id, firm_id):
         return redirect(url_for("firm.dashboard"))
 
     return render_template("register.html", firm=firm, avatars=AVATAR_CHOICES,
-                           badges=BADGE_CHOICES, products=PRODUCT_CHOICES)
+                           badges=available_badges(world_id), products=PRODUCT_CHOICES)
 
 
 @bp.route("/logout")

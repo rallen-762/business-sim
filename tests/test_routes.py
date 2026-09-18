@@ -52,7 +52,12 @@ def create_world(client, name="Period 3", slots=2):
         return World.query.filter_by(name=name).first().id
 
 
-def register_firm(client, world_id, slot_number, team_name, password="secret123", avatar="factory-01.png", badge="logo-01.png", product_icon="headphone-01.png"):
+def register_firm(client, world_id, slot_number, team_name, password="secret123", avatar="factory-01.png", badge=None, product_icon="headphone-01.png"):
+    # Badges are unique per world now, so the default is derived from the
+    # slot rather than shared. Handing every firm logo-01 made the second
+    # registration in any multi-firm test fail on the badge check before it
+    # reached whatever that test was actually asserting.
+    badge = badge or f"logo-{slot_number:02d}.png"
     with client.application.app_context():
         firm_id = Firm.query.filter_by(world_id=world_id, slot_number=slot_number).first().id
     client.post(
@@ -175,7 +180,10 @@ def test_duplicate_team_name_within_world_rejected(client):
     client.get("/logout")
     resp = client.post(
         f"/register/{world_id}/{2}",
-        data={"team_name": "Nike", "password": "whatever", "avatar": "factory-01.png", "badge": "logo-01.png", "product_icon": "headphone-01.png"},
+        # A FREE badge on purpose: this test is about the duplicate team
+        # name, and reusing slot 1's badge would trip the badge check first
+        # and never reach it.
+        data={"team_name": "Nike", "password": "whatever", "avatar": "factory-01.png", "badge": "logo-02.png", "product_icon": "headphone-01.png"},
         follow_redirects=True,
     )
     # Should redirect back to the register form with a flash, not create a second Nike.
@@ -2001,3 +2009,87 @@ def test_every_shopper_strip_exists_on_disk():
     missing = [f"shopper-{n:02d}.png" for n in range(1, 5)
                if not (root / f"shopper-{n:02d}.png").is_file()]
     assert not missing, missing
+
+
+# --------------------------------------------------------------------------- #
+# Badge uniqueness: first come, first served, humans and bots alike
+# --------------------------------------------------------------------------- #
+
+def test_a_taken_badge_is_not_offered_to_the_next_team(app, client):
+    world_id = create_world(client, slots=3)
+    register_firm(client, world_id, 1, "First", badge="logo-04.png")
+    client.get("/logout")
+
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=2).first().id
+    body = client.get(f"/register/{world_id}/{firm_id}").data.decode()
+    assert 'value="logo-04.png"' not in body
+    assert 'value="logo-05.png"' in body      # the rest are still on offer
+
+
+def test_registering_with_a_badge_someone_just_took_is_refused(app, client):
+    # Two teams can load the picker at the same moment, both seeing a badge
+    # as free. Only the one that submits first may keep it, so availability
+    # is re-checked at POST rather than trusted from the rendered form.
+    world_id = create_world(client, slots=3)
+    register_firm(client, world_id, 1, "First", badge="logo-06.png")
+    client.get("/logout")
+
+    with app.app_context():
+        firm_id = Firm.query.filter_by(world_id=world_id, slot_number=2).first().id
+    resp = client.post(
+        f"/register/{world_id}/{firm_id}",
+        data={"team_name": "Second", "password": "secret123",
+              "avatar": "factory-01.png", "badge": "logo-06.png",
+              "product_icon": "headphone-01.png"},
+        follow_redirects=True,
+    )
+    assert b"just took that brand logo" in resp.data
+    with app.app_context():
+        assert Firm.query.filter_by(world_id=world_id, slot_number=2).first().badge is None
+
+
+def test_a_bot_never_takes_a_badge_a_team_already_holds(app, client):
+    world_id = create_world(client, slots=4)
+    register_firm(client, world_id, 1, "Human", badge="logo-02.png")
+    client.get("/logout")
+    teacher_login(client)
+
+    with app.app_context():
+        slots = [f.id for f in Firm.query.filter_by(world_id=world_id)
+                 .order_by(Firm.slot_number).all()[1:]]
+    for firm_id in slots:
+        client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot",
+                    data={"profile": "underbidder"})
+
+    with app.app_context():
+        badges = [f.badge for f in Firm.query.filter_by(world_id=world_id).all()]
+        assert len(badges) == len(set(badges)), badges
+        assert badges.count("logo-02.png") == 1
+
+
+def test_badges_stay_unique_across_a_full_ten_firm_world(app, client):
+    world_id = create_world(client, slots=10)
+    teacher_login(client)
+    with app.app_context():
+        slots = [f.id for f in Firm.query.filter_by(world_id=world_id)
+                 .order_by(Firm.slot_number).all()]
+    for firm_id in slots:
+        client.post(f"/teacher/worlds/{world_id}/firms/{firm_id}/bot",
+                    data={"profile": "underbidder"})
+    with app.app_context():
+        badges = sorted(f.badge for f in Firm.query.filter_by(world_id=world_id).all())
+        assert len(set(badges)) == 10, badges
+
+
+def test_an_exhausted_badge_pool_degrades_instead_of_locking_a_team_out(app, client):
+    # Only reachable above ten firms. A duplicate sign is cosmetic; an empty
+    # picker would be a student who cannot register at all.
+    from app.avatars import BADGE_CHOICES, available_badges
+    world_id = create_world(client, slots=11)
+    with app.app_context():
+        firms = Firm.query.filter_by(world_id=world_id).order_by(Firm.slot_number).all()
+        for firm, badge in zip(firms, BADGE_CHOICES):
+            firm.badge = badge
+        db.session.commit()
+        assert available_badges(world_id) == list(BADGE_CHOICES)

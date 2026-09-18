@@ -871,3 +871,28 @@ def test_under_the_cap_nothing_is_evicted(app, client):
     with app.app_context():
         assert World.query.get(first_id) is not None
         assert World.query.filter_by(mode="sandbox").count() == 2
+
+
+def test_a_sandbox_game_gives_every_firm_its_own_badge(app, client):
+    # The sandbox picker cannot filter -- the world does not exist yet when
+    # the player chooses. Uniqueness comes from the other side instead: bots
+    # are built after the player and avoid every badge already in the game.
+    start_game(client, team_name="Mine")
+    with app.app_context():
+        world = World.query.filter_by(mode="sandbox").one()
+        badges = [f.badge for f in Firm.query.filter_by(world_id=world.id).all()]
+        assert all(badges), badges
+        assert len(badges) == len(set(badges)), badges
+
+
+def test_a_sandbox_bot_never_wears_the_players_chosen_badge(app, client):
+    start_game(client, team_name="Mine", badge="logo-03.png")
+    with app.app_context():
+        world = World.query.filter_by(mode="sandbox").one()
+        player = Firm.query.filter_by(world_id=world.id, slot_number=1).one()
+        # Guard against a vacuous pass: if the form did not actually apply
+        # the chosen badge, the player would hold logo-01 and this test
+        # would be asserting that no bot took an unrelated free badge.
+        assert player.badge == "logo-03.png"
+        bots = Firm.query.filter(Firm.world_id == world.id, Firm.id != player.id).all()
+        assert "logo-03.png" not in [b.badge for b in bots]

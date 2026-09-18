@@ -353,6 +353,15 @@ def remove_bot(world_id, firm_id):
     firm.bot_profile = None
     firm.team_name = None
     firm.password_hash = None
+    # Hand the icons back too. Badges are unique per world, so a bot that
+    # kept its badge after being removed would hold one hostage on an empty
+    # slot -- the student who claims the slot could not choose it, and
+    # neither could anyone else. Unlike cash and capacity (kept on purpose,
+    # see the docstring), the icons are the bot's look, not the slot's
+    # history.
+    firm.avatar = None
+    firm.badge = None
+    firm.product_icon = None
     db.session.commit()
     flash(f"Bot removed from Firm {firm.slot_number} -- that slot is unclaimed again.")
     return redirect(url_for("teacher.view_world", world_id=world_id))
