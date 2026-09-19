@@ -61,12 +61,17 @@ def build_app(db_path):
     return app
 
 
+SHOOT_PW = "shoot-pw"
+
+
 def seed_finished_world(app, firms=4, long_names=False):
     """A bots-only world played to its last round, so the finale fires.
 
     `long_names` swaps in 40-character team names -- the worst case the
     billboards have to survive, and the one a class of students produces on
     its own."""
+    from werkzeug.security import generate_password_hash
+
     from app.blueprints.sandbox import BOT_ORDER, _make_bot_firm, run_to_completion
     from app.constants import ROUNDS_PER_WORLD
     from app.extensions import db
@@ -84,12 +89,16 @@ def seed_finished_world(app, firms=4, long_names=False):
             bot = _make_bot_firm(world, slot, BOT_ORDER[(slot - 1) % len(BOT_ORDER)], in_game)
             in_game.append(bot)
             db.session.add(bot)
+        # Slot 1 gets a password we know, so the firm-side pages (which are
+        # behind a real team login, not the local-dev teacher shortcut) can
+        # be opened too.
+        in_game[0].password_hash = generate_password_hash(SHOOT_PW)
         if long_names:
             for i, bot in enumerate(in_game, start=1):
                 bot.team_name = f"The Extremely Loud Headphone Co #{i}"
         db.session.commit()
         run_to_completion(world)
-        return world.id
+        return world.id, in_game[0].id
 
 
 def serve(app, port):
@@ -101,8 +110,9 @@ def serve(app, port):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["finale", "mall", "path"],
-                    help="finale/mall seed a finished game; path shoots any URL path")
+    ap.add_argument("what", choices=["finale", "mall", "firm", "path"],
+                    help="finale/mall/firm seed a played-out game; "
+                         "path shoots any URL path")
     ap.add_argument("target", nargs="?", default="/", help="URL path when what=path")
     ap.add_argument("--at", default="12",
                     help="seconds after load to shoot; comma-separate for several")
@@ -117,10 +127,19 @@ def main():
     ap.add_argument("--height", type=int, default=864)
     ap.add_argument("--port", type=int, default=5057)
     ap.add_argument("--headed", action="store_true", help="show the browser window")
+    ap.add_argument("--serve", action="store_true",
+                    help="no browser at all: seed the game, print a URL, and "
+                         "keep serving it so you can open it yourself")
+    ap.add_argument("--watch", action="store_true",
+                    help="just watch it: opens a real window, takes no "
+                         "screenshot, and stays open until you press Enter "
+                         "so the page's own Replay button is usable")
     args = ap.parse_args()
 
-    shots = [float(x) for x in args.at.split(",") if x.strip()]
-    duration = args.duration if args.duration is not None else (max(shots) + 2)
+    if args.watch:
+        args.headed = True
+    shots = [] if args.watch else [float(x) for x in args.at.split(",") if x.strip()]
+    duration = args.duration if args.duration is not None else (max(shots or [0]) + 2)
 
     tmp = tempfile.mkdtemp(prefix="shoot-")
     db_path = (Path(tmp) / "shoot.db").as_posix()
@@ -129,11 +148,29 @@ def main():
     if args.what == "path":
         path = args.target
     else:
-        world_id = seed_finished_world(app, args.firms, args.long_names)
-        path = f"/teacher/worlds/{world_id}/present"
+        world_id, firm_id = seed_finished_world(app, args.firms, args.long_names)
+        path = (f"/login/{world_id}/{firm_id}" if args.what == "firm"
+                else f"/teacher/worlds/{world_id}/present")
 
     server = serve(app, args.port)
     base = f"http://127.0.0.1:{args.port}"
+
+    if args.serve:
+        print()
+        print("  1. sign in (one click, no password locally):")
+        print(f"     {base}/teacher/login")
+        print("  2. then the finale:")
+        print(f"     {base}{path}")
+        print()
+        print("  Replay is on the page. Ctrl+C here when you are done.")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+        server.shutdown()
+        shutil.rmtree(tmp, ignore_errors=True)
+        return
 
     from playwright.sync_api import sync_playwright
 
@@ -149,8 +186,14 @@ def main():
 
             # Local dev auto-logs the teacher in on a bare GET, so this is
             # the whole authentication step.
-            page.goto(f"{base}/teacher/login", wait_until="networkidle")
-            page.goto(base + path, wait_until="networkidle")
+            if args.what == "firm":
+                page.goto(base + path, wait_until="networkidle")
+                page.fill("input[name=password]", SHOOT_PW)
+                page.click("button[type=submit], input[type=submit]")
+                page.wait_for_load_state("networkidle")
+            else:
+                page.goto(f"{base}/teacher/login", wait_until="networkidle")
+                page.goto(base + path, wait_until="networkidle")
 
             # Proof the tab is foregrounded and the clock is moving -- a
             # backgrounded Chrome freezes document.timeline at 0 and every
@@ -173,6 +216,11 @@ def main():
                     out = out.with_name(f"{out.stem}-{at:g}s{out.suffix}")
                 page.screenshot(path=str(out))
                 print(f"t={at:g}s -> {out}")
+
+            if args.watch:
+                print(f"Watching {base}{path} -- Replay is on the page. "
+                      "Press Enter here to close.")
+                input()
 
             if args.video:
                 left = duration - (time.monotonic() - started)

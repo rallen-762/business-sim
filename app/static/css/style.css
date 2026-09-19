@@ -544,7 +544,22 @@ h3 { font-size: 0.95rem; }
   align-items: center;
   gap: 24px;
   flex-wrap: wrap;
-  background: var(--panel-alt);
+  /* No slab. This was the ONE card on the site using --panel-alt (#4A5A5E),
+     the lightest grey in the palette, and the three panels inside it are
+     --bg-base -- the exact colour of the page behind them. So the grey was
+     not separating anything: it was a frame drawn around panels that
+     already matched the page, and it read as a muddy slab. The group is
+     held together by a teal hairline top and bottom instead, which suits
+     the terminal look the rest of the app commits to.
+
+     Scoped to .firm-hero, not .card -- every other panel in the app keeps
+     its surface. */
+  background: transparent;
+  border: none;
+  border-top: 2px solid var(--accent-primary);
+  border-bottom: 2px solid var(--accent-primary);
+  box-shadow: none;
+  padding: 22px 0;
 }
 /* --- Firm hero: product | name + badge | factory ---
    THREE PANELS OF ONE SYSTEM: same border weight, same padding, same
@@ -564,7 +579,15 @@ h3 { font-size: 0.95rem; }
   justify-content: center;
 }
 .firm-hero-art {
+  /* EQUAL WIDTH, not just equal height. The two sprites have very different
+     aspect ratios, so matching them on height alone left the factory 284px
+     wide against the headphone's 164 -- the factory read as the bigger
+     mark, and the dotted leader lines underneath would have run to
+     different lengths and advertised the mismatch instead of tying the two
+     together. A shared width box with object-fit keeps each sprite at its
+     own proportions inside the same footprint. */
   flex: 0 0 auto;
+  width: clamp(168px, 17vw, 224px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -576,21 +599,66 @@ h3 { font-size: 0.95rem; }
   box-shadow: var(--shadow-hard);
 }
 .firm-hero-art img {
-  height: clamp(92px, 10.6vw, 150px);
+  /* Stepped down from 150px. The art is the SECONDARY mark here: at its old
+     size a 222px-tall sprite dwarfed an 18px company name, so the panel
+     read as two pictures with a caption between them rather than a company
+     with two indicators. */
+  height: clamp(78px, 8.2vw, 116px);
   width: auto;
-  max-width: clamp(140px, 16vw, 250px);
+  max-width: 100%;
   object-fit: contain;
   display: block;
 }
+/* QUALITY ......... 10 -- a readout, not a caption. Both flanks use the
+   same row, so they read as two channels of one instrument rather than two
+   unrelated pictures with their own labels.
+
+   Deliberately NOT var(--font-display): Press Start 2P at this size is the
+   exact thing CLAUDE.md rules out, and the old .firm-hero-art-label set it
+   at 11.2px. A real monospace keeps the terminal feel and stays legible. */
+.firm-hero-stat {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  gap: 0;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+.firm-hero-stat-key {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* The leader. A dotted bottom border rather than literal periods: it fills
+   whatever space is left exactly, at any name length or viewport, and it
+   cannot wrap to a second line the way a run of typed dots can. */
+.firm-hero-stat-dots {
+  flex: 1 1 auto;
+  min-width: 10px;
+  margin: 0 6px;
+  border-bottom: 2px dotted var(--panel-alt);
+  transform: translateY(-0.18em);
+}
+.firm-hero-stat-val {
+  color: var(--accent-primary);
+  font-weight: 700;
+  white-space: nowrap;
+  /* The glow lands on the VALUE only -- the number is the thing that
+     changes, so it is the thing that should look live. */
+  text-shadow: 0 0 8px rgba(111, 168, 160, 0.55);
+}
+.firm-hero-art-sub {
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+/* Kept: older markup and the low-quality fallback branch still emit it. */
 .firm-hero-art-label {
   font-family: var(--font-display);
   font-size: clamp(0.5rem, 0.8vw, 0.7rem);
   color: var(--accent-primary);
-  text-align: center;
-}
-.firm-hero-art-sub {
-  font-size: 0.68rem;
-  color: var(--text-secondary);
   text-align: center;
 }
 
@@ -607,31 +675,49 @@ h3 { font-size: 0.95rem; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 14px 16px;
+  gap: 0;
+  padding: 10px 18px;
   background: var(--bg-base);
   border: 3px solid var(--accent-primary);
   box-shadow: var(--shadow-hard);
   text-align: center;
 }
-.firm-hero-label { margin: 0; }
-.firm-hero-name { margin: 2px 0 0; }
+.firm-hero-label {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+/* The company name is what this panel is ABOUT, and it was losing to the
+   art beside it -- 18px of text against 222px sprites. Scaled up and given
+   the teal glow so it reads as the lit element on the board. (There was no
+   existing "Quality 10" glow to match: the only text-shadow in this area
+   was an amber pulse on a quality-up animation. This defines the treatment
+   the readouts above then reuse.) */
+.firm-hero-name {
+  margin: 6px 0 0;
+  font-size: clamp(1.1rem, 2vw, 1.75rem);
+  line-height: 1.25;
+  color: var(--accent-primary);
+  /* Restrained on purpose. A wide soft glow behind a PIXEL face fills the
+     gaps between the blocks that make the letterforms and the name turns to
+     mush -- the opposite of a CRT, where the glow is tight around a bright
+     stroke. Tight radius, low alpha. */
+  text-shadow: 0 0 4px rgba(111, 168, 160, 0.45), 0 0 1px rgba(111, 168, 160, 0.9);
+}
 .firm-hero-badge {
-  width: 58px;
-  height: 58px;
+  width: 46px;
+  height: 46px;
   object-fit: contain;
-  margin: 2px 0 0;
+  margin: 8px 0 0;
   display: block;
 }
-.firm-hero-meta { margin-top: 2px; }
+.firm-hero-meta { margin-top: 6px; font-size: 0.78rem; }
 
 @media (max-width: 860px) {
   .firm-hero-art img { height: clamp(78px, 17vw, 120px); max-width: 46vw; }
   .firm-hero-text { width: 100%; }
-}
-
-}
-
 }
 
 @media (max-width: 640px) {

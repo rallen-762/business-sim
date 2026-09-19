@@ -31,7 +31,11 @@
   <div class="firm-hero-art firm-hero-product">
     <img src="{{ url_for('static', filename='img/products-q/' ~ product_sprite) }}"
          alt="Quality level {{ quality_level }} headphones">
-    <div class="firm-hero-art-label">Quality {{ quality_level }}</div>
+    <div class="firm-hero-stat">
+      <span class="firm-hero-stat-key">Quality</span>
+      <span class="firm-hero-stat-dots"></span>
+      <span class="firm-hero-stat-val">{{ quality_level }}</span>
+    </div>
     <div class="firm-hero-art-sub">{{ quality_label }}</div>
   </div>
   {% elif firm.product_icon %}
@@ -61,8 +65,12 @@
   <div class="firm-hero-art firm-hero-factory">
     <img src="{{ url_for('static', filename='img/factories/' ~ factory_sprite) }}"
          alt="Level {{ factory_level }} factory, {{ '{:,}'.format(factory_capacity_committed) }} units capacity">
-    <div class="firm-hero-art-label">Level {{ factory_level }} Factory</div>
-    <div class="firm-hero-art-sub">{{ "{:,}".format(factory_capacity_committed) }} units capacity</div>
+    <div class="firm-hero-stat">
+      <span class="firm-hero-stat-key">Capacity</span>
+      <span class="firm-hero-stat-dots"></span>
+      <span class="firm-hero-stat-val">{{ "{:,}".format(factory_capacity_committed) }}</span>
+    </div>
+    <div class="firm-hero-art-sub">Level {{ factory_level }} Factory</div>
   </div>
   {% endif %}
 </div>
