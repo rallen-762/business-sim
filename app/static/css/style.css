@@ -547,62 +547,89 @@ h3 { font-size: 0.95rem; }
   background: var(--panel-alt);
 }
 /* --- Firm hero: product | name + badge | factory ---
-   The two marks that CHANGE during a game are the large ones, one at each
-   end: the product grows with quality, the factory with capacity. The brand
-   badge sits between them and is deliberately smaller -- it never changes,
-   and the company name needs the vertical space above it. Previously all
-   three were equal 96px tiles, which is where both progressions got lost. */
+   THREE PANELS OF ONE SYSTEM: same border weight, same padding, same
+   shadow, and balanced visual weight so the eye is not pulled to one and
+   skips the others. The two outer panels hold the marks that CHANGE during
+   a game -- product with quality, factory with capacity -- and the centre
+   holds the company's fixed identity.
+
+   The outer two are matched on HEIGHT, not width. The sprites have very
+   different aspect ratios (a headphone is nearly square, a factory is wide
+   and low), so sizing both by width made the headphone tower over the
+   factory and dominate the card. A shared height box with object-fit lets
+   each sit at its natural proportions at the same visual scale. --- */
+.firm-hero {
+  gap: 18px;
+  align-items: stretch;
+  justify-content: center;
+}
 .firm-hero-art {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: 12px 16px;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 16px;
   background: var(--bg-base);
   border: 3px solid var(--accent-primary);
   box-shadow: var(--shadow-hard);
 }
 .firm-hero-art img {
-  width: clamp(130px, 15vw, 230px);
-  height: auto;
+  height: clamp(92px, 10.6vw, 150px);
+  width: auto;
+  max-width: clamp(140px, 16vw, 250px);
+  object-fit: contain;
   display: block;
-  /* Height follows width: a Level 3 plant and a premium headphone are both
-     wider AND taller than their first tiers, so a fixed box would
-     letterbox the very growth this is here to show. */
 }
-.firm-hero-product { margin-right: auto; }
-.firm-hero-factory { margin-left: auto; }
 .firm-hero-art-label {
   font-family: var(--font-display);
-  font-size: clamp(0.55rem, 0.95vw, 0.78rem);
+  font-size: clamp(0.5rem, 0.8vw, 0.7rem);
   color: var(--accent-primary);
   text-align: center;
 }
 .firm-hero-art-sub {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-secondary);
   text-align: center;
 }
 
-/* Centre column: name on top, badge beneath it. */
-.firm-hero-text { min-width: 0; flex: 1 1 auto; text-align: center; }
-.firm-hero-badge {
-  width: 74px;
-  height: 74px;
-  object-fit: contain;
-  margin: 8px auto 0;
-  display: block;
+/* Centre: the same card treatment as its neighbours, and sized so the badge
+   sits in a proportioned panel rather than floating in grey space. */
+.firm-hero-text {
+  /* Capped, or the centre sprawls: at flex:1 with no limit it took 644px
+     against 141 and 247 for its neighbours, leaving the badge adrift in
+     grey. Bounded, the three read as one proportioned row. */
+  flex: 1 1 auto;
+  max-width: 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px;
   background: var(--bg-base);
-  border: 2px solid var(--accent-primary);
+  border: 3px solid var(--accent-primary);
   box-shadow: var(--shadow-hard);
+  text-align: center;
 }
+.firm-hero-label { margin: 0; }
+.firm-hero-name { margin: 2px 0 0; }
+.firm-hero-badge {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  margin: 2px 0 0;
+  display: block;
+}
+.firm-hero-meta { margin-top: 2px; }
 
 @media (max-width: 860px) {
-  /* Stacked: the marks go full width in order product, name, factory, and
-     stop clinging to edges that no longer exist. */
-  .firm-hero-product, .firm-hero-factory { margin: 0 auto; }
-  .firm-hero-art img { width: min(48vw, 210px); }
+  .firm-hero-art img { height: clamp(78px, 17vw, 120px); max-width: 46vw; }
+  .firm-hero-text { width: 100%; }
+}
+
 }
 
 }
@@ -1152,19 +1179,23 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 2%;
-  /* Deep enough to walk into. At 34% the whole entrance happened in a few
-     pixels and read as a twitch rather than an approach. */
-  height: 56%;
+  bottom: 0;
+  /* The doorway occupies the bottom 43% of the bay, with its head 43% up,
+     so this is the zone a shopper can actually be in. It used to be 56%
+     starting 2% up, which let figures climb past the door head and into
+     the signage -- they read as floating up the building rather than
+     walking into it. */
+  height: 46%;
   overflow: hidden;
 }
 .shopper {
   position: absolute;
   bottom: 0;
   left: var(--start-x, 50%);
-  /* Taller than the first pass: at 74% of a 56% box the figures were about
-     36px wide on a laptop, which is legible only if you already know they
-     are there. */
+  /* 92% of a 46% box is ~42% of the bay -- just under the 43% door head, so
+     a shopper reads as a person who could walk through that door. At 92% of
+     the old 56% box they were 51% of the bay: half again taller than the
+     doorway, which is what made them look like ghosts over the building. */
   height: 92%;
   aspect-ratio: var(--cell-w) / var(--cell-h);
   transform-origin: bottom center;
@@ -1191,10 +1222,15 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    The door end keeps a little spread rather than collapsing to one point,
    or the whole queue stacks into a single silhouette on arrival. */
 @keyframes shopper-approach {
+  /* Mostly SIDEWAYS, into the doorway. The art is a near-frontal elevation
+     with almost no ground plane, and the door sits at the same level the
+     shoppers start on, so there is very little depth to walk into: a large
+     vertical rise reads as floating, not as distance. The travel is a
+     convergence on the door with a small lift and a modest shrink. */
   0%   { bottom: 0;   left: var(--start-x, 50%); transform: translateX(-50%) scale(1);    opacity: 0; }
   14%  { opacity: 1; }
-  74%  { opacity: 1; }
-  100% { bottom: 56%; left: var(--end-x, 50%);   transform: translateX(-50%) scale(0.40); opacity: 0; }
+  76%  { opacity: 1; }
+  100% { bottom: 15%; left: var(--end-x, 50%);   transform: translateX(-50%) scale(0.72); opacity: 0; }
 }
 .shopper-01 { --strip: url("/static/img/shoppers/shopper-01.png"); --cell-w: 69; --cell-h: 160; }
 .shopper-02 { --strip: url("/static/img/shoppers/shopper-02.png"); --cell-w: 74; --cell-h: 171; }
