@@ -737,7 +737,13 @@ h3 { font-size: 0.95rem; }
 .firm-hero-tier-none { color: var(--text-secondary); letter-spacing: 0.06em; }
 
 @media (max-width: 860px) {
-  .firm-hero-art img { height: clamp(78px, 17vw, 120px); max-width: 46vw; }
+  /* max-width stays 100% -- bounded by the PANEL, never by the viewport.
+     This used to say 46vw, which was safe while the panel sized itself to
+     its image; once the two flanks were given a fixed equal width it meant
+     a 760px window allowed a 350px image inside a 168px panel, and the
+     sprite spilled out of its box and was clipped by its neighbour. */
+  .firm-hero-art { width: clamp(132px, 30vw, 200px); }
+  .firm-hero-art img { height: clamp(64px, 14vw, 104px); max-width: 100%; }
   .firm-hero-text { width: 100%; }
 }
 
