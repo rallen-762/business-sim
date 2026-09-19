@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<!-- saved from url=(0012)about:srcdoc -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script>
+      (function() {
+        // Capture host references before any artifact code runs: Window.parent
+        // is [Replaceable] (a top-level `var parent` in artifact code would
+        // replace the accessor with a data property), and a top-level
+        // `const crypto` would shadow the global — either would otherwise
+        // silently break the bridge for artifacts that worked before.
+        const realParent = window.parent;
+        const cryptoObj = window.crypto;
+        // html-to-image is only used by takeScreenshot: fetched on first use, not as a
+        // parser-blocking tag. Native fetch, captured before the proxy override below.
+        const realFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+        const HTML_TO_IMAGE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js";
+        const HTML_TO_IMAGE_INTEGRITY = "sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==";
+        let htmlToImageLoad = null;
+        const loadHtmlToImage = () => {
+          if (!htmlToImageLoad) {
+            htmlToImageLoad = (realFetch
+              ? realFetch(HTML_TO_IMAGE_SRC, { integrity: HTML_TO_IMAGE_INTEGRITY, credentials: 'omit', referrerPolicy: 'no-referrer' })
+              : Promise.reject(new Error('fetch unavailable'))
+            )
+              .then((res) => {
+                if (!res.ok) throw new Error('html-to-image failed to load (' + res.status + ')');
+                return res.text();
+              })
+              .then((source) => {
+                // UMD bundle: hide the artifact's AMD/CommonJS globals so it takes the
+                // window-global branch; inline script text runs synchronously on insert.
+                const hidden = ['define', 'module', 'exports'].map((k) => {
+                  const entry = { k, own: Object.prototype.hasOwnProperty.call(window, k), v: window[k] };
+                  try { window[k] = undefined; } catch (e) {}
+                  return entry;
+                });
+                try {
+                  const el = document.createElement('script');
+                  el.text = source;
+                  (document.head || document.documentElement).appendChild(el);
+                } finally {
+                  hidden.forEach(({ k, own, v }) => {
+                    try { if (own) { window[k] = v; } else { delete window[k]; } } catch (e) {}
+                  });
+                }
+                if (!window.htmlToImage) throw new Error('html-to-image unavailable after load');
+                return window.htmlToImage;
+              });
+            // A failed load may be transient; let the next screenshot retry.
+            htmlToImageLoad.catch(() => { htmlToImageLoad = null; });
+          }
+          return htmlToImageLoad;
+        };
+        // crypto.randomUUID exists only in Secure Contexts; fall back to a
+        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
+        // uniqueness is what the bridge needs, unpredictability is
+        // defense-in-depth on top of the source guards.
+        const newRequestId =
+          cryptoObj && typeof cryptoObj.randomUUID === "function"
+            ? function () { return cryptoObj.randomUUID(); }
+            : function () { return Date.now() + "-" + Math.random(); };
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        // Bridge request ids are crypto-random (not sequential) so they
+        // cannot be predicted by other frames in the tab.
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = newRequestId();
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Null-body statuses: Response(stream, {status: 204}) throws
+                // per the Fetch spec, which would escape this resolver and
+                // hang the artifact's await forever.
+                if (response.status === 204 || response.status === 205 || response.status === 304) {
+                  try {
+                    resolve(new Response(null, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers
+                    }));
+                  } catch (err) {
+                    // Invalid statusText/header bytes can throw here too.
+                    reject(new TypeError(
+                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                    ));
+                  }
+                  return;
+                }
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream. Response()
+                // requires status in [200, 599]; an opaque/no-cors fetch
+                // forwards status 0, which would throw here and escape the
+                // resolver, hanging the artifact's await. Surface it as a
+                // network-error-shaped rejection instead.
+                try {
+                  resolve(new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  }));
+                } catch (err) {
+                  streamControllers.delete(channelId);
+                  reject(new TypeError(
+                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                  ));
+                }
+              },
+              reject,
+              channelId
+            });
+            
+            realParent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          // Only the embedding parent may drive the bridge — sibling and
+          // nested frames can also postMessage into this window.
+          if (event.source !== realParent) return;
+          if (event.data.type === 'takeScreenshot') {
+            // Echo the request's nonce so the requester can correlate the
+            // reply to ITS request — a reply without the expected nonce
+            // (e.g. from a stale pre-remount artifact) is ignored upstream.
+            const screenshotNonce = event.data.nonce;
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures and toPng errors so the parent always
+            // gets a response instead of hanging forever.
+            try {
+              const htmlToImage = await loadHtmlToImage();
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              realParent.postMessage({
+                type: 'screenshotData',
+                nonce: screenshotNonce,
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              realParent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            realParent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            realParent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          realParent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  <style id="claude-scrollbar">@layer claude-scrollbar{*{scrollbar-width:thin}html{scrollbar-color:rgb(128 128 128 / 50%) transparent}}</style>
+
+<title>Firm dashboard restyle — Option 2 (industrial control panel)</title>
+<style>
+:root {
+  /* Surfaces — all dark, never light. Sprite art has dark baked into RGB. */
+  --surface-page:    #0a1826;  /* page background */
+  --surface-panel:   #0f2437;  /* section panel */
+  --surface-cell:    #123247;  /* inset cell inside a panel */
+  --surface-well:    #0a1826;  /* gap/well colour between cells */
+
+  /* Accents */
+  --accent-teal:     #2e8fb0;  /* primary structural accent */
+  --accent-teal-lt:  #6fd3e8;  /* emphasised teal value text */
+  --accent-green:    #97c459;  /* profit / positive — TEXT + 3px bars only */
+  --accent-amber:    #ef9f27;  /* money spent or wasted — TEXT + 3px bars only */
+  --accent-red:      #e24b4a;  /* loss / bankrupt — TEXT + 3px bars only */
+
+  /* Text */
+  --text-bright:     #e2f2fa;  /* primary values */
+  --text-body:       #8fb8cc;  /* labels, body */
+  --text-dim:        #6b95ad;  /* supporting context */
+  --text-faint:      #4a7a95;  /* section eyebrows, disabled */
+
+  /* Type */
+  --font-title: 'Press Start 2P', monospace;  /* TITLES ONLY */
+  --font-data:  ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+
+  /* Spacing scale — use these, never ad-hoc padding */
+  --sp-1: 2px;  --sp-2: 6px;  --sp-3: 10px;
+  --sp-4: 14px; --sp-5: 18px; --sp-6: 24px;
+
+  /* Type scale */
+  --fs-eyebrow:  10px;  /* uppercase, letter-spacing 2px */
+  --fs-label:    11px;
+  --fs-body:     12px;
+  --fs-value:    16px;
+  --fs-value-lg: 19px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: var(--sp-5);
+  background: var(--surface-page);
+  color: var(--text-body);
+  font-family: var(--font-data);
+}
+
+/* ---- Tab strip: firm identity + round state ---- */
+.tabstrip { display: flex; gap: var(--sp-1); margin-bottom: var(--sp-4); }
+.tab {
+  padding: 7px var(--sp-4);
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: var(--surface-cell);
+  color: var(--text-body);
+}
+.tab--active { background: var(--accent-teal); color: #042c3d; }
+.tab--grow   { flex: 1; }
+
+/* ---- Section panel. Category marked by 3px left bar, NOT a full border. ---- */
+.panel {
+  background: var(--surface-panel);
+  border-left: 3px solid var(--accent-teal);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.panel--warn    { border-left-color: var(--accent-amber); }
+.panel--neutral { border-left-color: var(--surface-panel); }
+.panel--bad     { border-left-color: var(--accent-red); }
+.panel--faint   { border-left-color: var(--text-faint); }
+
+.eyebrow {
+  font-size: var(--fs-eyebrow);
+  color: var(--text-faint);
+  letter-spacing: 2px;
+  margin-bottom: var(--sp-3);
+  text-transform: uppercase;
+}
+
+/* ---- Metric grid ---- */
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: var(--sp-4); }
+.metric__label { font-size: var(--fs-label); color: var(--text-dim); }
+.metric__value { font-size: var(--fs-value-lg); color: var(--text-bright); }
+.metric__value--good { color: var(--accent-green); }
+.metric__value--warn { color: var(--accent-amber); }
+.metric__value--bad  { color: var(--accent-red); }
+
+/* ---- Two-up row ---- */
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+
+/* ---- Label/value line ---- */
+.kv { display: flex; justify-content: space-between; font-size: var(--fs-body); padding: 2px 0; }
+.kv__v       { color: var(--text-bright); }
+.kv__v--warn { color: var(--accent-amber); }
+.kv__v--teal { color: var(--accent-teal-lt); }
+.kv__v--dim  { color: var(--text-dim); }
+
+/* ---- Utilisation bar ---- */
+.bar       { height: 8px; background: var(--surface-well); margin-top: var(--sp-2); }
+.bar__fill { height: 100%; background: var(--accent-teal); }
+.bar__note { font-size: var(--fs-label); color: var(--text-dim); margin-top: 5px; }
+
+/* ---- Inset cell strip (decisions) ---- */
+.cells { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: var(--sp-1); background: var(--surface-well); }
+.cell             { background: var(--surface-cell); padding: 9px 11px; }
+.cell__label      { font-size: var(--fs-eyebrow); color: var(--text-dim); letter-spacing: 1px; }
+.cell__value      { font-size: var(--fs-value); color: var(--text-bright); }
+.cell__value--warn{ color: var(--accent-amber); }
+
+/* ---- Price control ---- */
+.price         { display: flex; align-items: baseline; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.price__label  { font-size: var(--fs-body); width: 56px; }
+.price__value  { font-size: var(--fs-value-lg); color: var(--text-bright); }
+input[type=range] { width: 100%; margin-bottom: var(--sp-4); accent-color: var(--accent-teal); }
+
+/* ---- Long-name handling: team names can hit 40 chars ---- */
+.tab--firm { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Empty / edge states ---- */
+.empty { color: var(--text-faint); }
+</style>
+</head>
+<body id="artifacts-component-root-html">
+
+<!-- firm.team_name | round.current / round.total | product quality tier + plant level -->
+<div class="tabstrip">
+  <div class="tab tab--active tab--firm">ROB'S DOBS</div>
+  <div class="tab tab--grow">ROUND 4 OF 10</div>
+  <div class="tab">Q4 · LVL 2</div>
+</div>
+
+<!-- Previous round results. Values from the COMPLETED round, not the pending one. -->
+<div class="panel">
+  <div class="eyebrow">Last round results</div>
+  <div class="metrics">
+    <div>
+      <div class="metric__label">UNITS SOLD</div>
+      <!-- firm.units_sold_last_round -->
+      <div class="metric__value">27,351</div>
+    </div>
+    <div>
+      <div class="metric__label">REVENUE</div>
+      <!-- firm.revenue_last_round -->
+      <div class="metric__value">$2,690,564</div>
+    </div>
+    <div>
+      <div class="metric__label">PROFIT</div>
+      <!-- firm.profit_last_round — green if positive, red if negative -->
+      <div class="metric__value metric__value--good">+$617,584</div>
+    </div>
+    <div>
+      <div class="metric__label">RANK</div>
+      <!-- firm.rank / world.firm_count -->
+      <div class="metric__value">2 / 10</div>
+    </div>
+  </div>
+</div>
+
+<div class="row2">
+
+  <!-- Amber left bar: this panel is about money wasted. -->
+  <div class="panel panel--warn">
+    <div class="eyebrow">Plant status</div>
+    <!-- firm.capacity (committed capacity, from plant level) -->
+    <div class="kv"><span>Capacity</span><span class="kv__v">45,000</span></div>
+    <!-- firm.capacity - firm.units_sold_last_round -->
+    <div class="kv"><span>Idle</span><span class="kv__v--warn">17,649 units</span></div>
+    <div class="bar"><div class="bar__fill" style="width:61%"></div></div>
+    <div class="bar__note">61% utilized — you paid for the rest</div>
+  </div>
+
+  <div class="panel">
+    <div class="eyebrow">Market position</div>
+    <!-- firm.price_last_round -->
+    <div class="kv"><span>Your price</span><span class="kv__v">$87</span></div>
+    <!-- world.tier_average_price for this firm's quality tier -->
+    <div class="kv"><span>Tier average</span><span class="kv__v">$92</span></div>
+    <!-- firm.market_share -->
+    <div class="kv"><span>Share</span><span class="kv__v--teal">21.4%</span></div>
+    <!-- firm.brand_reach, bucketed to Low / Medium / High -->
+    <div class="kv"><span>Brand reach</span><span class="kv__v--dim">Low</span></div>
+  </div>
+
+</div>
+
+<!-- Pending decisions for the NEXT round. -->
+<div class="panel panel--neutral">
+  <div class="eyebrow">Decisions — round 5</div>
+  <div class="price">
+    <span class="price__label">Price</span>
+    <!-- firm.pending_price -->
+    <span class="price__value">$87.00</span>
+  </div>
+  <input type="range" min="40" max="140" value="87" step="1" aria-label="Price">
+  <div class="cells">
+    <div class="cell">
+      <div class="cell__label">R&amp;D</div>
+      <!-- firm.pending_rd_spend -->
+      <div class="cell__value">$0</div>
+    </div>
+    <div class="cell">
+      <div class="cell__label">ADVERTISING</div>
+      <!-- firm.pending_ad_spend -->
+      <div class="cell__value">$0</div>
+    </div>
+    <div class="cell">
+      <div class="cell__label">COMMITTED</div>
+      <!-- sum of all pending spend this round -->
+      <div class="cell__value cell__value--warn">$2.25M</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     EDGE AND EMPTY STATES — these must all render correctly.
+     Mockups show the happy path; these are the cases that bite.
+     ============================================================ -->
+
+<div class="panel panel--faint" style="margin-top:var(--sp-6)">
+  <div class="eyebrow">Edge case: round 1, no history yet</div>
+  <div class="metrics">
+    <div><div class="metric__label">UNITS SOLD</div><div class="metric__value empty">—</div></div>
+    <div><div class="metric__label">REVENUE</div><div class="metric__value empty">—</div></div>
+    <div><div class="metric__label">PROFIT</div><div class="metric__value empty">—</div></div>
+    <div><div class="metric__label">RANK</div><div class="metric__value empty">—</div></div>
+  </div>
+</div>
+
+<div class="panel panel--bad">
+  <div class="eyebrow">Edge case: loss-making firm</div>
+  <div class="metrics">
+    <div><div class="metric__label">UNITS SOLD</div><div class="metric__value">3,104</div></div>
+    <div><div class="metric__label">REVENUE</div><div class="metric__value">$204,864</div></div>
+    <div><div class="metric__label">PROFIT</div><div class="metric__value metric__value--bad">−$1,402,331</div></div>
+    <div><div class="metric__label">RANK</div><div class="metric__value">10 / 10</div></div>
+  </div>
+</div>
+
+<!-- Edge case: 40-character team name must ellipsis, not wrap or break the strip -->
+<div class="tabstrip" style="margin-top:var(--sp-5)">
+  <div class="tab tab--active tab--firm">THE MAGNIFICENT HEADPHONE CONSORTIUM LLC</div>
+  <div class="tab tab--grow">ROUND 1 OF 10</div>
+  <div class="tab">NO PRODUCT YET</div>
+</div>
+
+
+
+</body></html>
