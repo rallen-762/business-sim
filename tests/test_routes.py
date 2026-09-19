@@ -2319,3 +2319,38 @@ def test_a_long_team_name_reaches_the_billboard_intact(app, client):
     body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
     assert long_name in body
     assert "..." not in body.split("skyline-board-name")[1][:200]
+
+
+def test_a_busy_storefront_gets_a_mix_of_shopper_types(app, client):
+    # One walk cycle per bay made every shopper at a given shop the same
+    # person repeated, which reads as a glitch rather than a crowd.
+    from app.market_data import MALL_SHOPPER_TYPES, mall_scene
+    world_id = create_world(client, slots=3)
+    for slot in range(1, 4):
+        register_firm(client, world_id, slot, f"T{slot}")
+        submit_decision(client, price="80", production_qty="9000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    with app.app_context():
+        world = db.session.get(World, world_id)
+        scene = mall_scene(world)
+        busiest = max(scene, key=lambda b: b["shoppers"])
+        assert busiest["shoppers"] >= MALL_SHOPPER_TYPES, "need a full crowd to judge variety"
+        assert len(busiest["shopper_types"]) == busiest["shoppers"]
+        assert len(set(busiest["shopper_types"])) == MALL_SHOPPER_TYPES, \
+            "a busy shop should show every shopper type, not one repeated"
+
+        # neighbouring bays should not start their rotation at the same point
+        firsts = [b["shopper_types"][0] for b in scene if b["shopper_types"]]
+        assert len(set(firsts)) > 1, "every bay leads with the same sprite"
+
+
+def test_the_finale_does_not_sit_behind_a_long_dead_wait(app, client):
+    # It previously fired at 13.3s with nothing moving beforehand, so it read
+    # as never happening at all. The final round runs a shorter mall and a
+    # beat rather than a reading break.
+    from app.market_data import finale_delay_seconds
+    for firms in (2, 5, 8):
+        assert finale_delay_seconds(firms, mall_intro=True) < 9.0, firms

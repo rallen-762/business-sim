@@ -805,10 +805,14 @@ def mall_scene(world, round_number=None):
             "badge": firm.badge,
             "units_sold": sold,
             "shoppers": shoppers,
-            # Rotates the four walk cycles so neighbouring bays don't march
-            # in lockstep, which reads as one repeated sprite rather than a
-            # crowd.
-            "shopper_type": (index % MALL_SHOPPER_TYPES) + 1,
+            # A different walk cycle per FIGURE, not per bay. One type per
+            # storefront made every shopper at a given shop the same person
+            # repeated, which reads as a glitch rather than a crowd. The
+            # offset by bay index means neighbouring shops also start their
+            # rotation at a different point, so no two bays march in step.
+            "shopper_types": [
+                ((index + i) % MALL_SHOPPER_TYPES) + 1 for i in range(shoppers)
+            ],
         })
     return scene
 
@@ -831,10 +835,16 @@ def mall_bay_width_css(bay_count):
     return f"min({round(94 / count, 2)}vw, 320px)"
 
 
-MALL_INTRO_SECONDS = 8.0        # must match --mall-intro in present.html
 ROW_STAGGER_MS = 220            # must match the per-row delay in present.html
 ROW_REVEAL_SECONDS = 0.6
-STANDINGS_READ_SECONDS = 4.0
+STANDINGS_READ_SECONDS = 2.0    # a beat, not a reading break
+
+# The mall interstitial, in seconds. Shorter on the FINAL round: by then a
+# class has watched it nine times, and every second of it delays the thing
+# the last round is actually for. Both values are mirrored by --mall-intro
+# in present.html.
+MALL_INTRO_SECONDS = 8.0
+MALL_INTRO_SECONDS_FINAL = 4.0
 
 
 def finale_delay_seconds(standings_count, mall_intro):
@@ -842,11 +852,15 @@ def finale_delay_seconds(standings_count, mall_intro):
 
     Derived from the sequence in front of it rather than guessed: the mall
     interstitial (if it plays), then the staggered standings reveal, then a
-    few seconds to actually read the result. Hard-coding one number would
-    drift out of step the moment a class had a different number of firms --
-    an eight-firm reveal runs almost half a second longer than a four-firm
-    one.
+    beat. Hard-coding one number would drift out of step the moment a class
+    had a different number of firms -- an eight-firm reveal runs almost half
+    a second longer than a four-firm one.
+
+    This used to land at 13.3s and read as "the finale never happens": for
+    thirteen seconds nothing moved and nothing signalled that anything was
+    coming, so people stopped watching before it fired. The final round now
+    runs a shorter mall and a two-second beat instead of a four-second one.
     """
-    intro = MALL_INTRO_SECONDS if mall_intro else 0.0
+    intro = MALL_INTRO_SECONDS_FINAL if mall_intro else 0.0
     reveal = (max(0, standings_count - 1) * ROW_STAGGER_MS) / 1000.0
     return round(intro + reveal + ROW_REVEAL_SECONDS + STANDINGS_READ_SECONDS, 2)

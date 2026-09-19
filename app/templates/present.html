@@ -47,7 +47,10 @@
        screens students look at, leaving it running only on the teacher's
        projector. #}
     {% if mall and mall_intro %}
-    <div class="present-stage" style="--mall-intro: 8s;">
+    {# Shorter on the final round -- see MALL_INTRO_SECONDS_FINAL. By then a
+       class has watched this nine times and it is the only thing standing
+       between them and the result. #}
+    <div class="present-stage" style="--mall-intro: {{ 4 if finale else 8 }}s;">
     {# The mall, rebuilt each round from one bay per firm. Shopper numbers
        are relative to the round's best seller, so the busiest shopfront is
        obviously the busiest -- see market_data.mall_scene. #}
@@ -59,7 +62,7 @@
             {% if bay.badge %}<img src="{{ url_for('static', filename='img/badges-ink/' ~ bay.badge) }}" alt="">{% endif %}
           </div>
           <div class="mall-shoppers">
-            {% for i in range(bay.shoppers) %}
+            {% for stype in bay.shopper_types %}
             {# Staggered starts and slightly different speeds, so a busy bay
                reads as a stream of people rather than one rank moving in
                step. #}
@@ -78,7 +81,7 @@
                40-52% of the bay; converging on a nominal 50% centre walked a
                third of the crowd into the mullion and the window beside it. #}
             {% set n = bay.shoppers %}
-            <div class="shopper shopper-{{ '%02d'|format(bay.shopper_type) }}"
+            <div class="shopper shopper-{{ '%02d'|format(stype) }}"
                  style="--delay: {{ (loop.index0 * 0.34)|round(2) }}s;
                         --walk-secs: {{ (3.4 + (loop.index0 % 3) * 0.35)|round(2) }}s;
                         --start-x: {{ (6 + loop.index0 * (88 / (n - 1)))|round(1) if n > 1 else 50 }}%;
@@ -181,6 +184,23 @@
         window.location.href = {{ exit_url|tojson }};
       }
     });
+
+    {% if finale %}
+    // Bring the skyline into view when it takes over. The standings fold
+    // away and it rises into their place, but on a tall board -- or if
+    // anyone has scrolled -- it can still land off-screen, and a finale
+    // nobody sees is the same as no finale. Presentational only: this
+    // scrolls, it does not change any game state.
+    (function () {
+      var at = {{ finale_at }} * 1000;
+      setTimeout(function () {
+        var el = document.querySelector('.finale');
+        if (el && el.scrollIntoView) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, at);
+    })();
+    {% endif %}
   </script>
 </body>
 </html>
