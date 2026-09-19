@@ -46,7 +46,7 @@
         {% if row.firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ row.firm.avatar) }}" alt="">{% endif %}
       </div>
       <div class="standings-name">
-        {% if row.firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ row.firm.badge) }}" alt="" style="width:18px;height:18px;object-fit:contain;vertical-align:-3px;margin-right:4px;">{% endif %}
+        {% if row.firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ row.firm.badge) }}" alt="" style="width:26px;height:26px;object-fit:contain;vertical-align:-7px;margin-right:6px;">{% endif %}
         {{ row.firm.team_name }}{% if row.firm.bankrupt %} <span class="badge bankrupt">Bankrupt</span>{% endif %}
       </div>
       <div class="standings-bar-track">

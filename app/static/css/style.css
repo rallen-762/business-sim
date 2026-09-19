@@ -541,7 +541,10 @@ h3 { font-size: 0.95rem; }
    disappears mid-game). */
 .card.firm-hero {
   display: flex;
-  align-items: center;
+  /* stretch, not center: the centre panel is taller than its neighbours now
+     that the badge has real size, and centred items left the three tops and
+     bottoms on six different lines. */
+  align-items: stretch;
   gap: 24px;
   flex-wrap: wrap;
   /* No slab. This was the ONE card on the site using --panel-alt (#4A5A5E),
@@ -706,14 +709,32 @@ h3 { font-size: 0.95rem; }
      stroke. Tight radius, low alpha. */
   text-shadow: 0 0 4px rgba(111, 168, 160, 0.45), 0 0 1px rgba(111, 168, 160, 0.9);
 }
+/* The badge is the team's own mark and it was rendering at 46px -- smaller
+   than the round indicator above it. The art is detailed now (metallic
+   facets, a bevel, a glow), none of which survives at thumbnail size, so it
+   gets real presence here. Viewport-scaled so it keeps its proportion to
+   the panel rather than turning into a large sticker on a small screen. */
 .firm-hero-badge {
-  width: 46px;
-  height: 46px;
+  width: clamp(64px, 6.6vw, 96px);
+  height: clamp(64px, 6.6vw, 96px);
   object-fit: contain;
-  margin: 8px 0 0;
+  margin: 10px 0 2px;
   display: block;
 }
-.firm-hero-meta { margin-top: 6px; font-size: 0.78rem; }
+.firm-hero-meta { margin-top: 4px; }
+/* The tier is the only thing left on this line, so it reads as a tag rather
+   than as a sentence. Same monospace as the readouts on either side. */
+.firm-hero-tier {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  border: 1px solid var(--panel-alt);
+  padding: 3px 10px;
+  display: inline-block;
+}
+.firm-hero-tier-none { color: var(--text-secondary); letter-spacing: 0.06em; }
 
 @media (max-width: 860px) {
   .firm-hero-art img { height: clamp(78px, 17vw, 120px); max-width: 46vw; }

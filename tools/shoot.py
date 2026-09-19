@@ -127,6 +127,9 @@ def main():
     ap.add_argument("--height", type=int, default=864)
     ap.add_argument("--port", type=int, default=5057)
     ap.add_argument("--headed", action="store_true", help="show the browser window")
+    ap.add_argument("--then", default=None,
+                    help="after signing in, navigate here instead "
+                         "(e.g. --then /market/ for the standings)")
     ap.add_argument("--serve", action="store_true",
                     help="no browser at all: seed the game, print a URL, and "
                          "keep serving it so you can open it yourself")
@@ -191,6 +194,8 @@ def main():
                 page.fill("input[name=password]", SHOOT_PW)
                 page.click("button[type=submit], input[type=submit]")
                 page.wait_for_load_state("networkidle")
+                if args.then:
+                    page.goto(base + args.then, wait_until="networkidle")
             else:
                 page.goto(f"{base}/teacher/login", wait_until="networkidle")
                 page.goto(base + path, wait_until="networkidle")

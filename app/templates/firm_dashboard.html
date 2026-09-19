@@ -51,8 +51,12 @@
     <img class="firm-hero-badge" src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="Brand logo">
     {% endif %}
     <div class="firm-hero-meta">
-      {# last_track is null until this firm's first submission -- don't render "None Tier". #}
-      Headphone Co.{% if firm.last_track %} &middot; {{ firm.last_track }} Tier{% else %} &middot; No product line yet{% endif %}
+      {# "Headphone Co." said nothing -- every firm in the game is one. The
+         tier is the part that means something, so it stands on its own.
+         last_track is null until this firm's first submission, so don't
+         render "None Tier". #}
+      {% if firm.last_track %}<span class="firm-hero-tier">{{ firm.last_track }} Tier</span>
+      {% else %}<span class="firm-hero-tier firm-hero-tier-none">No product line yet</span>{% endif %}
       {% if firm.bankrupt %}<span class="badge bankrupt" style="margin-left:6px;">Bankrupt</span>{% endif %}
     </div>
   </div>

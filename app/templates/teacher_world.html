@@ -131,7 +131,7 @@
         <td>
           <div style="display:flex;align-items:center;gap:8px;">
             {% if firm.avatar %}<img src="{{ url_for('static', filename='img/avatars/' ~ firm.avatar) }}" alt="" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;">{% endif %}
-            {% if firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0;">{% endif %}
+            {% if firm.badge %}<img src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;">{% endif %}
             <span>{{ firm.team_name or "(unclaimed)" }}{% if firm.bot_profile %} <span class="badge bot">BOT</span>{% endif %}</span>
           </div>
         </td>
