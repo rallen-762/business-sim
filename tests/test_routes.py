@@ -2185,3 +2185,86 @@ def test_the_factory_is_not_one_of_the_small_identity_plates(app, client):
     marks = body.split('class="firm-hero-marks"')[1].split("</div>")[0]
     assert "factories/" not in marks
     assert "firm-hero-factory" in body
+
+
+def test_the_shopper_sprite_maths_stays_correct():
+    """Pins the frame-stepping maths, which nothing functional can reach.
+
+    A percentage background-position resolves against (container - image),
+    so with background-size 700% the strip moves by P x (W - 7W) = -6WP and
+    frame k sits at P = k/6. Two ways to get this wrong, both of which
+    shipped once and both of which look like flicker rather than an error:
+
+      * animating to a NEGATIVE percentage (-700% resolves to +42W, shoving
+        the strip off-screen -- the cycle ran from frame 1 to nothing);
+      * plain steps(7), which emits k/7 and never lands on k/6 after the
+        first frame, showing slivers of two frames at once.
+    """
+    from pathlib import Path
+    css = (Path(__file__).resolve().parent.parent
+           / "app" / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    block = css[css.index(".shopper {"):css.index(".shopper-01")]
+    assert "background-size: 700% 100%" in block
+    assert "steps(7, jump-none)" in block
+
+    cycle = css[css.index("@keyframes shopper-walk"):]
+    cycle = cycle[:cycle.index("}", cycle.index("to"))]
+    assert "0% 0" in cycle and "100% 0" in cycle
+    assert "-700%" not in cycle, "negative percentage pushes the strip off-screen"
+
+
+def test_the_finale_only_appears_once_the_game_is_complete(app, client):
+    world_id = create_world(client, slots=3)
+    for slot in range(1, 4):
+        register_firm(client, world_id, slot, f"T{slot}")
+        submit_decision(client, price="80", production_qty="8000")
+        client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    mid = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert 'class="finale"' not in mid
+    assert "present-rows-handover" not in mid
+
+    _complete_world(app, client, world_id, [])
+    done = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert 'class="finale"' in done
+    assert "present-rows-handover" in done      # standings fold away for it
+    assert "wins &mdash;" in done or "wins —" in done
+
+
+def test_the_finale_lights_boards_in_reverse_rank_order(app, client):
+    # 1st must land LAST, so its delay is the longest.
+    import re
+    world_id = create_world(client, slots=4)
+    _complete_world(app, client, world_id, [
+        (1, "Alpha", "logo-01.png"), (2, "Bravo", "logo-02.png"),
+        (3, "Delta", "logo-03.png"), (4, "Echo", "logo-04.png"),
+    ])
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    delays = [int(m) for m in re.findall(r"--light-at: calc\(var\(--finale-at\) \+ (\d+)ms\)", body)]
+    assert len(delays) == 3, delays
+    assert delays[0] > delays[1] > delays[2], delays
+
+
+def test_the_finale_waits_for_the_standings_reveal_to_finish(app, client):
+    # The handover time is derived from what runs before it, so a bigger
+    # class does not have the skyline cut across its own reveal.
+    from app.market_data import finale_delay_seconds
+    small = finale_delay_seconds(3, mall_intro=True)
+    large = finale_delay_seconds(8, mall_intro=True)
+    assert large > small
+    # and with no mall intro it starts sooner, not at a fixed moment
+    assert finale_delay_seconds(3, mall_intro=False) < small
+
+
+def test_a_finished_game_stops_auto_refreshing(app, client):
+    # The board reloads every 30s to stay current. A finished game has
+    # nothing left to update, and reloading would replay the whole finale
+    # on a loop in front of the class.
+    world_id = create_world(client, slots=2)
+    _complete_world(app, client, world_id, [
+        (1, "Alpha", "logo-01.png"), (2, "Bravo", "logo-02.png"),
+    ])
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert 'http-equiv="refresh"' not in body

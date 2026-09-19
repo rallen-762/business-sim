@@ -1148,22 +1148,30 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 }
 
 /* --- Shoppers -----------------------------------------------------------
-   The art is three-quarter REAR view: figures walking away from the viewer
-   toward a shopfront. So the motion is INTO the scene, not across it --
-   each shopper rises up the bay, converges on the door and scales down with
-   distance, then fades as it steps inside. The old side-profile art could
-   only slide left-to-right, which is why this needed new frames rather than
-   new timing.
+   Straight-rear art: the figure walks directly away from the camera, into
+   the shopfront. Each bay is a wide glass frontage rather than one narrow
+   door, so a shopper anywhere along it walks straight in -- no turn, and no
+   converging on a centre point. That is why the straight-rear set is used
+   rather than the angled ones.
 
-   Each shopper enters ONCE. Looping made them march back out of the shop
-   and in again, which is not what "customers came in" looks like. ------- */
+   SPRITE MATHS, which is what made the first version flicker. A percentage
+   background-position resolves against (container - image), not against the
+   image: with background-size 700%, `P%` moves the strip by P x (W - 7W) =
+   -6WP. So frame k sits at P = k/6, i.e. 0%, 16.67% ... 100% -- and the
+   original `-700%` resolved to +42W, shoving the strip entirely off-screen.
+   The cycle ran from "frame 1" to "nothing", which is the flicker.
+
+   `jump-none` matters for the same reason. Plain steps(7) emits 0, 1/7,
+   2/7 ... 6/7 -- none of which line up with k/6 after the first, so every
+   frame showed slivers of two. steps(7, jump-none) emits exactly 0, 1/6,
+   2/6 ... 6/6: the frame positions. ------------------------------------- */
 .mall-shoppers {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 2%;
-  /* Deep enough to walk into. At the old 34% they had nowhere to go, so the
-     whole entrance happened in a few pixels and read as a twitch. */
+  /* Deep enough to walk into. At 34% the whole entrance happened in a few
+     pixels and read as a twitch rather than an approach. */
   height: 56%;
   overflow: hidden;
 }
@@ -1171,35 +1179,37 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   position: absolute;
   bottom: 0;
   left: var(--start-x, 50%);
-  height: 76%;
+  height: 74%;
   aspect-ratio: var(--cell-w) / var(--cell-h);
   transform-origin: bottom center;
   background-image: var(--strip);
   background-repeat: no-repeat;
-  /* 8 frames laid out horizontally: the box shows one cell at a time. */
-  background-size: 800% 100%;
-  /* The legs cycle while the body travels. steps(8) is what makes it read
-     as a walk rather than a glide; the cycle is faster than the journey so
-     several strides happen on the way in. */
+  /* 7 frames: one source frame per group is a merged pair and is dropped
+     rather than cut through a body -- see the slicing note in
+     docs/LESSONS_LEARNED.md #16. */
+  background-size: 700% 100%;
   animation:
-    shopper-walk 0.72s steps(8) infinite,
+    shopper-walk 0.66s steps(7, jump-none) infinite,
     shopper-approach var(--walk-secs, 3.6s) ease-in var(--delay, 0s) 1 both;
   opacity: 0;
 }
 @keyframes shopper-walk {
-  from { background-position: 0 0; }
-  to   { background-position: -800% 0; }
+  from { background-position: 0% 0; }
+  to   { background-position: 100% 0; }
 }
+/* Straight in: up the bay, shrinking with distance, fading as it steps
+   inside. No horizontal drift -- the frontage is wide enough to enter from
+   wherever the shopper started. */
 @keyframes shopper-approach {
-  0%   { bottom: 0;   left: var(--start-x, 50%); transform: translateX(-50%) scale(1);    opacity: 0; }
+  0%   { bottom: 0;   transform: translateX(-50%) scale(1);    opacity: 0; }
   14%  { opacity: 1; }
-  72%  { opacity: 1; }
-  100% { bottom: 58%; left: 50%;                 transform: translateX(-50%) scale(0.42); opacity: 0; }
+  74%  { opacity: 1; }
+  100% { bottom: 56%; transform: translateX(-50%) scale(0.44); opacity: 0; }
 }
-.shopper-01 { --strip: url("/static/img/shoppers/shopper-01.png"); --cell-w: 123; --cell-h: 219; }
-.shopper-02 { --strip: url("/static/img/shoppers/shopper-02.png"); --cell-w: 112; --cell-h: 234; }
-.shopper-03 { --strip: url("/static/img/shoppers/shopper-03.png"); --cell-w: 114; --cell-h: 226; }
-.shopper-04 { --strip: url("/static/img/shoppers/shopper-04.png"); --cell-w: 135; --cell-h: 229; }
+.shopper-01 { --strip: url("/static/img/shoppers/shopper-01.png"); --cell-w: 69; --cell-h: 160; }
+.shopper-02 { --strip: url("/static/img/shoppers/shopper-02.png"); --cell-w: 74; --cell-h: 171; }
+.shopper-03 { --strip: url("/static/img/shoppers/shopper-03.png"); --cell-w: 68; --cell-h: 166; }
+.shopper-04 { --strip: url("/static/img/shoppers/shopper-04.png"); --cell-w: 81; --cell-h: 167; }
 
 .mall-empty {
   position: absolute;
@@ -1220,6 +1230,56 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
     opacity: 1;
     left: var(--rest, 20%);
   }
+}
+
+/* --- End-of-game finale ---
+   The skyline is the last thing that happens in the game, so it takes the
+   whole board. Previously it was appended below the standings, where it sat
+   mostly below the fold with no sequence at all -- the content rendered, but
+   nothing ever "happened", which is what made it look like a broken trigger
+   rather than a missing one.
+
+   Timing comes from the server (--finale-at), derived from the mall intro
+   plus the staggered standings reveal plus a few seconds to read the result,
+   so it stays in step whatever the class size. --- */
+.present-rows-handover {
+  animation: rows-handover 1s ease-in var(--finale-at, 14s) forwards;
+}
+@keyframes rows-handover {
+  from { opacity: 1; max-height: 90vh; }
+  to   { opacity: 0; max-height: 0; margin: 0; }
+}
+
+.finale {
+  opacity: 0;
+  animation: finale-in 1.1s ease-out var(--finale-at, 14s) forwards;
+}
+@keyframes finale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.finale-caption {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.6vw, 2.6rem);
+  color: var(--accent-positive);
+  margin-top: 1.5vh;
+}
+/* Each board lights on its own delay -- 3rd, then 2nd, then 1st -- so the
+   winner lands last. Dark until then: an unlit board reads as a billboard
+   waiting to be sold, which is the right look while the others light. */
+.skyline-board { opacity: 0; animation: board-light 0.7s ease-out var(--light-at, 0s) forwards; }
+@keyframes board-light {
+  from { opacity: 0; filter: brightness(0.35); }
+  to   { opacity: 1; filter: brightness(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No sequence: show the result outright rather than holding a blank board
+     for fourteen seconds that can never resolve. */
+  .present-rows-handover { animation: none; }
+  .finale { animation: none; opacity: 1; }
+  .skyline-board { animation: none; opacity: 1; }
 }
 
 /* --- End-of-game billboard skyline (projector view) ---

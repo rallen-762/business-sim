@@ -83,7 +83,8 @@
     {% endif %}
 
     {% set top = standings[0].cum_profit if standings[0].cum_profit > 0 else 1 %}
-    <div class="present-rows{% if mall and mall_intro %} present-rows-after-mall{% endif %}">
+    <div class="present-rows{% if mall and mall_intro %} present-rows-after-mall{% endif %}{% if finale %} present-rows-handover{% endif %}"
+         {% if finale %}style="--finale-at: {{ finale_at }}s;"{% endif %}>
       {# Reveal runs LAST place first so the leader lands last -- the
          animation delay is inverted against the row index. #}
       {% for row in standings %}
@@ -118,25 +119,36 @@
       {% endfor %}
     </div>
 
-    {# End of game: the three blank billboards in the skyline art go to the
-       top three firms, most dominant board first. Only firms that exist are
-       drawn -- a four-firm world fills three boards, a two-firm world fills
-       two, and the rest stay blank rather than being padded. Firms below
-       third do not appear; the board is the podium, not the standings. #}
-    {% if world.status == 'complete' %}
-    <div class="skyline">
-      <img class="skyline-art" src="{{ url_for('static', filename='img/skyline-billboards.png') }}"
-           alt="City skyline with billboards for the top three companies">
-      {% for row in standings[:3] %}
-      <div class="skyline-board skyline-board-{{ loop.index }}">
-        {% if row.firm.badge %}
-        <img src="{{ url_for('static', filename='img/badges-ink/' ~ row.firm.badge) }}" alt="">
-        {% endif %}
-        <div class="skyline-board-name">{{ row.firm.team_name }}</div>
+    {# End of game. The skyline is the last thing that happens in the game,
+       so it takes the whole board rather than sitting under a scoreboard --
+       where it previously did sit, mostly below the fold, with no sequence
+       at all. The standings fold away and this replaces them.
+
+       Boards light 3rd, 2nd, 1st, so the winner lands last. Only firms that
+       exist are drawn: a four-firm world fills three boards, a two-firm
+       world fills two, and the rest stay dark rather than being padded.
+       Firms below third do not appear -- the board is the podium, not the
+       standings. #}
+    {% if finale %}
+    <div class="finale" style="--finale-at: {{ finale_at }}s;">
+      <div class="skyline">
+        <img class="skyline-art" src="{{ url_for('static', filename='img/skyline-billboards.png') }}"
+             alt="City skyline with billboards for the top three companies">
+        {% for row in standings[:3] %}
+        {# Reveal is inverted against rank so 1st is last to light. #}
+        <div class="skyline-board skyline-board-{{ loop.index }}"
+             style="--light-at: calc(var(--finale-at) + {{ (3 - loop.index) * 900 + 700 }}ms);">
+          {% if row.firm.badge %}
+          <img src="{{ url_for('static', filename='img/badges-ink/' ~ row.firm.badge) }}" alt="">
+          {% endif %}
+          <div class="skyline-board-name">{{ row.firm.team_name }}</div>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
+      <div class="finale-caption">
+        {{ standings[0].firm.team_name }} wins &mdash; {{ world.name }}
+      </div>
     </div>
-    <div class="skyline-caption">Final Standings &mdash; {{ world.name }}</div>
     {% endif %}
   {% endif %}
 

@@ -60,6 +60,7 @@ from app.market_data import (
     TIER_ACCENTS,
     mall_bay_width_css,
     build_pie_gradient,
+    finale_delay_seconds,
     mall_scene,
     competitive_intel_rows,
     consumer_surplus_by_segment,
@@ -259,17 +260,20 @@ def present(world_id):
     without anyone touching it."""
     world = World.query.get_or_404(world_id)
     scene = mall_scene(world)
+    standings = standings_with_rank_delta(world)
     return render_template(
         "present.html",
         world=world,
-        standings=standings_with_rank_delta(world),
+        standings=standings,
         latest_round=latest_processed_round(world),
         rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         mall=scene,
         bay_width=mall_bay_width_css(len(scene)),
-        hold=request.args.get("hold") == "1",
+        hold=request.args.get("hold") == "1" or world.status == "complete",
         # Skipped only when the board is deliberately frozen for discussion.
         mall_intro=request.args.get("hold") != "1",
+        finale=(world.status == "complete"),
+        finale_at=finale_delay_seconds(len(standings), request.args.get("hold") != "1"),
         exit_url=url_for("teacher.view_world", world_id=world.id),
         exit_title="Back to the Teacher Dashboard",
     )

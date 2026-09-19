@@ -61,6 +61,7 @@ from app.extensions import db
 from app.market_data import (
     mall_bay_width_css,
     latest_processed_round,
+    finale_delay_seconds,
     mall_scene,
     standings_with_rank_delta,
 )
@@ -355,10 +356,11 @@ def results(world_id):
         return redirect(url_for("firm.dashboard"))
 
     scene = mall_scene(world)
+    scene_standings = standings_with_rank_delta(world)
     return render_template(
         "present.html",
         world=world,
-        standings=standings_with_rank_delta(world),
+        standings=scene_standings,
         latest_round=latest_processed_round(world),
         rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         mall=scene,
@@ -367,6 +369,8 @@ def results(world_id):
         # watching a board that has to stay current for a room.
         hold=True,
         mall_intro=True,
+        finale=(world.status == "complete"),
+        finale_at=finale_delay_seconds(len(scene_standings), True),
         exit_url=url_for("market.dashboard"),
         exit_title="Back to the Market Dashboard",
     )

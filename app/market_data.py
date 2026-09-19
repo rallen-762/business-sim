@@ -829,3 +829,24 @@ def mall_bay_width_css(bay_count):
     """
     count = max(1, bay_count or 1)
     return f"min({round(94 / count, 2)}vw, 320px)"
+
+
+MALL_INTRO_SECONDS = 8.0        # must match --mall-intro in present.html
+ROW_STAGGER_MS = 220            # must match the per-row delay in present.html
+ROW_REVEAL_SECONDS = 0.6
+STANDINGS_READ_SECONDS = 4.0
+
+
+def finale_delay_seconds(standings_count, mall_intro):
+    """When the end-game skyline should take the board, in seconds.
+
+    Derived from the sequence in front of it rather than guessed: the mall
+    interstitial (if it plays), then the staggered standings reveal, then a
+    few seconds to actually read the result. Hard-coding one number would
+    drift out of step the moment a class had a different number of firms --
+    an eight-firm reveal runs almost half a second longer than a four-firm
+    one.
+    """
+    intro = MALL_INTRO_SECONDS if mall_intro else 0.0
+    reveal = (max(0, standings_count - 1) * ROW_STAGGER_MS) / 1000.0
+    return round(intro + reveal + ROW_REVEAL_SECONDS + STANDINGS_READ_SECONDS, 2)

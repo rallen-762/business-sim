@@ -47,6 +47,7 @@ from app.market_data import (
     affordability_curve,
     latest_processed_round,
     segment_profiles,
+    finale_delay_seconds,
     mall_scene,
     standings_with_rank_delta,
 )
@@ -268,16 +269,19 @@ def standings():
 
     session["standings_seen"] = _standings_key(world)
     scene = mall_scene(world)
+    scene_standings = standings_with_rank_delta(world)
     return render_template(
         "present.html",
         world=world,
-        standings=standings_with_rank_delta(world),
+        standings=scene_standings,
         latest_round=latest_round,
         rounds_per_world=(world.rounds or ROUNDS_PER_WORLD),
         mall=scene,
         bay_width=mall_bay_width_css(len(scene)),
         hold=True,
         mall_intro=True,
+        finale=(world.status == "complete"),
+        finale_at=finale_delay_seconds(len(scene_standings), True),
         exit_url=url_for("firm.dashboard"),
         exit_title="Back to My Results",
     )
