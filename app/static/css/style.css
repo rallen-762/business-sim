@@ -1387,6 +1387,24 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    what made the names look uncentred. Each board skews its contents to
    match, so the logo and name sit ON the board rather than in front of it. */
 .skyline-board-1 { left: 39.92%; top: 24.72%; width: 21.78%; height: 30.39%; --skew:  0deg; }
+
+/* The winner's board is the biggest by design, but its CONTENTS were not.
+   The logo already scales with its board (max-height is a percentage of
+   it), while the name was sized off the VIEWPORT, so all three boards
+   carried identical text -- which left the centre board looking
+   under-filled beside two that read correctly. The centre is scaled up to
+   suit its own size rather than re-deriving all three, since the side
+   boards are right as they are. */
+.skyline-board-1 img { max-height: 80%; }
+.skyline-board-1 .skyline-board-name {
+  /* 1.32vw is not a taste number: it is the side boards' 0.82vw times the
+     ratio of the faces (21.78 / 13.58). The skyline spans the full width,
+     so every board's width is itself a fixed slice of the viewport -- which
+     is why vw scales here exactly as a container unit would, without
+     introducing a containment context for one element. */
+  font-size: clamp(0.54rem, 1.32vw, 1.6rem);
+  line-height: 1.22;
+}
 .skyline-board-2 { left:  8.01%; top: 32.87%; width: 16.76%; height: 25.55%; --skew:  9.8deg; }
 .skyline-board-3 { left: 79.65%; top: 40.33%; width: 13.58%; height: 21.13%; --skew: -7.8deg; }
 
@@ -1394,6 +1412,14 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   max-width: 100%;
   max-height: 72%;
   object-fit: contain;
+  /* The logo is what gives way when a long name needs three lines. Without
+     this it held its height and the name -- which is line-clamped with
+     overflow:hidden -- was squeezed by the flex layout until only its first
+     line survived, silently cutting "The Extremely Loud Headphone Co #2"
+     down to "The Extremely Loud". min-height:0 is required: a flex item
+     will not shrink below its content size without it. */
+  flex: 0 1 auto;
+  min-height: 0;
   /* Uses img/badges-ink/, not img/badges/. The normal badges are RGB with a
      dark background baked in, so on a lit board they render as a black
      rectangle rather than a logo; the ink versions are the same glyph keyed
@@ -1416,6 +1442,9 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
      In normal flow under the logo rather than absolutely positioned at the
      bottom, so the pair reads as one centred block on the board. */
   max-width: 92%;
+  /* Never shrinks -- see the note on the logo above. The name is the one
+     thing on the board that has to be readable. */
+  flex: 0 0 auto;
   text-align: center;
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-weight: 700;

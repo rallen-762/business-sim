@@ -2291,7 +2291,10 @@ def test_billboard_names_wrap_rather_than_truncate(app, client):
     from pathlib import Path
     css = (Path(__file__).resolve().parent.parent
            / "app" / "static" / "css" / "style.css").read_text(encoding="utf-8")
-    rule = css[css.index(".skyline-board-name {"):]
+    # Anchored on a line start: ".skyline-board-1 .skyline-board-name" is an
+    # override that also contains this substring, and matching that instead
+    # silently tested the wrong rule.
+    rule = css[css.index(chr(10) + ".skyline-board-name {") + 1:]
     rule = rule[:rule.index("}")]
     assert "white-space: nowrap" not in rule
     assert "text-overflow: ellipsis" not in rule
@@ -2394,7 +2397,10 @@ def test_billboard_names_use_the_readable_face_not_the_pixel_one():
     from pathlib import Path
     css = (Path(__file__).resolve().parent.parent
            / "app" / "static" / "css" / "style.css").read_text(encoding="utf-8")
-    rule = css[css.index(".skyline-board-name {"):]
+    # Anchored on a line start: ".skyline-board-1 .skyline-board-name" is an
+    # override that also contains this substring, and matching that instead
+    # silently tested the wrong rule.
+    rule = css[css.index(chr(10) + ".skyline-board-name {") + 1:]
     rule = rule[:rule.index("}")]
     assert "var(--font-display)" not in rule
     assert "-apple-system" in rule
