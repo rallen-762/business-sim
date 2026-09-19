@@ -180,9 +180,9 @@ def dashboard():
     if decision is not None and (decision.plant_investment or 0) > 0:
         committed_capacity += PLANT_INVESTMENT_CAPACITY_GAIN
     committed_capacity = min(committed_capacity, MAX_PLANT_CAPACITY)
+    factory_level = factory_level_for_capacity(committed_capacity)
     factory_sprite = (
-        f"{firm.avatar.rsplit('.', 1)[0]}-L{factory_level_for_capacity(committed_capacity)}.png"
-        if firm.avatar else None
+        f"{firm.avatar.rsplit('.', 1)[0]}-L{factory_level}.png" if firm.avatar else None
     )
 
     return render_template(
@@ -190,6 +190,7 @@ def dashboard():
         firm=firm, world=world, decision=decision, last_result=last_result,
         factory_sprite=factory_sprite,
         factory_capacity_committed=committed_capacity,
+        factory_level=factory_level,
         # None at the cap, which the form uses to swap the picker for a
         # "fully upgraded" state rather than offering a purchase that the
         # engine would refuse.

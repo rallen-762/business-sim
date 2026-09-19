@@ -2154,3 +2154,34 @@ def test_the_student_standings_board_plays_the_mall_intro(app, client):
     body = client.get("/firm/standings").data.decode()
     assert "present-stage" in body
     assert "mall-bay" in body
+
+
+def test_the_factory_panel_names_its_level_and_capacity(app, client):
+    # An upgrade a team paid $200,000 for has to be legible as a CHANGE,
+    # not just a slightly different picture.
+    world_id = create_world(client)
+    firm_id = register_firm(client, world_id, 1, "Levels", avatar="factory-02.png")
+
+    body = client.get("/firm").data.decode()
+    assert "Level 1 Factory" in body
+    assert "30,000 units capacity" in body
+
+    with app.app_context():
+        firm = db.session.get(Firm, firm_id)
+        firm.plant_capacity = 45_000
+        db.session.commit()
+    body = client.get("/firm").data.decode()
+    assert "Level 2 Factory" in body
+    assert "45,000 units capacity" in body
+    assert "factory-02-L2.png" in body
+
+
+def test_the_factory_is_not_one_of_the_small_identity_plates(app, client):
+    # It used to sit as a third equal 96px tile beside the brand and product
+    # icons, which is where it got lost.
+    world_id = create_world(client)
+    register_firm(client, world_id, 1, "Prominent", avatar="factory-02.png")
+    body = client.get("/firm").data.decode()
+    marks = body.split('class="firm-hero-marks"')[1].split("</div>")[0]
+    assert "factories/" not in marks
+    assert "firm-hero-factory" in body
