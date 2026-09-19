@@ -96,7 +96,7 @@
 
 {% if firm.bankrupt %}
 <div class="card">
-  <span class="banner" style="background:var(--danger);box-shadow:4px 4px 0 var(--accent-danger-dark);">Bankrupt</span>
+  <span class="banner banner--bad">Bankrupt</span>
   <p>{{ firm.team_name }} is out of the game. Your dashboard is frozen, but you'll stay listed on the standings.</p>
 </div>
 
@@ -109,7 +109,7 @@
 {% elif world.status == "transition" %}
 <div class="card">
   {% if last_result.is_auto %}
-  <div class="card" style="background:var(--panel-alt);border-color:var(--accent-primary);margin-bottom:16px;">
+  <div class="card card--cell">
     <strong>Emergency Production Directive Issued</strong>
     <p style="margin-bottom:0;">Command was unreachable last cycle. All available capital was redirected to production.</p>
   </div>
@@ -250,7 +250,7 @@
   {% if recap_result %}
   {# Sandbox only: the round they just played, recapped here because this
      mode skips the transition screen where these normally live. #}
-  <div class="card" style="background:var(--panel-alt);margin-bottom:16px;">
+  <div class="card card--cell card--neutral">
     <span class="banner">Round {{ recap_round }} Results</span>
     <div class="grid grid-3">
       <div class="stat"><div class="label">Units Sold</div><div class="value">{{ "{:,.0f}".format(recap_result.units_sold_total) }}</div></div>
@@ -428,7 +428,7 @@
              is locked once there's nothing left to reach in this tier. #}
           <label for="rd_spend_locked">R&amp;D Maxed Out in <span class="rd-tier-name">{{ form_track }}</span> (Level 10)</label>
           <input type="text" id="rd_spend_locked" value="$0 -- nothing left to unlock" disabled
-                 style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
+                 class="input--locked">
           <input type="hidden" id="rd_spend_zero" name="rd_spend" value="0"{% if rd_presets %} disabled{% endif %}>
           <p class="help-text">Quality Level 10 is the maximum in this tier &mdash; more R&amp;D here has no effect. Spend it elsewhere.</p>
         </div>
@@ -447,7 +447,7 @@
         {# Max level reached -- nothing left to buy. Hidden field keeps the
            form posting ad_spend=0 and keeps recalc()'s lookup working. #}
         <input type="text" value="$0 -- already at max Ad Level (10)" disabled
-               style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
+               class="input--locked">
         <input type="hidden" id="ad_spend" name="ad_spend" value="0">
         <p class="help-text">Ad Level 10 is the maximum &mdash; more advertising has no effect.</p>
         {% endif %}
@@ -474,7 +474,7 @@
            posting plant_investment=0 and keeps recalc()'s lookup working,
            the same way the maxed-out Ad Level branch above does. #}
         <input type="text" value="Level 3 -- largest factory built" disabled
-               style="background:var(--panel-alt);color:var(--text-secondary);cursor:not-allowed;">
+               class="input--locked">
         <input type="hidden" id="plant_investment" name="plant_investment" value="0">
         <p class="help-text">Your factory is fully upgraded at {{ "{:,}".format(firm.effective_capacity) }} units.</p>
         {% endif %}
@@ -520,14 +520,14 @@
     <p class="help-text" id="celeb-hint" style="margin-top:4px;"></p>
     {% endif %}
 
-    <div class="card" style="margin-top:18px;background:var(--bg);">
+    <div class="card card--well card--faint spend-summary">
       <div class="grid grid-3">
         <div class="stat"><div class="label">Cost Per Unit</div><div class="value" id="unit-cost-display">$0.00</div></div>
         <div class="stat"><div class="label">Total Production Cost</div><div class="value" id="production-cost-display">$0</div></div>
         <div class="stat"><div class="label">Committed Spend (R&amp;D + Ad + Plant + Celeb.)</div><div class="value" id="committed-spend-display">$0</div></div>
         <div class="stat"><div class="label">Cash on Hand</div><div class="value">{{ "${:,.0f}".format(firm.cash) }}</div></div>
       </div>
-      <p class="help-text" id="overspend-message" hidden style="color:var(--danger);font-weight:700;">Reduce spending to submit -- planned spend exceeds available cash.</p>
+      <p class="help-text text-bad" id="overspend-message" hidden>Reduce spending to submit -- planned spend exceeds available cash.</p>
     </div>
 
     <button class="btn full" style="margin-top:20px;" type="submit" id="submit-btn">Submit Decision</button>
