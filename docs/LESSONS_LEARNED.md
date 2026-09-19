@@ -484,3 +484,108 @@ posts to it after an automatic round and asserts nothing further is processed.
 **When a flow changes, re-check what every old entry point would now do**, not
 only whether anything still links to it. A route that was safe because of the
 page around it is not safe once that page is gone.
+
+---
+
+## 16. The Visual Progression art pipeline, and what it cost to learn
+
+*Evidence: `app/static/img/{factories,shoppers,badges-ink,mall-bay.png}`; the
+slicing scripts described below; commits `99a6312`, `f6ed5a7`.*
+
+### Problem
+Five delivered sheets, none usable as-is, each failing differently. Work was
+planned around art that could not do what it appeared to do.
+
+### Cause
+Three of the five had **no alpha channel** — the checkerboard was painted on,
+so a cut-out arrived with a drawn checkerboard behind it. All had captions and
+panel borders on the same layer as the art. One "modular" strip mall turned
+out to be five individually drawn bays that could not be reordered. One walk
+cycle was drawn in the wrong perspective entirely.
+
+### Solution
+Every sheet is sliced **in a script, from the alpha channel**, never by hand:
+
+- **Factories** (`factory-NN-L{1,2,3}.png`) — 2x5 panel grid; three largest
+  connected components per panel, ordered by Y (level order is top-to-bottom;
+  size order only coincidentally matches). Masked to the component, not the
+  bounding box, or a tall chimney's box swallows the caption above it. A final
+  pass trims trailing rows thinner than 20% of the widest row, which removes a
+  caption fused to the building by its ground shadow.
+- **Mall bay** (`mall-bay.png`) — ONE bay repeated per firm, not ten cut out.
+  Chosen by scoring every candidate on edge continuity (row 1 centre scored
+  13.1 against 26+ for the rest), so repeats join seamlessly.
+- **Shoppers** (`shopper-01..04.png`) — per-row cells, bottom-centred so feet
+  hold one ground line. A family-group row is deliberately unused: the count
+  of figures encodes units sold, so a three-person sprite would corrupt the
+  signal.
+- **Badges on lit surfaces** (`badges-ink/`) — the normal badges are RGB with
+  a dark background baked in and render as black rectangles on a bright
+  billboard. The ink versions key the glyph to transparency; the luminance
+  ramp starts at 110 because the source background speckles to ~80 and its
+  outer pixel ring is brighter still.
+
+### Rule for Future Changes
+**Verify the file, not the preview, before planning any work around new art:**
+check `mode == "RGBA"` *and* that a real share of pixels are transparent.
+Slice in a committed script so a redelivery is a re-run, not a fresh
+afternoon. For anything modular, rebuild it in a **scrambled** order — that is
+what the app does, and it is the only test that finds mismatched edges.
+
+---
+
+## 17. `present.html` is rendered by four routes, and two of them are the students'
+
+*Evidence: `teacher.present`, `firm.standings`, `sandbox.results`,
+`sandbox.run_bots_only`; commit `f6ed5a7`.*
+
+### Problem
+The mall animation shipped, passed its tests, and could not be seen by a
+single student. It ran only on the teacher's projector.
+
+### Cause
+Two separate mistakes that compounded. The animation was gated on `not hold`,
+and `hold` means "do not auto-refresh this board" — which **both**
+student-facing screens set, for that reason alone. And every test asserting
+the mall used `teacher.present`, the one route where it happened to work.
+
+### Solution
+The intro got its own flag (`mall_intro`) instead of inferring intent from an
+unrelated one, and tests were added against the sandbox results board and the
+student standings board specifically.
+
+### Rule for Future Changes
+**When adding context to `present.html`, add it to all four call sites** — a
+missing key does not error, it silently renders nothing. And when a template
+is shared by several routes, a passing test proves one route, not the feature.
+
+---
+
+## 18. The bot roster caps what any balance simulation can tell you
+
+*Evidence: `app/bots.py` — `_decide_marketing` is the only profile that ever
+sets `plant_investment`; commit `6902b46`.*
+
+### Problem
+Three capacity/cost structures were simulated across 200 randomized fields
+each. The share of firms that never upgraded came out at 75.7%, 75.4% and
+74.8% — barely moving, which read as a strong finding that price does not
+drive upgrade decisions.
+
+### Cause
+**Only one of the four bot profiles ever buys an upgrade** — `marketing`,
+which takes it 109 times out of 110. The other three never do, at any price.
+So the "upgrade rate" was measuring the share of marketing bots in a random
+field (~25%), not behaviour. It would have returned ~25% for any price.
+
+### Solution
+The finding was retracted rather than reported. The profit *gap* between
+upgraders and non-upgraders is real and robust (it peaks at a 20,000 base and
+collapses by 10,000); the take-up rate is not a measurement at all.
+
+### Rule for Future Changes
+**Before trusting an aggregate from the bot harness, check which profiles can
+even produce the behaviour being measured.** A statistic averaged over bots
+that cannot take an action measures the roster, not the economics. See also
+LESSONS_LEARNED #6 — this is the same failure at a different level: there, one
+opponent field; here, one narrow set of possible behaviours.

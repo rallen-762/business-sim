@@ -47,7 +47,7 @@
        screens students look at, leaving it running only on the teacher's
        projector. #}
     {% if mall and mall_intro %}
-    <div class="present-stage" style="--mall-intro: 6s;">
+    <div class="present-stage" style="--mall-intro: 8s;">
     {# The mall, rebuilt each round from one bay per firm. Shopper numbers
        are relative to the round's best seller, so the busiest shopfront is
        obviously the busiest -- see market_data.mall_scene. #}
@@ -63,10 +63,13 @@
             {# Staggered starts and slightly different speeds, so a busy bay
                reads as a stream of people rather than one rank moving in
                step. #}
+            {# Staggered starts, varied pace, and a spread of kerbside
+               starting points, so a busy bay reads as a stream of people
+               converging on the door rather than one rank moving in step. #}
             <div class="shopper shopper-{{ '%02d'|format(bay.shopper_type) }}"
-                 style="--delay: {{ (loop.index0 * 0.62)|round(2) }}s;
-                        --walk-secs: {{ (5.2 + (loop.index0 % 3) * 0.45)|round(2) }}s;
-                        --rest: {{ 6 + loop.index0 * 9 }}%;"></div>
+                 style="--delay: {{ (loop.index0 * 0.34)|round(2) }}s;
+                        --walk-secs: {{ (3.4 + (loop.index0 % 3) * 0.35)|round(2) }}s;
+                        --start-x: {{ 14 + (loop.index0 * 72 % 73) }}%;"></div>
             {% endfor %}
           </div>
           {% if bay.shoppers == 0 %}<div class="mall-empty">No sales</div>{% endif %}

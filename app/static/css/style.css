@@ -1147,49 +1147,59 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   white-space: nowrap;
 }
 
-/* --- Shoppers ---------------------------------------------------------- */
+/* --- Shoppers -----------------------------------------------------------
+   The art is three-quarter REAR view: figures walking away from the viewer
+   toward a shopfront. So the motion is INTO the scene, not across it --
+   each shopper rises up the bay, converges on the door and scales down with
+   distance, then fades as it steps inside. The old side-profile art could
+   only slide left-to-right, which is why this needed new frames rather than
+   new timing.
+
+   Each shopper enters ONCE. Looping made them march back out of the shop
+   and in again, which is not what "customers came in" looks like. ------- */
 .mall-shoppers {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 4%;
-  height: 34%;
+  bottom: 2%;
+  /* Deep enough to walk into. At the old 34% they had nowhere to go, so the
+     whole entrance happened in a few pixels and read as a twitch. */
+  height: 56%;
   overflow: hidden;
 }
 .shopper {
   position: absolute;
   bottom: 0;
-  height: 100%;
+  left: var(--start-x, 50%);
+  height: 76%;
   aspect-ratio: var(--cell-w) / var(--cell-h);
+  transform-origin: bottom center;
   background-image: var(--strip);
   background-repeat: no-repeat;
-  /* 9 frames laid out horizontally: the box shows one cell at a time. */
-  background-size: 900% 100%;
-  /* Two animations at once -- the legs cycle while the body crosses the
-     bay. steps(9) is what makes it read as a walk instead of a slide. */
+  /* 8 frames laid out horizontally: the box shows one cell at a time. */
+  background-size: 800% 100%;
+  /* The legs cycle while the body travels. steps(8) is what makes it read
+     as a walk rather than a glide; the cycle is faster than the journey so
+     several strides happen on the way in. */
   animation:
-    shopper-walk 0.75s steps(9) infinite,
-    shopper-approach var(--walk-secs, 6s) linear var(--delay, 0s) infinite;
+    shopper-walk 0.72s steps(8) infinite,
+    shopper-approach var(--walk-secs, 3.6s) ease-in var(--delay, 0s) 1 both;
   opacity: 0;
 }
 @keyframes shopper-walk {
   from { background-position: 0 0; }
-  to   { background-position: -900% 0; }
+  to   { background-position: -800% 0; }
 }
-/* Enters from the kerb, walks to the doorway, fades as it steps inside.
-   The figure turns away from the viewer over its own frames, so reaching
-   the door already looks like going in -- no separate door sprite needed. */
 @keyframes shopper-approach {
-  0%   { left: -18%; opacity: 0; }
-  8%   { opacity: 1; }
-  82%  { opacity: 1; }
-  96%  { left: 46%; opacity: 0; }
-  100% { left: 46%; opacity: 0; }
+  0%   { bottom: 0;   left: var(--start-x, 50%); transform: translateX(-50%) scale(1);    opacity: 0; }
+  14%  { opacity: 1; }
+  72%  { opacity: 1; }
+  100% { bottom: 58%; left: 50%;                 transform: translateX(-50%) scale(0.42); opacity: 0; }
 }
-.shopper-01 { --strip: url("/static/img/shoppers/shopper-01.png"); --cell-w: 99; --cell-h: 157; }
-.shopper-02 { --strip: url("/static/img/shoppers/shopper-02.png"); --cell-w: 98; --cell-h: 163; }
-.shopper-03 { --strip: url("/static/img/shoppers/shopper-03.png"); --cell-w: 94; --cell-h: 161; }
-.shopper-04 { --strip: url("/static/img/shoppers/shopper-04.png"); --cell-w: 74; --cell-h: 123; }
+.shopper-01 { --strip: url("/static/img/shoppers/shopper-01.png"); --cell-w: 123; --cell-h: 219; }
+.shopper-02 { --strip: url("/static/img/shoppers/shopper-02.png"); --cell-w: 112; --cell-h: 234; }
+.shopper-03 { --strip: url("/static/img/shoppers/shopper-03.png"); --cell-w: 114; --cell-h: 226; }
+.shopper-04 { --strip: url("/static/img/shoppers/shopper-04.png"); --cell-w: 135; --cell-h: 229; }
 
 .mall-empty {
   position: absolute;

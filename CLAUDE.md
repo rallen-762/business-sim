@@ -126,6 +126,38 @@ If a change starts reintroducing rounded cards, blurred shadows, or a default
 sans for headings, that is drift back toward the rejected design, not a neutral
 choice.
 
+## Art and animation
+
+All sprite art is **sliced from delivered sheets by script, from the alpha
+channel** — never cut by hand. Redelivered art is a re-run, not an afternoon.
+
+- `app/static/img/factories/` — `factory-NN-L{1,2,3}.png`, the capacity tiers
+  (30,000 / 45,000 / 60,000). Keyed to `Firm.avatar`, shown on the Firm
+  Dashboard only; the flat avatar stays the team's identity mark everywhere
+  else, where an icon that changed mid-game would stop identifying a team.
+- `app/static/img/mall-bay.png` — ONE storefront bay, repeated once per firm
+  to build the mall. Not ten pre-branded buildings.
+- `app/static/img/shoppers/` — four 8-frame walk cycles, three-quarter REAR
+  view (walking away, into the shop). Side-profile art cannot be adapted to
+  this; it has to be redrawn.
+- `app/static/img/badges-ink/` — the brand badges keyed to transparency in
+  dark ink, for compositing onto lit surfaces (billboards, shop signs). The
+  normal badges in `badges/` are RGB on a dark background and render as black
+  rectangles there.
+
+**Before planning work around new art, verify the file rather than the
+preview**: `mode == "RGBA"` *and* a real share of pixels actually transparent.
+Delivered sheets have arrived as presentation boards — captions and panel
+borders baked in, and a checkerboard *painted on* to look like transparency.
+See `docs/LESSONS_LEARNED.md` #16 for the per-sheet slicing rules and #17 for
+why `present.html`'s four call sites all need the same context.
+
+Animations are **pure CSS keyframes** — no JS, no library. These run on school
+Chromebooks, and the projector view has no scripts by design. Verify a timed
+animation by sampling state (`opacity`, `height`) over time, not by
+screenshot: a screenshot round-trip is slower than a six-second interstitial
+and will report a working animation as broken.
+
 ## Project documentation
 
 Not auto-loaded. Read the relevant one before substantial work:
