@@ -63,13 +63,26 @@
             {# Staggered starts and slightly different speeds, so a busy bay
                reads as a stream of people rather than one rank moving in
                step. #}
-            {# Staggered starts, varied pace, and a spread of kerbside
-               starting points, so a busy bay reads as a stream of people
-               converging on the door rather than one rank moving in step. #}
+            {# A funnel: shoppers start spread right across the kerb, nearest
+               the camera, and converge on the doorway as they walk in, so the
+               crowd reads broad at the front and narrow at the shop. Start
+               positions divide the bay evenly by however many are walking --
+               an earlier version used a modulo expression that put eight of
+               nine shoppers between 79% and 86%, stacked on each other, which
+               is why a busy store looked empty.
+
+               The door end keeps a little spread (not a single point) so they
+               do not collapse into one silhouette just as they arrive -- but
+               it is tight, and centred on 46%, because that is where the
+               doorway actually is in mall-bay.png. The doors span about
+               40-52% of the bay; converging on a nominal 50% centre walked a
+               third of the crowd into the mullion and the window beside it. #}
+            {% set n = bay.shoppers %}
             <div class="shopper shopper-{{ '%02d'|format(bay.shopper_type) }}"
                  style="--delay: {{ (loop.index0 * 0.34)|round(2) }}s;
                         --walk-secs: {{ (3.4 + (loop.index0 % 3) * 0.35)|round(2) }}s;
-                        --start-x: {{ 14 + (loop.index0 * 72 % 73) }}%;"></div>
+                        --start-x: {{ (6 + loop.index0 * (88 / (n - 1)))|round(1) if n > 1 else 50 }}%;
+                        --end-x: {{ (43 + (loop.index0 % 3) * 3)|round(1) }}%;"></div>
             {% endfor %}
           </div>
           {% if bay.shoppers == 0 %}<div class="mall-empty">No sales</div>{% endif %}
@@ -146,7 +159,8 @@
         {% endfor %}
       </div>
       <div class="finale-caption">
-        {{ standings[0].firm.team_name }} wins &mdash; {{ world.name }}
+        <span class="finale-winner">{{ standings[0].firm.team_name }} wins</span>
+        <span class="finale-world">{{ world.name }}</span>
       </div>
     </div>
     {% endif %}

@@ -67,6 +67,7 @@ from app.constants import (
     TRACKS,
     ad_spend_presets,
     factory_level_for_capacity,
+    product_tier_for_quality,
     plant_upgrade_cost,
     quality_descriptor,
     quality_levels_by_track,
@@ -182,6 +183,13 @@ def dashboard():
         committed_capacity += PLANT_INVESTMENT_CAPACITY_GAIN
     committed_capacity = min(committed_capacity, MAX_PLANT_CAPACITY)
     factory_level = factory_level_for_capacity(committed_capacity)
+    # The team keeps the design it chose; quality decides which of that
+    # design's three tiers is drawn.
+    product_tier = product_tier_for_quality(quality_level)
+    product_sprite = (
+        f"{firm.product_icon.rsplit('.', 1)[0]}-Q{product_tier}.png"
+        if firm.product_icon else None
+    )
     factory_sprite = (
         f"{firm.avatar.rsplit('.', 1)[0]}-L{factory_level}.png" if firm.avatar else None
     )
@@ -192,6 +200,8 @@ def dashboard():
         factory_sprite=factory_sprite,
         factory_capacity_committed=committed_capacity,
         factory_level=factory_level,
+        product_sprite=product_sprite,
+        product_tier=product_tier,
         # None at the cap, which the form uses to swap the picker for a
         # "fully upgraded" state rather than offering a purchase that the
         # engine would refuse.

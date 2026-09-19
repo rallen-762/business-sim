@@ -279,6 +279,28 @@ FACTORY_LEVEL_THRESHOLDS = (
 )
 
 
+# Quality level -> which of a design's three art tiers is shown. The
+# headphone sheet is ten DESIGNS (the ten a team picks at registration)
+# by three quality tiers of that same design, exactly like the factory
+# sheet is ten types by three capacity levels -- so a team keeps the
+# product it chose and watches that product get better, rather than
+# being handed a different one.
+PRODUCT_QUALITY_BANDS = (
+    (7, 3),    # quality 7-10 -> tier 3
+    (4, 2),    # quality 4-6  -> tier 2
+    (1, 1),    # quality 1-3  -> tier 1
+)
+
+
+def product_tier_for_quality(quality_level: int) -> int:
+    """Art tier (1-3) for a quality level. Anything below 1 still reads as
+    tier 1 -- there is no lesser product to draw."""
+    for threshold, tier in PRODUCT_QUALITY_BANDS:
+        if quality_level >= threshold:
+            return tier
+    return 1
+
+
 def factory_level_for_capacity(capacity: int) -> int:
     """Art level (1-3) for a plant capacity. Anything below the 30,000 base
     still reads as Level 1 rather than 0 -- there is no smaller factory to

@@ -153,7 +153,9 @@ def test_registration_stores_all_three_identity_icons(app, client):
     body = client.get("/firm").data.decode()
     assert "img/factories/factory-03-L1.png" in body
     assert "img/badges/logo-05.png" in body
-    assert "img/products/headphone-07.png" in body
+    # The product is drawn at its QUALITY tier now, like the factory is drawn
+    # at its capacity tier -- a new firm is at quality 1, so tier 1.
+    assert "img/products-q/headphone-07-Q1.png" in body
 
 
 def test_registration_requires_a_product_icon(app, client):
@@ -2176,15 +2178,26 @@ def test_the_factory_panel_names_its_level_and_capacity(app, client):
     assert "factory-02-L2.png" in body
 
 
-def test_the_factory_is_not_one_of_the_small_identity_plates(app, client):
-    # It used to sit as a third equal 96px tile beside the brand and product
-    # icons, which is where it got lost.
+def test_the_hero_runs_product_then_name_then_factory(app, client):
+    # The two marks that change during a game are the large ones at either
+    # end; the badge, which never changes, sits small in the middle under the
+    # company name. All three used to be equal 96px tiles, which is where
+    # both progressions got lost.
     world_id = create_world(client)
-    register_firm(client, world_id, 1, "Prominent", avatar="factory-02.png")
+    register_firm(client, world_id, 1, "Prominent",
+                  avatar="factory-02.png", product_icon="headphone-04.png")
     body = client.get("/firm").data.decode()
-    marks = body.split('class="firm-hero-marks"')[1].split("</div>")[0]
-    assert "factories/" not in marks
-    assert "firm-hero-factory" in body
+    hero = body[body.index('class="card firm-hero"'):body.index("firm-hero-factory") + 400]
+
+    product_at = hero.index("firm-hero-product")
+    name_at = hero.index("firm-hero-name")
+    factory_at = hero.index("firm-hero-factory")
+    assert product_at < name_at < factory_at, "left-to-right order changed"
+
+    # the badge is in the centre column, not a big panel of its own
+    assert "firm-hero-badge" in body
+    assert 'class="firm-hero-art firm-hero-product"' in body
+    assert 'class="firm-hero-art firm-hero-factory"' in body
 
 
 def test_the_shopper_sprite_maths_stays_correct():
@@ -2230,7 +2243,8 @@ def test_the_finale_only_appears_once_the_game_is_complete(app, client):
     done = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
     assert 'class="finale"' in done
     assert "present-rows-handover" in done      # standings fold away for it
-    assert "wins &mdash;" in done or "wins —" in done
+    # Winner and world are separate lines now, not one wrapping string.
+    assert "finale-winner" in done and "finale-world" in done
 
 
 def test_the_finale_lights_boards_in_reverse_rank_order(app, client):
@@ -2268,3 +2282,40 @@ def test_a_finished_game_stops_auto_refreshing(app, client):
     ])
     body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
     assert 'http-equiv="refresh"' not in body
+
+
+def test_billboard_names_wrap_rather_than_truncate(app, client):
+    # Team names are free text up to 60 characters and students pick longer
+    # ones than the bots do. nowrap + ellipsis cut "Bot #3 (Marketing)" to
+    # "Bot #3 (Marketin...", so the name must be allowed to wrap instead.
+    from pathlib import Path
+    css = (Path(__file__).resolve().parent.parent
+           / "app" / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    rule = css[css.index(".skyline-board-name {"):]
+    rule = rule[:rule.index("}")]
+    assert "white-space: nowrap" not in rule
+    assert "text-overflow: ellipsis" not in rule
+    assert "overflow-wrap: anywhere" in rule, "a long single word has nowhere to break"
+
+
+def test_a_long_team_name_reaches_the_billboard_intact(app, client):
+    # End to end: the full name is in the markup, not pre-truncated server
+    # side. Uses the longest name the register form permits.
+    long_name = "The Extremely Ambitious Headphone Company Of Greater Portland"[:60]
+    world_id = create_world(client, slots=2)
+    register_firm(client, world_id, 1, long_name, badge="logo-01.png")
+    submit_decision(client, price="80", production_qty="8000")
+    client.get("/logout")
+    register_firm(client, world_id, 2, "Rival", badge="logo-02.png")
+    submit_decision(client, price="80", production_qty="8000")
+    client.get("/logout")
+    teacher_login(client)
+    for _ in range(100):
+        with app.app_context():
+            if db.session.get(World, world_id).status == "complete":
+                break
+        client.post(f"/teacher/worlds/{world_id}/advance")
+
+    body = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert long_name in body
+    assert "..." not in body.split("skyline-board-name")[1][:200]

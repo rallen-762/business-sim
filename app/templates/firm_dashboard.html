@@ -18,18 +18,34 @@
 {% block content %}
 
 <div class="card firm-hero">
-  {# Brand and product stay as small identity plates. The FACTORY is pulled
-     out of that row and given its own panel on the right: it is the one
-     mark here that changes during the game, and as a third equal 96px tile
-     an upgrade the team had just paid $200,000 for was easy to miss
-     entirely. #}
-  <div class="firm-hero-marks">
-    {% if firm.badge %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="Brand logo">{% endif %}
-    {% if firm.product_icon %}<img class="firm-hero-mark" src="{{ url_for('static', filename='img/products/' ~ firm.product_icon) }}" alt="Product">{% endif %}
+  {# Three marks, and the two that CHANGE during the game are the big ones:
+     the product on the left grows with quality, the factory on the right
+     grows with capacity. The brand badge sits in the middle, deliberately
+     smaller -- it never changes, and the company name needs the vertical
+     space above it. #}
+
+  {# Product: the team keeps the design it chose at registration and watches
+     that design improve. Quality 1-3 draws its plain tier, 4-6 the lit one,
+     7-10 the premium one. #}
+  {% if product_sprite %}
+  <div class="firm-hero-art firm-hero-product">
+    <img src="{{ url_for('static', filename='img/products-q/' ~ product_sprite) }}"
+         alt="Quality level {{ quality_level }} headphones">
+    <div class="firm-hero-art-label">Quality {{ quality_level }}</div>
+    <div class="firm-hero-art-sub">{{ quality_label }}</div>
   </div>
+  {% elif firm.product_icon %}
+  <div class="firm-hero-art firm-hero-product">
+    <img src="{{ url_for('static', filename='img/products/' ~ firm.product_icon) }}" alt="Product">
+  </div>
+  {% endif %}
+
   <div class="firm-hero-text">
     <div class="firm-hero-label">{{ world.name }} &middot; Round {{ world.current_round }} of {{ rounds_per_world }}</div>
     <h2 class="firm-hero-name">{{ firm.team_name }}</h2>
+    {% if firm.badge %}
+    <img class="firm-hero-badge" src="{{ url_for('static', filename='img/badges/' ~ firm.badge) }}" alt="Brand logo">
+    {% endif %}
     <div class="firm-hero-meta">
       {# last_track is null until this firm's first submission -- don't render "None Tier". #}
       Headphone Co.{% if firm.last_track %} &middot; {{ firm.last_track }} Tier{% else %} &middot; No product line yet{% endif %}
@@ -37,18 +53,16 @@
     </div>
   </div>
 
-  {# The capacity-tier art, not the flat avatar: it grows as the team
-     upgrades, and the caption names the level so the change is readable
-     rather than just "the picture looks different". The avatar stays the
-     team's identity mark everywhere else (standings, projector, teacher
-     list, slot picker), where an icon that changed mid-game would stop
-     working as a way to recognise a team. #}
+  {# Capacity-tier art, not the flat avatar. The avatar stays the team's
+     identity mark everywhere else (standings, projector, teacher list, slot
+     picker), where an icon that changed mid-game would stop working as a way
+     to recognise a team. #}
   {% if factory_sprite %}
-  <div class="firm-hero-factory">
+  <div class="firm-hero-art firm-hero-factory">
     <img src="{{ url_for('static', filename='img/factories/' ~ factory_sprite) }}"
          alt="Level {{ factory_level }} factory, {{ '{:,}'.format(factory_capacity_committed) }} units capacity">
-    <div class="firm-hero-factory-label">Level {{ factory_level }} Factory</div>
-    <div class="firm-hero-factory-cap">{{ "{:,}".format(factory_capacity_committed) }} units capacity</div>
+    <div class="firm-hero-art-label">Level {{ factory_level }} Factory</div>
+    <div class="firm-hero-art-sub">{{ "{:,}".format(factory_capacity_committed) }} units capacity</div>
   </div>
   {% endif %}
 </div>
