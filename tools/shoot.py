@@ -64,7 +64,7 @@ def build_app(db_path):
 SHOOT_PW = "shoot-pw"
 
 
-def seed_finished_world(app, firms=4, long_names=False):
+def seed_finished_world(app, firms=4, long_names=False, stop_after=None):
     """A bots-only world played to its last round, so the finale fires.
 
     `long_names` swaps in 40-character team names -- the worst case the
@@ -97,7 +97,19 @@ def seed_finished_world(app, firms=4, long_names=False):
             for i, bot in enumerate(in_game, start=1):
                 bot.team_name = f"The Extremely Loud Headphone Co #{i}"
         db.session.commit()
-        run_to_completion(world)
+        if stop_after is None:
+            run_to_completion(world)
+        else:
+            # Mid-game: the decision form only exists while a round is open,
+            # and round 1 has no history behind it -- both are states the
+            # finished-world seed can never show.
+            from app.blueprints.teacher import _open_next_round, _process_current_round
+            for _ in range(stop_after):
+                if world.status == "complete":
+                    break
+                _process_current_round(world)
+                if world.status != "complete":
+                    _open_next_round(world)
         return world.id, in_game[0].id
 
 
@@ -121,6 +133,9 @@ def main():
     ap.add_argument("--for", dest="duration", type=float, default=None,
                     help="seconds to keep recording (default: last --at + 2)")
     ap.add_argument("--firms", type=int, default=4)
+    ap.add_argument("--stop-after", type=int, default=None,
+                    help="play only N rounds, leaving the game mid-flight "
+                         "(0 = round 1, nothing played yet)")
     ap.add_argument("--long-names", action="store_true",
                     help="give every firm a 40-character name (worst case)")
     ap.add_argument("--width", type=int, default=1536)
@@ -151,7 +166,8 @@ def main():
     if args.what == "path":
         path = args.target
     else:
-        world_id, firm_id = seed_finished_world(app, args.firms, args.long_names)
+        world_id, firm_id = seed_finished_world(
+            app, args.firms, args.long_names, args.stop_after)
         path = (f"/login/{world_id}/{firm_id}" if args.what == "firm"
                 else f"/teacher/worlds/{world_id}/present")
 
@@ -199,6 +215,16 @@ def main():
             else:
                 page.goto(f"{base}/teacher/login", wait_until="networkidle")
                 page.goto(base + path, wait_until="networkidle")
+
+            # The first-visit tour dims the whole page behind a backdrop,
+            # which makes every screenshot look like a contrast bug.
+            try:
+                skip = page.get_by_text("Skip", exact=True)
+                if skip.count():
+                    skip.first.click(timeout=1500)
+                    page.wait_for_timeout(300)
+            except Exception:
+                pass
 
             # Proof the tab is foregrounded and the clock is moving -- a
             # backgrounded Chrome freezes document.timeline at 0 and every
