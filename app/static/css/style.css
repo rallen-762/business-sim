@@ -22,22 +22,15 @@
 }
 
 :root {
-  /* --- Palette (source of truth) -- the makeover mockup's token set.
-     Surfaces are ALL dark, never light: the sprite art has dark baked into
-     its RGB, so a light panel behind a headphone or a factory shows the
-     sprite's own background as a grey box. --- */
-  --bg-base: #0a1826;       /* page */
-  --panel: #0f2437;         /* section panel */
-  --panel-alt: #123247;     /* inset cell inside a panel */
-  --panel-alt-dark: #06111c; /* shadow offset for panel-alt surfaces */
-  --surface-well: #0a1826;  /* the gap colour showing between inset cells */
-  --accent-primary: #2e8fb0;      /* primary structural accent */
-  --accent-primary-dark: #1b5c73; /* shadow offset for accent-primary */
-  --accent-teal-lt: #6fd3e8;      /* emphasised teal value text */
-  /* Green and amber are SEMANTIC ACCENTS: text and 3px edge bars only.
-     Never a panel background, never behind a sprite. */
-  --accent-positive: #97c459;     /* profit / positive */
-  --accent-positive-dark: #5f8433;
+  /* --- New industrial/factory palette (source of truth) --- */
+  --bg-base: #14171A;       /* near-black backdrop */
+  --panel: #2E3A40;         /* slate/teal panel background */
+  --panel-alt: #4A5A5E;     /* lighter slate -- secondary panels/hover/borders */
+  --panel-alt-dark: #1D2528; /* darker slate -- shadow offset for panel-alt surfaces */
+  --accent-primary: #6FA8A0;      /* muted teal -- primary actions/highlights */
+  --accent-primary-dark: #4C7B74; /* shadow offset for accent-primary */
+  --accent-positive: #39FF14;     /* punchy green -- cash-up/wins, must pop */
+  --accent-positive-dark: #1E8A0A;
   /* Height of one label + input + its margin inside a login card. Pins the
      spacer that keeps the field-less sandbox card's button level with the
      other two -- see .login-panel-action. */
@@ -46,34 +39,13 @@
   --accent-sandbox-dark: #6F6238;
   --accent-teacher: #94A6B1;      /* muted steel blue -- teacher actions */
   --accent-teacher-dark: #536A75;
-  --accent-danger: #e24b4a;       /* loss / bankrupt */
-  --accent-danger-dark: #8f2b2a;
-  --text-primary: #e2f2fa;   /* primary values */
-  --text-secondary: #8fb8cc; /* labels, body */
-  --text-dim: #6b95ad;       /* supporting context */
-  --text-faint: #4a7a95;     /* section eyebrows, disabled */
+  --accent-danger: #FF3355;       /* punchy red -- negative-cash/loan states */
+  --accent-danger-dark: #B3253C;
+  --text-primary: #F0F0EC;   /* warm off-white */
+  --text-secondary: #9AA5A8;
 
-  --font-display: "Press Start 2P", monospace; /* TITLES ONLY */
-  /* Carries ALL data, labels and body text. The display face is unreadable
-     small (CLAUDE.md), so anything that is a number, a label or a sentence
-     belongs in this one. */
-  --font-data: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
-
-  --shadow-ink: #000;
-  --shadow-hard: 4px 4px 0 var(--shadow-ink); /* the site's one shadow shape */
-  --text-on-accent: #042c3d;  /* dark text ON a light accent fill */
-  --accent-amber: #ef9f27;    /* money spent or wasted -- text + 3px bars only */
-
-  /* --- Spacing scale. Use these, not ad-hoc padding. --- */
-  --sp-1: 2px;  --sp-2: 6px;  --sp-3: 10px;
-  --sp-4: 14px; --sp-5: 18px; --sp-6: 24px;
-
-  /* --- Type scale --- */
-  --fs-eyebrow:  10px;   /* uppercase, letter-spacing 2px */
-  --fs-label:    11px;
-  --fs-body:     12px;
-  --fs-value:    16px;
-  --fs-value-lg: 19px;
+  --font-display: "Press Start 2P", monospace; /* titles, hero numbers, button labels ONLY */
+  --shadow-hard: 4px 4px 0 #000; /* the site's one shadow shape -- panels/cards */
 
   /* --- Old names, aliased -- every var(--bg)/var(--primary)/var(--danger)
      etc. already in templates or inline styles now resolves through here,
@@ -101,16 +73,13 @@
 html { overflow-x: clip; }
 
 body {
-  background: var(--bg-base);
-  color: var(--text-secondary);
-  /* Monospace, not a UI sans. It carries every label, value and sentence in
-     the app; the pixel display face is reserved for titles. */
-  font-family: var(--font-data);
-  font-size: var(--fs-body);
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   margin: 0;
 }
 
-a { color: var(--accent-primary); }
+a { color: var(--primary); }
 
 .container {
   max-width: 1100px;
@@ -127,27 +96,24 @@ a { color: var(--accent-primary); }
    typical UI sizes (most visible as black-on-bright-green button text
    looking blurry) -- forcing antialiased/grayscale smoothing sharpens it
    noticeably, a standard fix for pixel/bitmap web fonts. */
-/* Font smoothing applies to whatever still uses the pixel face. .stat
-   .value, .btn and .standings-value have left it -- they are data and
-   labels, and the makeover puts all of those in the monospace. */
 h1, h2, h3,
 .topbar .brand,
+.stat .value,
+.btn,
 .banner,
-.standings-rank {
+.standings-rank,
+.standings-value {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 h1, h2, h3 {
   font-family: var(--font-display);
-  /* Titles take the bright text, not the body colour they used to
-     inherit -- against the darker navy panel they read as disabled. */
-  color: var(--text-primary);
   line-height: 1.5;
   overflow-wrap: break-word;
 }
-h2 { font-size: 1.05rem; }
-h3 { font-size: 0.9rem; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 0.95rem; }
 
 /* --- Top bar --- */
 .topbar {
@@ -184,44 +150,14 @@ h3 { font-size: 0.9rem; }
 .topbar nav a:hover { color: var(--accent-primary); }
 
 /* --- Cards / panels: the industrial surface everything sits on --- */
-/* A panel is told apart by its BACKGROUND VALUE plus a 3px coloured left
-   bar -- not by an equal-weight border on all four sides. Every card ringed
-   in teal made all of them shout equally; the bar categorises instead
-   (teal neutral, amber caution, red loss) at a fraction of the weight.
-   Full borders are kept for rare emphasis only -- see .card--outlined. */
 .card {
   background: var(--panel);
-  border: none;
-  border-left: 3px solid var(--accent-primary);
+  border: 3px solid var(--accent-primary);
   border-radius: 0;
-  padding: var(--sp-4);
-  margin-bottom: var(--sp-3);
-  box-shadow: none;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-hard);
 }
-.card--warn     { border-left-color: var(--accent-amber); }
-.card--bad      { border-left-color: var(--accent-danger); }
-.card--neutral  { border-left-color: var(--panel-alt); }
-.card--faint    { border-left-color: var(--text-faint); }
-.card--cell     { background: var(--panel-alt); }
-.card--well     { background: var(--surface-well); }
-.card--outlined { border: 3px solid var(--accent-primary); box-shadow: var(--shadow-hard); }
-
-/* --- Classes replacing what used to be inline style= on the firm
-   dashboard. Each one was a colour typed straight into the template,
-   which put palette values somewhere the stylesheet could not see. --- */
-.banner--bad {
-  background: var(--accent-danger);
-  box-shadow: 4px 4px 0 var(--accent-danger-dark);
-}
-/* Disabled field: a maxed-out R&D / Ad / Plant control that still has to
-   read as a field, not as an error. Three identical inline copies before. */
-.input--locked {
-  background: var(--panel-alt);
-  color: var(--text-dim);
-  cursor: not-allowed;
-}
-.text-bad { color: var(--accent-danger); font-weight: 700; }
-.spend-summary { margin-top: var(--sp-5); }
 .card h2, .card h3 { margin-top: 0; }
 
 /* --- Projector mode (teacher's classroom screen) ---
@@ -263,7 +199,7 @@ h3 { font-size: 0.9rem; }
   text-transform: uppercase;
   text-decoration: none;
   white-space: nowrap;
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   background: var(--accent-primary);
   border: 3px solid #000;
   padding: clamp(10px, 0.9vw, 18px) clamp(18px, 1.8vw, 36px);
@@ -330,7 +266,7 @@ h3 { font-size: 0.9rem; }
   background: var(--accent-primary);
   transition: width 120ms linear, background 120ms linear;
 }
-.reach-bar-fill.warning { background: var(--accent-amber); }
+.reach-bar-fill.warning { background: #FFB020; }
 .reach-bar-fill.danger { background: var(--accent-danger); }
 
 /* --- Decision form: price row (slider + box) beside Production Quantity ---
@@ -386,8 +322,8 @@ h3 { font-size: 0.9rem; }
 .pulse { display: inline-block; animation: value-pulse 900ms ease-out; }
 @keyframes value-pulse {
   0%   { transform: scale(1); }
-  20%  { transform: scale(1.15); color: var(--accent-amber); text-shadow: 0 0 12px rgba(239, 159, 39, 0.75); }
-  60%  { transform: scale(1.06); color: var(--accent-amber); text-shadow: 0 0 8px rgba(239, 159, 39, 0.5); }
+  20%  { transform: scale(1.15); color: #FFB020; text-shadow: 0 0 12px rgba(255, 176, 32, 0.75); }
+  60%  { transform: scale(1.06); color: #FFB020; text-shadow: 0 0 8px rgba(255, 176, 32, 0.5); }
   100% { transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
@@ -449,7 +385,7 @@ h3 { font-size: 0.9rem; }
   width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent-primary);
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   font-family: var(--font-display);
   font-size: 0.7rem;
 }
@@ -482,7 +418,7 @@ h3 { font-size: 0.9rem; }
   position: relative;
   z-index: 1001;
   background: var(--panel);
-  box-shadow: 0 0 0 4px var(--accent-primary), 0 0 0 10px rgba(46, 143, 176, 0.25);
+  box-shadow: 0 0 0 4px var(--accent-primary), 0 0 0 10px rgba(111, 168, 160, 0.25);
 }
 @media (max-width: 699px) {
   .tour-box { top: auto; bottom: 16px; transform: translateX(-50%); }
@@ -592,7 +528,7 @@ h3 { font-size: 0.9rem; }
   justify-content: space-between;
   gap: 18px;
   flex-wrap: wrap;
-  border-color: var(--accent-amber);
+  border-color: #FFB020;
   background: var(--panel-alt);
 }
 
@@ -688,7 +624,7 @@ h3 { font-size: 0.9rem; }
   align-items: baseline;
   width: 100%;
   gap: 0;
-  font-family: var(--font-data);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
   font-size: 0.72rem;
   letter-spacing: 0.04em;
 }
@@ -713,7 +649,7 @@ h3 { font-size: 0.9rem; }
   white-space: nowrap;
   /* The glow lands on the VALUE only -- the number is the thing that
      changes, so it is the thing that should look live. */
-  text-shadow: 0 0 8px rgba(46, 143, 176, 0.55);
+  text-shadow: 0 0 8px rgba(111, 168, 160, 0.55);
 }
 .firm-hero-art-sub {
   font-size: 0.62rem;
@@ -771,7 +707,7 @@ h3 { font-size: 0.9rem; }
      gaps between the blocks that make the letterforms and the name turns to
      mush -- the opposite of a CRT, where the glow is tight around a bright
      stroke. Tight radius, low alpha. */
-  text-shadow: 0 0 4px rgba(46, 143, 176, 0.45), 0 0 1px rgba(46, 143, 176, 0.9);
+  text-shadow: 0 0 4px rgba(111, 168, 160, 0.45), 0 0 1px rgba(111, 168, 160, 0.9);
 }
 /* The badge is the team's own mark and it was rendering at 46px -- smaller
    than the round indicator above it. The art is detailed now (metallic
@@ -789,7 +725,7 @@ h3 { font-size: 0.9rem; }
 /* The tier is the only thing left on this line, so it reads as a tag rather
    than as a sentence. Same monospace as the readouts on either side. */
 .firm-hero-tier {
-  font-family: var(--font-data);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
   font-size: 0.7rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -825,8 +761,7 @@ h3 { font-size: 0.9rem; }
 
 .grid {
   display: grid;
-  gap: var(--sp-1);
-  background: var(--surface-well);
+  gap: 16px;
 }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
@@ -834,24 +769,17 @@ h3 { font-size: 0.9rem; }
 /* --- Stat tiles ("hero numbers") --- */
 .stat {
   background: var(--panel-alt);
-  border: none;
+  border: 2px solid var(--accent-primary);
   border-radius: 0;
-  padding: 9px 11px;
-  box-shadow: none;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-hard);
 }
-/* An eyebrow: 10px, uppercase, 2px tracking, the faint text colour. */
-.stat .label {
-  color: var(--text-faint);
-  font-size: var(--fs-eyebrow);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-}
+.stat .label { color: var(--text-secondary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .stat .value {
-  font-family: var(--font-data);
-  font-size: var(--fs-value-lg);
-  color: var(--text-primary);
-  line-height: 1.35;
-  margin-top: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.7;
+  margin-top: 6px;
 }
 /* Unscoped (not just inside .stat) so the same red/amber/green convention
    also applies to plain table cells -- Firms table, Market Dashboard, and
@@ -861,14 +789,14 @@ h3 { font-size: 0.9rem; }
    section below overriding font-family back for <td>. */
 .value.negative { color: var(--accent-danger); }
 .value.positive { color: var(--accent-positive); }
-.value.warning { color: var(--accent-amber); } /* amber -- distinct from both punchy accents */
+.value.warning { color: #FFB020; } /* amber -- distinct from both punchy accents */
 
 /* A stat value briefly flashes then counts up/down on the one hero
    moment (Firm Dashboard cash after a round processes) -- see the inline
    script on firm_dashboard.html's Round Results view. */
 @keyframes stat-flash {
   0% { background: var(--panel-alt); }
-  30% { background: var(--flash-color, var(--accent-positive)); color: var(--text-on-accent); }
+  30% { background: var(--flash-color, var(--accent-positive)); color: #0a0a0a; }
   100% { background: var(--panel-alt); }
 }
 .stat.flash-on-load { animation: stat-flash 900ms ease-out; }
@@ -890,7 +818,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 }
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .checkbox-row input { width: auto; }
-.help-text { color: var(--text-dim); font-size: var(--fs-label); margin-top: var(--sp-1); }
+.help-text { color: var(--text-secondary); font-size: 0.82rem; margin-top: 4px; }
 
 /* --- Buttons: hard offset shadow, zero radius, "pressed" collapse on click --- */
 .btn {
@@ -903,7 +831,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   letter-spacing: 0.02em;
   line-height: 1.6;
   cursor: pointer;
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   background: var(--accent-primary);
   box-shadow: 4px 4px 0 var(--accent-primary-dark);
   transition: transform 0.05s ease, box-shadow 0.05s ease;
@@ -924,7 +852,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 /* --- Banner ribbon (Round Transition Notice, section headers) --- */
 .banner {
   background: var(--accent-primary);
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   font-family: var(--font-display);
   font-size: 0.75rem;
   line-height: 1.6;
@@ -1005,8 +933,8 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   border-color: var(--accent-primary);
   box-shadow: 4px 4px 0 var(--accent-primary-dark);
 }
-.celeb-choice input:checked + .celeb-face .celeb-name { color: var(--text-on-accent); font-weight: 700; }
-.celeb-choice input:checked + .celeb-face .celeb-nomark { color: var(--text-on-accent); }
+.celeb-choice input:checked + .celeb-face .celeb-name { color: #0a0a0a; font-weight: 700; }
+.celeb-choice input:checked + .celeb-face .celeb-nomark { color: #0a0a0a; }
 .celeb-choice input:disabled + .celeb-face { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
 /* --- Student login landing page ---
@@ -1040,7 +968,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
      the bottom strip the cards sit on, so their text stays readable
      against the water reflections. */
   background-image: linear-gradient(to bottom,
-      rgba(10, 24, 38, 0) 58%, rgba(10, 24, 38, 0.88) 100%),
+      rgba(20, 23, 26, 0) 58%, rgba(20, 23, 26, 0.88) 100%),
     url("/static/img/headphone-market-banner.png");
   background-size: cover;
   background-position: center top;
@@ -1073,7 +1001,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   flex-direction: column;
   justify-content: flex-start;
   height: 100%;
-  background: rgba(15, 36, 55, 0.94);
+  background: rgba(46, 58, 64, 0.94);
   border: 3px solid var(--accent-primary);
   box-shadow: var(--shadow-hard);
 }
@@ -1140,13 +1068,13 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 }
 .login-button-sandbox {
   background: var(--accent-sandbox);
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   box-shadow: 4px 4px 0 var(--accent-sandbox-dark);
   order: 0;
 }
 .login-button-teacher {
   background: var(--accent-teacher);
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   box-shadow: 4px 4px 0 var(--accent-teacher-dark);
   order: 0;
 }
@@ -1202,7 +1130,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   /* Fades the bottom of the picture into the page ground so the cards that
      run past the band do not sit against a visible seam. */
   background-image: linear-gradient(to bottom,
-      rgba(10, 24, 38, 0) 78%, var(--bg-base) 100%),
+      rgba(20, 23, 26, 0) 78%, var(--bg-base) 100%),
     url("/static/img/company-creation-banner.png");
   background-size: cover;
   background-position: center top;
@@ -1480,7 +1408,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   padding: 10px 20px;
   font-family: var(--font-display);
   font-size: clamp(0.5rem, 0.95vw, 0.9rem);
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   background: var(--accent-primary);
   border: none;
   border-radius: 0;
@@ -1636,7 +1564,7 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
   letter-spacing: 0.01em;
   font-size: clamp(0.42rem, 0.82vw, 1rem);
   line-height: 1.25;
-  color: var(--text-on-accent);
+  color: #0c2a2e;
   overflow-wrap: anywhere;
   hyphens: none;
   display: -webkit-box;
@@ -1667,11 +1595,11 @@ table.compact th, table.compact td { padding: 6px 7px; font-size: 0.82rem; white
 table.compact th { font-size: 0.66rem; }
 tr.bankrupt { opacity: 0.55; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 0; font-size: 0.72rem; font-weight: 700; border: 1px solid currentColor; }
-.badge.bankrupt { background: rgba(226, 75, 74, 0.18); color: var(--accent-danger); }
-.badge.ok { background: rgba(151, 196, 89, 0.16); color: var(--accent-positive); }
+.badge.bankrupt { background: rgba(255, 51, 85, 0.15); color: var(--accent-danger); }
+.badge.ok { background: rgba(57, 255, 20, 0.12); color: var(--accent-positive); }
 /* Informational, not a red/amber/green value judgment -- reuses the
    existing --primary token rather than introducing a new color. */
-.badge.bot { background: rgba(46, 143, 176, 0.18); color: var(--accent-primary); margin-left: 6px; }
+.badge.bot { background: rgba(111, 168, 160, 0.18); color: var(--accent-primary); margin-left: 6px; }
 
 /* --- Avatar picker (the one place the pixel-frame accent belongs) ---
    Each icon sits on a lighter tile so it stands off the dark card, and the
@@ -1687,7 +1615,7 @@ tr.bankrupt { opacity: 0.55; }
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  background-color: var(--panel-alt);
+  background-color: #5B6A70;
   background-image: url("/static/img/avatar-frame.png");
   background-size: contain;
   background-repeat: no-repeat;
@@ -1708,10 +1636,10 @@ tr.bankrupt { opacity: 0.55; }
 .avatar-grid:has(input:checked) .avatar-choice:hover .avatar-frame { opacity: 0.9; }
 .avatar-choice input:checked + .avatar-frame {
   opacity: 1;
-  background-color: var(--accent-primary);
+  background-color: #7FC2B9;
   background-image: url("/static/img/avatar-frame-selected.png");
   border-color: var(--accent-primary);
-  box-shadow: 4px 4px 0 var(--accent-primary-dark), 0 0 0 3px rgba(46, 143, 176, 0.35);
+  box-shadow: 4px 4px 0 var(--accent-primary-dark), 0 0 0 3px rgba(111, 168, 160, 0.35);
 }
 .avatar-grid:has(input:checked) .avatar-choice input:checked + .avatar-frame { opacity: 1; }
 .avatar-choice input:checked + .avatar-frame::after {
@@ -1721,7 +1649,7 @@ tr.bankrupt { opacity: 0.55; }
   width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
   background: var(--accent-primary);
-  color: var(--text-on-accent);
+  color: #0a0a0a;
   border: 2px solid #000;
   font-weight: 700;
   font-size: 0.85rem;
