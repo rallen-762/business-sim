@@ -165,6 +165,12 @@
         <span class="finale-winner">{{ standings[0].firm.team_name }} wins</span>
         <span class="finale-world">{{ world.name }}</span>
       </div>
+      {# The one control on this board. Everything else here is deliberately
+         inert -- it goes on a wall in front of a class -- but the finale
+         plays once and is over, and a teacher who missed it otherwise has to
+         reload the whole sequence to see it again. Replays the skyline only,
+         with no delay; it changes no game state. #}
+      <button type="button" class="finale-replay" onclick="replayFinale()">&#9654; Replay</button>
     </div>
     {% endif %}
   {% endif %}
@@ -186,6 +192,22 @@
     });
 
     {% if finale %}
+    // Replay the skyline on demand. Restarting a CSS animation needs the
+    // property removed, a reflow forced, then the property restored --
+    // simply re-adding the class does nothing, because the animation is
+    // already attached. --finale-at is zeroed first so a replay starts at
+    // once rather than waiting out the original lead-in again.
+    function replayFinale() {
+      var stage = document.querySelector('.finale');
+      if (!stage) { return; }
+      var parts = [stage].concat([].slice.call(document.querySelectorAll('.skyline-board')));
+      stage.style.setProperty('--finale-at', '0s');
+      parts.forEach(function (el) { el.style.animation = 'none'; });
+      void stage.offsetWidth;                       // force reflow
+      parts.forEach(function (el) { el.style.animation = ''; });
+      stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
     // Bring the skyline into view when it takes over. The standings fold
     // away and it rises into their place, but on a tall board -- or if
     // anyone has scrolled -- it can still land off-screen, and a finale

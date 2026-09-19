@@ -1289,6 +1289,21 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    ("... Sandbox -- My" / "Company"). Winner and world are now separate
    lines by construction, so there is no awkward break to land on, and the
    world name takes the smaller size since the winner is the headline. */
+.finale-replay {
+  display: block;
+  margin: 1.4vh auto 0;
+  padding: 10px 20px;
+  font-family: var(--font-display);
+  font-size: clamp(0.5rem, 0.95vw, 0.9rem);
+  color: #0a0a0a;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--accent-primary-dark);
+  cursor: pointer;
+}
+.finale-replay:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--accent-primary-dark); }
+
 .finale-caption {
   text-align: center;
   margin: 1.5vh auto 0;
@@ -1353,16 +1368,27 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 .skyline-board {
   position: absolute;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4%;
   padding: 1.2%;
   box-sizing: border-box;
+  transform: skewY(var(--skew, 0deg));
+  transform-origin: center center;
 }
 /* Measured from skyline-billboards.png: the three blank faces, largest
    first. Order here IS the rank order. */
-.skyline-board-1 { left: 39.92%; top: 24.72%; width: 21.78%; height: 30.39%; }
-.skyline-board-2 { left:  8.01%; top: 32.87%; width: 16.76%; height: 25.55%; }
-.skyline-board-3 { left: 79.65%; top: 40.33%; width: 13.58%; height: 21.13%; }
+/* Two of the three boards are drawn in PERSPECTIVE -- their faces are
+   parallelograms, not rectangles. Measured from the art, the left board's
+   centre line drifts 63px down across its width and the right board's rises
+   40px; only the centre board is square to the viewer. A rectangular text
+   box centred by percentage therefore sits visibly off its face, which is
+   what made the names look uncentred. Each board skews its contents to
+   match, so the logo and name sit ON the board rather than in front of it. */
+.skyline-board-1 { left: 39.92%; top: 24.72%; width: 21.78%; height: 30.39%; --skew:  0deg; }
+.skyline-board-2 { left:  8.01%; top: 32.87%; width: 16.76%; height: 25.55%; --skew:  9.8deg; }
+.skyline-board-3 { left: 79.65%; top: 40.33%; width: 13.58%; height: 21.13%; --skew: -7.8deg; }
 
 .skyline-board img {
   max-width: 100%;
@@ -1381,23 +1407,26 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
    overflow-wrap: anywhere is needed too -- a single unbroken 30-character
    word has no space to break at, and would otherwise overflow the board. */
 .skyline-board-name {
-  position: absolute;
-  bottom: 4%;
-  left: 3%;
-  right: 3%;
+  /* The readable sans, NOT the pixel display face. Press Start 2P is for
+     titles, hero numbers and button labels -- CLAUDE.md is explicit that it
+     is unreadable at small sizes, and a 40-character team name on a board a
+     fifth of the screen wide is exactly that case. It looked like a glitch
+     rather than signage.
+
+     In normal flow under the logo rather than absolutely positioned at the
+     bottom, so the pair reads as one centred block on the board. */
+  max-width: 92%;
   text-align: center;
-  font-family: var(--font-display);
-  /* Small, because the display face is wide and a 40-character team name
-     has to fit a board a fifth of the screen across. Four lines, not three:
-     three clipped realistic names like "The Extremely Ambitious Headphone
-     Company" at 41 characters. */
-  font-size: clamp(0.3rem, 0.55vw, 0.72rem);
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-size: clamp(0.42rem, 0.82vw, 1rem);
   line-height: 1.25;
   color: #0c2a2e;
   overflow-wrap: anywhere;
   hyphens: none;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

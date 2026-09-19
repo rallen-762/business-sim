@@ -2354,3 +2354,58 @@ def test_the_finale_does_not_sit_behind_a_long_dead_wait(app, client):
     from app.market_data import finale_delay_seconds
     for firms in (2, 5, 8):
         assert finale_delay_seconds(firms, mall_intro=True) < 9.0, firms
+
+
+def test_the_replay_button_exists_only_on_the_finale(app, client):
+    # The projector is deliberately inert -- it goes on a wall in front of a
+    # class and nothing there should be mis-clickable. The replay is the one
+    # exception, and only once the game is over: the finale plays once, and
+    # a teacher who missed it should not have to replay a whole round to see
+    # it again.
+    world_id = create_world(client, slots=2)
+    register_firm(client, world_id, 1, "Alpha", badge="logo-01.png")
+    submit_decision(client, price="80", production_qty="8000")
+    client.get("/logout")
+    register_firm(client, world_id, 2, "Bravo", badge="logo-02.png")
+    submit_decision(client, price="80", production_qty="8000")
+    client.get("/logout")
+    teacher_login(client)
+    client.post(f"/teacher/worlds/{world_id}/advance")
+
+    mid = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "finale-replay" not in mid
+    assert "<button" not in mid, "mid-game board must stay inert"
+
+    for _ in range(100):
+        with app.app_context():
+            if db.session.get(World, world_id).status == "complete":
+                break
+        client.post(f"/teacher/worlds/{world_id}/advance")
+
+    done = client.get(f"/teacher/worlds/{world_id}/present").data.decode()
+    assert "finale-replay" in done
+    assert "replayFinale" in done
+
+
+def test_billboard_names_use_the_readable_face_not_the_pixel_one():
+    # CLAUDE.md is explicit that the display face is for titles, hero numbers
+    # and button labels only -- it is unreadable at small sizes, which is
+    # exactly what a 40-character team name on a narrow board is.
+    from pathlib import Path
+    css = (Path(__file__).resolve().parent.parent
+           / "app" / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    rule = css[css.index(".skyline-board-name {"):]
+    rule = rule[:rule.index("}")]
+    assert "var(--font-display)" not in rule
+    assert "-apple-system" in rule
+
+
+def test_the_skewed_billboards_skew_their_contents():
+    # Two of the three board faces are parallelograms in the artwork. Content
+    # laid out in a rectangle sits visibly off them, which read as the names
+    # not being centred.
+    from pathlib import Path
+    css = (Path(__file__).resolve().parent.parent
+           / "app" / "static" / "css" / "style.css").read_text(encoding="utf-8")
+    assert "skewY(var(--skew" in css
+    assert "--skew:  9.8deg" in css and "--skew: -7.8deg" in css
