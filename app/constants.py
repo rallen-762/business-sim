@@ -689,7 +689,11 @@ MARKET_EVENTS_BY_ROUND = {e.round_number: e for e in MARKET_EVENTS}
 
 
 def event_for_round(round_number, events_enabled=True):
-    """The event in force for `round_number`, or None.
+    """The event ANNOUNCED at the start of `round_number`, or None. This is
+    the news -- the banner and chip -- not the market's state: every event
+    stays in force for the rest of the game, so the multipliers a round is
+    played under come from cost_multiplier_for_round() and
+    wtp_multiplier_for_round(), never from this.
 
     Derived from the schedule rather than stored per round: the schedule is
     scripted and deterministic, so a past round resolves to the same event it
@@ -701,12 +705,57 @@ def event_for_round(round_number, events_enabled=True):
     return MARKET_EVENTS_BY_ROUND.get(round_number)
 
 
+def _events_in_force(round_number, events_enabled):
+    """Every event announced at or before `round_number`. Events are
+    permanent: a shift to costs or demand does not wear off, it compounds
+    with whatever came before it."""
+    if not events_enabled:
+        return ()
+    return tuple(e for e in MARKET_EVENTS if e.round_number <= round_number)
+
+
+def cost_multiplier_for_round(round_number, events_enabled=True):
+    """The unit-cost multiplier in force during `round_number`: the product of
+    every supply event so far. The dashboard's cost line, the server-side
+    spend check and process_round() must all use this one number, or a team
+    is shown one cost and charged another."""
+    m = 1.0
+    for e in _events_in_force(round_number, events_enabled):
+        m *= e.cost_multiplier
+    return m
+
+
 def wtp_multiplier_for_round(round_number, events_enabled=True):
-    """The willingness-to-pay multiplier that was in force during
-    `round_number`. The Firm Dashboard's per-segment "priced out" column is
-    recomputed from the ceiling table on every page load rather than stored,
-    so without this a demand event would restate an ALREADY PLAYED round's
-    numbers using the new ceilings -- wrong for that round, and a leak of the
-    event before the round it belongs to has been scored."""
-    event = event_for_round(round_number, events_enabled)
-    return event.wtp_multiplier if event else 1.0
+    """The willingness-to-pay multiplier in force during `round_number`: the
+    product of every demand event so far. The Firm Dashboard's per-segment
+    "priced out" column is recomputed from the ceiling table on every page
+    load rather than stored, so without this a demand event would restate an
+    ALREADY PLAYED round's numbers using the new ceilings -- wrong for that
+    round, and a leak of the event before the round it belongs to has been
+    scored."""
+    m = 1.0
+    for e in _events_in_force(round_number, events_enabled):
+        m *= e.wtp_multiplier
+    return m
+
+
+class MarketConditions:
+    """What process_round() reads from its `event` argument: the cumulative
+    cost and WTP multipliers for one round. Same two attributes as a
+    MarketEvent, so the engine does not care which it is handed."""
+
+    __slots__ = ("cost_multiplier", "wtp_multiplier")
+
+    def __init__(self, cost_multiplier, wtp_multiplier):
+        self.cost_multiplier = cost_multiplier
+        self.wtp_multiplier = wtp_multiplier
+
+
+def market_conditions_for_round(round_number, events_enabled=True):
+    """The conditions to hand process_round() for `round_number`, or None
+    before any event has fired -- None keeps the engine on its no-event path,
+    which is byte-identical to a world without Market Shifts."""
+    if not _events_in_force(round_number, events_enabled):
+        return None
+    return MarketConditions(cost_multiplier_for_round(round_number, events_enabled),
+                            wtp_multiplier_for_round(round_number, events_enabled))

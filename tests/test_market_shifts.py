@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import create_app
 from app.constants import (
     DEMAND_ORDER_ONE, DEMAND_ORDER_TWO, SUPPLY_ORDER_ONE, SUPPLY_ORDER_TWO,
-    MARKET_EVENTS, event_for_round, wtp_multiplier_for_round,
+    MARKET_EVENTS, cost_multiplier_for_round, event_for_round,
+    market_conditions_for_round, wtp_multiplier_for_round,
 )
 from app.engine import FirmDecision, FirmState, process_round
 from app.extensions import db
@@ -274,9 +275,58 @@ def test_a_round_without_an_event_shows_no_banner(client, app):
 def test_a_played_round_keeps_the_ceilings_it_was_played_under():
     """The priced-out column is recomputed, not stored. Round 7 must still be
     described by round 7's ceilings after round 8's recession fires."""
-    assert wtp_multiplier_for_round(7, True) == 1.0
-    assert wtp_multiplier_for_round(8, True) == pytest.approx(1 - DEMAND_ORDER_TWO)
+    assert wtp_multiplier_for_round(5, True) == 1.0
+    assert wtp_multiplier_for_round(7, True) == pytest.approx(1 + DEMAND_ORDER_ONE)
+    assert wtp_multiplier_for_round(8, True) == pytest.approx(
+        (1 + DEMAND_ORDER_ONE) * (1 - DEMAND_ORDER_TWO))
     assert wtp_multiplier_for_round(8, False) == 1.0
+
+
+# --- permanence ------------------------------------------------------------ #
+
+def test_every_event_stays_in_force_for_the_rest_of_the_game():
+    """An event is a change to the market, not a one-round blip: metal costs
+    stay up after round 2, and each later event compounds on what came before."""
+    metal = 1 + SUPPLY_ORDER_ONE
+    both_supply = metal * (1 - SUPPLY_ORDER_TWO)
+    assert cost_multiplier_for_round(1) == 1.0
+    for r in (2, 3):
+        assert cost_multiplier_for_round(r) == pytest.approx(metal), r
+    for r in range(4, 11):
+        assert cost_multiplier_for_round(r) == pytest.approx(both_supply), r
+
+    streaming = 1 + DEMAND_ORDER_ONE
+    for r in range(1, 6):
+        assert wtp_multiplier_for_round(r) == 1.0, r
+    for r in (6, 7):
+        assert wtp_multiplier_for_round(r) == pytest.approx(streaming), r
+    for r in (8, 9, 10):
+        assert wtp_multiplier_for_round(r) == pytest.approx(
+            streaming * (1 - DEMAND_ORDER_TWO)), r
+
+
+def test_no_conditions_before_the_first_event_or_without_events():
+    """None keeps process_round() on its byte-identical no-event path."""
+    assert market_conditions_for_round(1) is None
+    for r in range(1, 11):
+        assert market_conditions_for_round(r, events_enabled=False) is None
+        assert cost_multiplier_for_round(r, events_enabled=False) == 1.0
+    c = market_conditions_for_round(9)
+    assert c.cost_multiplier == pytest.approx(cost_multiplier_for_round(9))
+    assert c.wtp_multiplier == pytest.approx(wtp_multiplier_for_round(9))
+
+
+def test_a_played_round_is_charged_the_cost_still_in_force(client, app):
+    """End to end through the real round processor: round 3 has no event of
+    its own, but metal costs from round 2 must still be on the bill."""
+    from app.models import Firm, RoundResult
+    world = playing_firm(client, app, 3)
+    client.post("/firm/decisions", data={
+        "price": "80", "production_qty": "10000", "ad_spend": "0", "rd_spend": "0",
+        "track": "Mid", "plant_investment": "0"})
+    firm = Firm.query.filter_by(world_id=world.id, team_name="CostCheck").one()
+    result = RoundResult.query.filter_by(firm_id=firm.id, round_number=3).one()
+    assert result.production_cost == pytest.approx(10_000 * 50 * (1 + SUPPLY_ORDER_ONE))
 
 
 # --- the teacher's entry point --------------------------------------------- #
@@ -304,7 +354,7 @@ def test_a_teacher_world_has_no_events_unless_asked(app):
 
 def test_market_shifts_is_offered_inside_the_sandbox_card(client):
     page = client.get("/login").data.decode()
-    assert "Sandbox Mode Market Shifts" in page
+    assert "Market Shifts" in page
     assert "/sandbox/market-shifts" in page
     assert "login-panel-shifts" not in page, "it is no longer its own card"
 
@@ -330,15 +380,24 @@ def test_the_cost_line_shows_the_event_adjusted_unit_cost(client, app):
 
 
 def test_a_cheaper_supply_event_shows_the_lower_cost(client, app):
-    playing_firm(client, app, 4)  # -18% microchip
-    assert "$41.00" in client.get("/firm").data.decode()
+    playing_firm(client, app, 4)  # -18% microchip, on top of round 2's +8%
+    assert "$44.28" in client.get("/firm").data.decode()
+
+
+def test_the_raised_cost_stays_after_its_round(client, app):
+    playing_firm(client, app, 3)  # no event of its own; metal costs persist
+    assert "$54.00" in client.get("/firm").data.decode()
 
 
 def test_a_demand_event_leaves_the_cost_line_alone(client, app):
     """A demand event must not move costs -- that would leak it into a number
-    the student can read directly."""
-    playing_firm(client, app, 8)
-    assert "$50.00" in client.get("/firm").data.decode()
+    the student can read directly. Round 8's cost is whatever the supply
+    events left it at, exactly as in round 7."""
+    world = playing_firm(client, app, 7)
+    assert "$44.28" in client.get("/firm").data.decode()  # $50 x 1.08 x 0.82
+    world.current_round = 8
+    db.session.commit()
+    assert "$44.28" in client.get("/firm").data.decode()
 
 
 def test_affordability_check_uses_the_event_cost(client, app):

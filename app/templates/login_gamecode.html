@@ -13,9 +13,9 @@
       <h2>Classroom Game</h2>
       <p class="help-text">Enter your game code to join the class world your teacher started.</p>
       <form method="post" action="{{ url_for('auth.game_code_entry') }}">
-        <button class="btn full login-button-classroom" type="submit">Continue</button>
         <label for="game_code">Game Code</label>
         <input type="text" id="game_code" name="game_code" autocomplete="off" autocapitalize="characters" required>
+        <button class="btn full login-button-classroom" type="submit">Continue</button>
       </form>
     </section>
 
@@ -27,24 +27,21 @@
       <h2>Sandbox Mode</h2>
       <p class="help-text">Practicing on your own? Play against bots without joining a classroom game.</p>
       {# Market Shifts is the same sandbox game with scripted events on, so it
-         lives in this card rather than competing with it for a column. Both
-         actions share ONE .login-panel-action: that block carries the
-         card-alignment spacer in its ::after, and a second one would add the
-         spacer twice and push this card taller than the other two. #}
-      <p class="help-text">Or play one where the market moves: four news events
-        change costs and demand as you go.</p>
+         lives in this card rather than competing with it for a column. The
+         two actions bottom-anchor together, like the form in the other cards. #}
       <div class="login-panel-action login-panel-action-pair">
-        <a class="btn full login-button-sandbox" href="{{ url_for('sandbox.home') }}">Sandbox Mode</a>
-        <a class="btn full login-button-shifts" href="{{ url_for('sandbox.market_shifts_home') }}">Sandbox Mode Market Shifts</a>
+        <a class="btn full login-button-sandbox" href="{{ url_for('sandbox.home') }}">Play Sandbox</a>
+        <a class="btn full login-button-shifts" href="{{ url_for('sandbox.market_shifts_home') }}">Market Shifts</a>
+        <p class="login-action-note">Market Shifts adds four news events that change costs and demand as you play.</p>
       </div>
     </section>
     <section class="card login-panel login-panel-teacher">
       <h2>Teacher Login</h2>
       <p class="help-text">Open the teacher dashboard to run the class, advance rounds, and manage worlds.</p>
       <form method="post" action="{{ url_for('auth.teacher_login') }}">
-        <button class="btn full login-button-teacher" type="submit">Log In</button>
         <label for="teacher_password">Password</label>
         <input type="password" id="teacher_password" name="password" autocomplete="current-password" required>
+        <button class="btn full login-button-teacher" type="submit">Log In</button>
       </form>
     </section>
   </div>
