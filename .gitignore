@@ -4,3 +4,10 @@ __pycache__/
 .pytest_cache/
 *.db
 .env
+
+# Flask's instance folder: the local SQLite dev database and its backups.
+# *.db already covers dev.db itself, but not dev.db.before-*.bak, and the
+# folder is per-machine state that must never reach the repo -- it holds real
+# gameplay data and would be meaningless (or actively confusing) on anyone
+# else's checkout or on Render, which uses Postgres.
+instance/

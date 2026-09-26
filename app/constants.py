@@ -565,7 +565,7 @@ WTP_SPREAD_LOW = 0.8
 WTP_SPREAD_HIGH = 1.2
 
 
-def wtp_threshold_r(segment: str, track: str, price: float) -> float:
+def wtp_threshold_r(segment: str, track: str, price: float, multiplier: float = 1.0) -> float:
     """The percentile r at which a buyer's willingness-to-pay ceiling for
     `track` first clears `price` -- the fraction (1 - this, clamped to
     [0, 1] by the caller) of the segment's buyers can afford it.
@@ -576,18 +576,18 @@ def wtp_threshold_r(segment: str, track: str, price: float) -> float:
     thresholds for a caller doing a multi-firm r-space sweep (see
     engine.py's segment demand step), so clamping belongs there, not here.
     """
-    center = WTP_CEILING_CENTER[segment][track]
+    center = WTP_CEILING_CENTER[segment][track] * multiplier
     ceiling_at_r0 = center * WTP_SPREAD_LOW
     ceiling_at_r1 = center * WTP_SPREAD_HIGH
     return (price - ceiling_at_r0) / (ceiling_at_r1 - ceiling_at_r0)
 
 
-def wtp_ceiling_at_r(segment: str, track: str, r: float) -> float:
+def wtp_ceiling_at_r(segment: str, track: str, r: float, multiplier: float = 1.0) -> float:
     """A buyer's actual willingness-to-pay ceiling at percentile r (0..1)
     for `track` in `segment` -- the inverse of wtp_threshold_r, used to
     compute consumer surplus (ceiling - price paid) for buyers landing at
     a given r."""
-    center = WTP_CEILING_CENTER[segment][track]
+    center = WTP_CEILING_CENTER[segment][track] * multiplier
     return center * (WTP_SPREAD_LOW + (WTP_SPREAD_HIGH - WTP_SPREAD_LOW) * r)
 
 
@@ -621,3 +621,92 @@ COMPETITIVE_INTEL_HIDDEN_FIELDS = ("plant_capacity", "cash", "rd_spend")
 # step in flask init-db, which is the highest-risk change shape in this app
 # (a missed migration 500s every page, it does not degrade).
 MAX_SANDBOX_WORLDS = 500
+
+
+# --------------------------------------------------------------------------- #
+# Market Shifts: scripted events (deterministic, never random)
+# --------------------------------------------------------------------------- #
+#
+# Four scripted events fire at the START of rounds 2, 4, 6 and 8 in a world
+# with events_enabled. Magnitudes were sized against 219 real firm-rounds
+# (median price $80, median gross margin 38%, median round profit ~$505k,
+# median capacity utilisation 62%) -- see docs/market-shifts.md for the
+# working. Two reusable orders of magnitude per kind:
+#
+#   Order One  -- noticeable but forgiving; a moderate reaction still lands fine.
+#   Order Two  -- sharp; only a deliberate price move comes out ahead.
+#
+# A SUPPLY event scales unit cost. It is fully transparent: the number lands
+# in the firm's own cost line, because those are their own books.
+#
+# A DEMAND event scales every willingness-to-pay ceiling. The affordability
+# gate amplifies it about 2.75x (a 4% ceiling shift moves a median Mid firm's
+# reachable buyers ~15%), and a -X% shift is offset exactly by an X% price
+# cut -- which is the lesson. Its magnitude and direction are NEVER shown:
+# students see only the banner and title, and infer the rest from their own
+# price and sales data.
+SUPPLY_ORDER_ONE = 0.08
+SUPPLY_ORDER_TWO = 0.18
+DEMAND_ORDER_ONE = 0.04
+DEMAND_ORDER_TWO = 0.10
+
+
+class MarketEvent:
+    """One scripted event. `cost_multiplier` and `wtp_multiplier` are what the
+    engine actually applies; exactly one of them is ever off 1.0."""
+
+    __slots__ = ("key", "round_number", "kind", "name", "cost_multiplier", "wtp_multiplier")
+
+    def __init__(self, key, round_number, kind, name, cost_multiplier=1.0, wtp_multiplier=1.0):
+        self.key = key
+        self.round_number = round_number
+        self.kind = kind  # "supply" (transparent) | "demand" (name only)
+        self.name = name
+        self.cost_multiplier = cost_multiplier
+        self.wtp_multiplier = wtp_multiplier
+
+    @property
+    def is_supply(self):
+        return self.kind == "supply"
+
+    def __repr__(self):  # pragma: no cover - debugging aid
+        return f"<MarketEvent {self.key} r{self.round_number} cost={self.cost_multiplier} wtp={self.wtp_multiplier}>"
+
+
+MARKET_EVENTS = (
+    MarketEvent("metal_costs", 2, "supply", "The Cost of Metal Has Increased",
+                cost_multiplier=1 + SUPPLY_ORDER_ONE),
+    MarketEvent("microchip", 4, "supply", "A New Microchip Has Been Invented",
+                cost_multiplier=1 - SUPPLY_ORDER_TWO),
+    MarketEvent("streaming", 6, "demand", "Streaming Subscription Prices Drop",
+                wtp_multiplier=1 + DEMAND_ORDER_ONE),
+    MarketEvent("recession", 8, "demand",
+                "A Recession Has Struck and Millions of Americans Have Lost Their Jobs",
+                wtp_multiplier=1 - DEMAND_ORDER_TWO),
+)
+
+MARKET_EVENTS_BY_ROUND = {e.round_number: e for e in MARKET_EVENTS}
+
+
+def event_for_round(round_number, events_enabled=True):
+    """The event in force for `round_number`, or None.
+
+    Derived from the schedule rather than stored per round: the schedule is
+    scripted and deterministic, so a past round resolves to the same event it
+    was played under without a migration. Changing a magnitude here therefore
+    rewrites how a finished round is DESCRIBED -- version the constants, do
+    not edit them in place, if a played game must stay reproducible."""
+    if not events_enabled:
+        return None
+    return MARKET_EVENTS_BY_ROUND.get(round_number)
+
+
+def wtp_multiplier_for_round(round_number, events_enabled=True):
+    """The willingness-to-pay multiplier that was in force during
+    `round_number`. The Firm Dashboard's per-segment "priced out" column is
+    recomputed from the ceiling table on every page load rather than stored,
+    so without this a demand event would restate an ALREADY PLAYED round's
+    numbers using the new ceilings -- wrong for that round, and a leak of the
+    event before the round it belongs to has been scored."""
+    event = event_for_round(round_number, events_enabled)
+    return event.wtp_multiplier if event else 1.0

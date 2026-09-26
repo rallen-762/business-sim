@@ -270,7 +270,8 @@ def synthesize_non_submission_decision(
 # The batch round processor
 # --------------------------------------------------------------------------- #
 
-def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecision]) -> RoundResults:
+def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecision],
+                  event=None) -> RoundResults:
     """Runs one round's entire economic model in a single batch, exactly as
     specified: no per-submission processing, everything computed together
     here. Pure function -- no DB, no side effects, fully deterministic given
@@ -280,6 +281,12 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
     Returns a RoundResults (dict[firm_id, FirmRoundResult] exactly as
     before, plus a `.segment_stats` attribute -- see that class)."""
     results = RoundResults()
+
+    # A Market Shifts scripted event, or None for every other world. Kept as
+    # two plain floats so the rest of this function never branches on whether
+    # an event exists -- 1.0 is the no-event case and changes nothing.
+    cost_multiplier = event.cost_multiplier if event else 1.0
+    wtp_multiplier = event.wtp_multiplier if event else 1.0
 
     active_ids = [fid for fid, s in states.items() if not s.bankrupt]
 
@@ -385,7 +392,7 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
             d = decisions[fid]
             if seg == "Wealthy" and d.price > WEALTHY_CEILING_PRICE:
                 continue  # absolute hard rule, kept from the old model -- excluded outright
-            r = wtp_threshold_r(seg, d.track, d.price)
+            r = wtp_threshold_r(seg, d.track, d.price, wtp_multiplier)
             thresholds.append((max(0.0, min(1.0, r)), fid))
 
         if not thresholds:
@@ -422,7 +429,8 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
                 share = pulls[fid] / total_pull
                 raw_units[fid][seg] += interval_buyers * share
                 d = decisions[fid]
-                avg_ceiling = (wtp_ceiling_at_r(seg, d.track, lo) + wtp_ceiling_at_r(seg, d.track, hi)) / 2
+                avg_ceiling = (wtp_ceiling_at_r(seg, d.track, lo, wtp_multiplier)
+                               + wtp_ceiling_at_r(seg, d.track, hi, wtp_multiplier)) / 2
                 surplus_numerator += interval_buyers * share * (avg_ceiling - d.price)
 
         # Clamped at 0: summing each interval's share back up can land a
@@ -468,7 +476,7 @@ def process_round(states: dict[int, FirmState], decisions: dict[int, FirmDecisio
         capacity_bound = d.production_qty >= effective_capacity[fid]
         units_lost_to_capacity = shortfall if capacity_bound else 0.0
 
-        unit_cost = track_unit_cost(d.track)
+        unit_cost = track_unit_cost(d.track) * cost_multiplier
         production_cost = actual_production[fid] * unit_cost  # sunk even for unsold units -- they're destroyed
         fixed_cost = fixed_cost_for_capacity(effective_capacity[fid])
         ad_cost = d.ad_spend

@@ -205,7 +205,7 @@ def _evict_oldest_sandbox_worlds():
     return len(doomed)
 
 
-def _create_single_player_game(team_name, profiles, icons=None):
+def _create_single_player_game(team_name, profiles, icons=None, events_enabled=False):
     """Build a sandbox world with one human firm plus the chosen bots, and
     return the player's Firm. Shared by both entry points (the student-side
     sandbox page and the Teacher Dashboard) so the two can never drift into
@@ -216,11 +216,14 @@ def _create_single_player_game(team_name, profiles, icons=None):
     every sandbox game used to get -- a fixed identity nobody chose."""
     icons = icons or {}
     world = World(
-        name=f"Sandbox -- {team_name}",
+        name=f"{'Market Shifts' if events_enabled else 'Sandbox'} -- {team_name}",
         game_code=_generate_game_code(),
         planned_firm_slots=1 + len(profiles),
         mode="sandbox",
         rounds=ROUNDS_PER_WORLD,
+        # Market Shifts reuses the sandbox world shape wholesale -- same
+        # engine, same dashboard, same bots -- and differs only by this flag.
+        events_enabled=events_enabled,
     )
     db.session.add(world)
     db.session.flush()
@@ -255,6 +258,35 @@ def _create_single_player_game(team_name, profiles, icons=None):
 
     db.session.commit()
     return player
+
+
+@bp.route("/market-shifts")
+def market_shifts_home():
+    """Market Shifts setup. The same form as the sandbox -- only the copy and
+    the route it posts to differ, so the two can never drift apart."""
+    return render_template(
+        "sandbox_home.html",
+        bot_order=BOT_ORDER,
+        bot_profiles=BOT_PROFILES,
+        bot_display_name=bot_display_name,
+        default_rounds=ROUNDS_PER_WORLD,
+        avatars=AVATAR_CHOICES, badges=BADGE_CHOICES, products=PRODUCT_CHOICES,
+        market_shifts=True,
+    )
+
+
+@bp.route("/market-shifts/new", methods=["POST"])
+def market_shifts_new_game():
+    """Start a Market Shifts game: a sandbox world with scripted events on."""
+    _evict_oldest_sandbox_worlds()
+    player = _create_single_player_game(
+        request.form.get("team_name", "").strip() or "My Company",
+        _requested_profiles(request.form),
+        _picked_icons(request.form),
+        events_enabled=True,
+    )
+    log_in_firm(player)
+    return redirect(url_for("firm.dashboard"))
 
 
 @bp.route("/new", methods=["POST"])

@@ -144,6 +144,13 @@ class World(db.Model):
     # shows its board and ignores this.
     show_standings_to_students = db.Column(db.Boolean, nullable=False, default=True)
 
+    # Market Shifts: when on, the four scripted events in
+    # constants.MARKET_EVENTS fire at the start of rounds 2/4/6/8. OFF for
+    # every existing world, including the sandbox, so nothing already played
+    # changes behaviour. The events layer reads only this flag and the round
+    # number -- there is no per-event state to carry.
+    events_enabled = db.Column(db.Boolean, nullable=False, default=False)
+
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     firms = db.relationship("Firm", backref="world", cascade="all, delete-orphan")

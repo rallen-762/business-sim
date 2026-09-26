@@ -1775,3 +1775,65 @@ tr.bankrupt { opacity: 0.55; }
 }
 .slot-item .slot-name { font-weight: 700; }
 .slot-item .slot-empty { color: var(--text-secondary); font-style: italic; }
+
+/* --- Market Shifts event banner + chip ------------------------------------
+   Tokens only, no new colours: the banner borrows the existing accent pair
+   so a future restyle moves it along with everything else. Supply and demand
+   read differently on purpose -- a supply event is about the team's own
+   costs, a demand event is about the market moving under them. */
+.event-banner {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  background: var(--panel-alt);
+  border: 2px solid var(--accent-primary);
+  border-left-width: 10px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  padding: 16px 20px;
+  margin-bottom: 18px;
+}
+.event-banner-demand { border-color: var(--accent-sandbox); }
+.event-banner-art {
+  width: 104px;
+  height: 104px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  flex: 0 0 auto;
+}
+.event-banner-body { min-width: 0; }
+.event-banner-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.event-banner-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+.event-banner-note { margin: 0; color: var(--text-secondary); font-size: 0.9rem; }
+
+.event-chip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--panel-alt);
+  border: 1px solid var(--accent-primary);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  margin-bottom: 14px;
+}
+.event-chip-demand { border-color: var(--accent-sandbox); }
+.event-chip-art { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: 0 0 auto; }
+.event-chip-title { font-weight: 600; color: var(--text-primary); font-size: 0.92rem; line-height: 1.3; }
+
+/* Chromebooks and iPads: the banner stacks rather than squeezing the title. */
+@media (max-width: 620px) {
+  .event-banner { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .event-banner-art { width: 100%; height: 120px; }
+}

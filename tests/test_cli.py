@@ -293,9 +293,10 @@ def test_init_db_backfills_existing_worlds_to_classroom_mode(app):
     with app.app_context():
         old_columns = [
             c.copy() for c in World.__table__.columns
-            # show_standings_to_students came later still -- a pre-sandbox
-            # table can't have it either.
-            if c.name not in ("mode", "rounds", "show_standings_to_students")
+            # show_standings_to_students and events_enabled came later still
+            # -- a pre-sandbox table can't have either.
+            if c.name not in ("mode", "rounds", "show_standings_to_students",
+                              "events_enabled")
         ]
         meta = sa.MetaData()
         sa.Table("worlds", meta, *old_columns)

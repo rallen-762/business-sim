@@ -31,6 +31,16 @@
       </p>
     </section>
 
+    {# Same shape as the Sandbox card next to it: a plain link, no form,
+       so this adds no credential-shaped input to this page. #}
+    <section class="card login-panel login-panel-shifts">
+      <h2>Market Shifts</h2>
+      <p class="help-text">Play against bots in a market that changes. News events shift costs and demand mid-game.</p>
+      <p class="login-panel-action">
+        <a class="btn full login-button-shifts" href="{{ url_for('sandbox.market_shifts_home') }}">Market Shifts</a>
+      </p>
+    </section>
+
     <section class="card login-panel login-panel-teacher">
       <h2>Teacher Login</h2>
       <p class="help-text">Open the teacher dashboard to run the class, advance rounds, and manage worlds.</p>

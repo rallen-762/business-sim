@@ -91,7 +91,7 @@ PIE_TEXT_COLORS = (
 )
 
 
-def affordability_breakdown(decision, result):
+def affordability_breakdown(decision, result, wtp_multiplier=1.0):
     """Per-segment "could these buyers afford you?" feedback for one firm's
     own round, for the student's Round Results screen.
 
@@ -121,7 +121,7 @@ def affordability_breakdown(decision, result):
         if seg == "Wealthy" and decision.price > WEALTHY_CEILING_PRICE:
             priced_out_pct = 100.0
         else:
-            r = wtp_threshold_r(seg, decision.track, decision.price)
+            r = wtp_threshold_r(seg, decision.track, decision.price, wtp_multiplier)
             priced_out_pct = max(0.0, min(1.0, r)) * 100
         rows.append({
             "name": seg,

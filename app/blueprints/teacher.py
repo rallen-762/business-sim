@@ -48,6 +48,7 @@ from app.constants import (
     ROUNDS_PER_WORLD,
     STARTING_CASH,
     STARTING_PLANT_CAPACITY,
+    event_for_round,
 )
 from app.csv_export import build_export_rows, export_filename, rows_to_csv_string
 from app.engine import FirmDecision, FirmState, process_round, synthesize_non_submission_decision
@@ -629,7 +630,10 @@ def _process_current_round(world, rng=None):
                 is_auto=True,
             ))
 
-    results = process_round(states, decisions)
+    # Market Shifts worlds only: None everywhere else, which leaves
+    # process_round() on its no-event path.
+    event = event_for_round(world.current_round, world.events_enabled)
+    results = process_round(states, decisions, event)
 
     for firm in firms:
         r = results[firm.id]

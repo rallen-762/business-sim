@@ -33,7 +33,10 @@ Edge cases considered:
     always correct even immediately after a round changes those totals.
 """
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from pathlib import Path
+
+from flask import (Blueprint, current_app, flash, redirect, render_template, request,
+                   session, url_for)
 
 from app.auth import current_firm, current_world, firm_login_required
 from app.avatars import TIER_ICONS
@@ -75,6 +78,8 @@ from app.constants import (
     rd_spend_in_track,
     rd_spend_presets,
     track_unit_cost,
+    event_for_round,
+    wtp_multiplier_for_round,
 )
 from app.extensions import db
 from app.models import RoundDecision, RoundResult
@@ -132,6 +137,25 @@ def dashboard():
         recap_decision = RoundDecision.query.filter_by(
             firm_id=firm.id, round_number=previous_round
         ).first()
+
+    # Market Shifts: the event in force this round, if any. The full banner
+    # shows once, on the first dashboard load of that round; after that the
+    # header keeps a miniaturised chip for the rest of the round, which is
+    # what the brief asks for. Session-scoped, so it costs no column.
+    current_event = event_for_round(world.current_round, world.events_enabled)
+    # Art is optional: the banner reads fine as title-only until real event
+    # images are dropped into static/img/events/<key>.png, and a missing file
+    # must never break a dashboard mid-class.
+    event_image = None
+    if current_event is not None:
+        relative = f"img/events/{current_event.key}.png"
+        if (Path(current_app.root_path) / "static" / relative).exists():
+            event_image = url_for("static", filename=relative)
+    show_event_banner = False
+    if current_event is not None:
+        seen_key = f"event_seen_{world.id}_{world.current_round}"
+        show_event_banner = not session.get(seen_key)
+        session[seen_key] = True
 
     # Classroom, teacher opted in: the first dashboard load after a round is
     # processed goes to the standings board. Once per round -- the board's
@@ -234,8 +258,19 @@ def dashboard():
         plant_investment_cost=PLANT_INVESTMENT_COST,
         plant_capacity_gain=PLANT_INVESTMENT_CAPACITY_GAIN,
         capacity_block_fixed_cost=CAPACITY_BLOCK_FIXED_COST,
-        affordability=affordability_breakdown(last_decision, last_result),
-        affordability_curve=affordability_curve(),
+        # Each table is computed against the ceilings in force during the
+        # round it is labelled with -- see constants.wtp_multiplier_for_round.
+        affordability=affordability_breakdown(
+            last_decision, last_result,
+            wtp_multiplier_for_round(world.current_round, world.events_enabled)),
+        # Market Shifts only: the live "who can afford this price?" readout is
+        # a direct function of the ceiling table, so it would hand a student
+        # the size and direction of a demand event the moment one fires. The
+        # template hides the whole control when this is None.
+        affordability_curve=None if world.events_enabled else affordability_curve(),
+        current_event=current_event,
+        show_event_banner=show_event_banner,
+        event_image=event_image,
         last_result_price=last_decision.price if last_decision else None,
         last_result_track=last_decision.track if last_decision else None,
         last_result_celebrity=(
@@ -249,7 +284,9 @@ def dashboard():
         recap_result=recap_result,
         recap_round=(world.current_round - 1) if recap_result else None,
         recap_price=recap_decision.price if recap_decision else None,
-        recap_affordability=affordability_breakdown(recap_decision, recap_result),
+        recap_affordability=affordability_breakdown(
+            recap_decision, recap_result,
+            wtp_multiplier_for_round(world.current_round - 1, world.events_enabled)),
     )
 
 

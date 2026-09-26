@@ -173,6 +173,17 @@ def create_app(config_overrides=None):
                         ))
                         conn.commit()
                     print("Added worlds.rounds column.")
+                # Market Shifts scripted events. Defaults to off/0, so every
+                # world that already exists -- classroom and sandbox alike --
+                # keeps playing with no events, which is what it played under.
+                if "events_enabled" not in world_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(sa.text(
+                            "ALTER TABLE worlds ADD COLUMN events_enabled BOOLEAN "
+                            "NOT NULL DEFAULT 0"
+                        ))
+                        conn.commit()
+                    print("Added worlds.events_enabled column.")
 
             # Undo Last Round's reopen window. Nullable with no default --
             # NULL simply means "no round is reopened", which is the correct

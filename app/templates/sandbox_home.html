@@ -16,12 +16,15 @@
 
   <div class="sandbox-panels">
 <div class="card">
-  <h2>New Single-Player Game</h2>
+  <h2>{{ 'New Market Shifts Game' if market_shifts else 'New Single-Player Game' }}</h2>
   <p class="help-text">Sandbox games run on the same market model, formulas and bot logic as a classroom
     game &mdash; nothing about the math changes. They never appear on the Teacher Dashboard.</p>
+  {% if market_shifts %}<p class="help-text">Same market, same bots &mdash; but the world moves under you.
+  Four news events strike during the game. Some change what it costs you to build; others change what
+  customers are willing to pay. Read the news, watch your own numbers, and adjust.</p>{% endif %}
   <p class="help-text">You run one company against the bots. No teacher, no waiting &mdash; you submit
     your decision and process the round yourself. {{ default_rounds }} rounds.</p>
-  <form method="post" action="{{ url_for('sandbox.new_game') }}">
+  <form method="post" action="{{ url_for('sandbox.market_shifts_new_game') if market_shifts else url_for('sandbox.new_game') }}">
     {# No password field here on purpose. Creating the game signs you
        straight in, so a per-game password was never used for anything --
        while a visible input literally named "password", prefilled, posting
