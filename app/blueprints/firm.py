@@ -167,7 +167,14 @@ def dashboard():
     ):
         return redirect(url_for("firm.standings"))
 
-    track_unit_costs = {t: track_unit_cost(t) for t in TRACKS}
+    # A supply event changes what every unit costs THIS round. The brief makes
+    # supply events fully transparent -- the number belongs in the team's own
+    # cost line -- and this dict drives the tier dropdown, the live cost-per-
+    # unit readout and the auto-calculated production quantity, so applying it
+    # here makes all three agree with what process_round() will charge.
+    cost_multiplier = getattr(event_for_round(world.current_round, world.events_enabled),
+                              "cost_multiplier", 1.0)
+    track_unit_costs = {t: track_unit_cost(t) * cost_multiplier for t in TRACKS}
 
     # Quality is tier-bound. The form opens on the tier the firm sold last
     # (the browser's default is the first option when there isn't one), so
@@ -404,7 +411,9 @@ def submit_decision():
     # exceed available cash. The dashboard auto-computes Production Quantity
     # client-side to make this true by construction, but the server never
     # trusts that -- this is the real, unbypassable enforcement.
-    production_cost = production_qty * track_unit_cost(track)
+    event = event_for_round(world.current_round, world.events_enabled)
+    unit_cost = track_unit_cost(track) * (event.cost_multiplier if event else 1.0)
+    production_cost = production_qty * unit_cost
     celebrity_cost = CELEBRITY_COST_PER_ROUND if celebrity_on else 0
     total_planned_spend = production_cost + ad_spend + rd_spend + plant_investment + celebrity_cost
     if total_planned_spend > firm.cash:

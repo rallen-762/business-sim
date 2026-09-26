@@ -307,3 +307,48 @@ def test_market_shifts_is_offered_inside_the_sandbox_card(client):
     assert "Sandbox Mode Market Shifts" in page
     assert "/sandbox/market-shifts" in page
     assert "login-panel-shifts" not in page, "it is no longer its own card"
+
+
+# --- supply transparency: the shown cost must be the charged cost ---------- #
+
+def playing_firm(client, app, round_number):
+    client.post("/sandbox/market-shifts/new", data={"team_name": "CostCheck"})
+    world = World.query.filter(World.name.like("%CostCheck%")).one()
+    world.current_round = round_number
+    db.session.commit()
+    return world
+
+
+def test_the_cost_line_shows_the_event_adjusted_unit_cost(client, app):
+    """The brief makes supply events fully transparent: the number lands in
+    the firm's own cost line. It was being charged by the engine and never
+    shown, so a team priced against a cost that was already wrong."""
+    playing_firm(client, app, 2)  # +8% metal costs
+    page = client.get("/firm").data.decode()
+    assert "$54.00" in page, "round 2 must show the raised unit cost"
+    assert "(Mid ($50.00/unit)" not in page
+
+
+def test_a_cheaper_supply_event_shows_the_lower_cost(client, app):
+    playing_firm(client, app, 4)  # -18% microchip
+    assert "$41.00" in client.get("/firm").data.decode()
+
+
+def test_a_demand_event_leaves_the_cost_line_alone(client, app):
+    """A demand event must not move costs -- that would leak it into a number
+    the student can read directly."""
+    playing_firm(client, app, 8)
+    assert "$50.00" in client.get("/firm").data.decode()
+
+
+def test_affordability_check_uses_the_event_cost(client, app):
+    """Server-side spend validation must use the same unit cost the engine
+    will charge, or a team is cleared to commit to a plan it cannot pay for
+    and gets pushed into a loan it never chose."""
+    world = playing_firm(client, app, 2)
+    # 20,000 units at the base $50 is exactly $1,000,000 -- affordable before
+    # the event, $1,080,000 and NOT affordable with it.
+    page = client.post("/firm/decisions", data={
+        "price": "80", "production_qty": "20000", "ad_spend": "0", "rd_spend": "0",
+        "track": "Mid", "plant_investment": "0"}, follow_redirects=True).data.decode()
+    assert "only have" in page, "the raised cost must be enforced, not just displayed"

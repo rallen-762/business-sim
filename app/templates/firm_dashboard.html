@@ -40,9 +40,21 @@
     </div>
   </div>
   {% else %}
+  {# The event stays on screen for the whole round as a small panel -- art,
+     title and the same one-line explanation as the banner. A team that clicks
+     away and comes back must still be able to see what happened and why their
+     numbers moved. #}
   <div class="event-chip event-chip-{{ current_event.kind }}" role="status">
     {% if event_image %}<img class="event-chip-art" src="{{ event_image }}" alt="">{% endif %}
-    <span class="event-chip-title">{{ current_event.name }}</span>
+    <div class="event-chip-body">
+      <p class="event-chip-eyebrow">MARKET NEWS &middot; ROUND {{ world.current_round }}</p>
+      <p class="event-chip-title">{{ current_event.name }}</p>
+      {% if current_event.is_supply %}
+        <p class="event-chip-note">Your unit cost has changed. Check your cost line before you price.</p>
+      {% else %}
+        <p class="event-chip-note">Customer demand has moved. Watch what happens to your sales.</p>
+      {% endif %}
+    </div>
   </div>
   {% endif %}
 {% endif %}
