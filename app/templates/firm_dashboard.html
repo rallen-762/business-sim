@@ -26,6 +26,8 @@
      happens to their sales. #}
   {% if show_event_banner %}
   <div class="event-banner event-banner-{{ current_event.kind }}" role="status">
+    {# The art is a 1024x384 banner, so it runs full width above the text.
+       Cropping it into a square thumbnail showed a meaningless centre sliver. #}
     {% if event_image %}<img class="event-banner-art" src="{{ event_image }}" alt="">{% endif %}
     <div class="event-banner-body">
       <p class="event-banner-eyebrow">MARKET NEWS &middot; ROUND {{ world.current_round }}</p>

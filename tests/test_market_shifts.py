@@ -277,3 +277,33 @@ def test_a_played_round_keeps_the_ceilings_it_was_played_under():
     assert wtp_multiplier_for_round(7, True) == 1.0
     assert wtp_multiplier_for_round(8, True) == pytest.approx(1 - DEMAND_ORDER_TWO)
     assert wtp_multiplier_for_round(8, False) == 1.0
+
+
+# --- the teacher's entry point --------------------------------------------- #
+
+def teacher_client(app):
+    c = app.test_client()
+    c.post("/teacher/login", data={"password": TEACHER_PASSWORD})
+    return c
+
+
+def test_teacher_can_create_a_market_shifts_period(app):
+    c = teacher_client(app)
+    c.post("/teacher/worlds", data={"name": "Period 3", "planned_firm_slots": "2",
+                                    "events_enabled": "yes"})
+    world = World.query.filter_by(name="Period 3").one()
+    assert world.events_enabled is True
+    assert world.mode == "classroom", "still an ordinary teacher-run period"
+
+
+def test_a_teacher_world_has_no_events_unless_asked(app):
+    c = teacher_client(app)
+    c.post("/teacher/worlds", data={"name": "Period 4", "planned_firm_slots": "2"})
+    assert World.query.filter_by(name="Period 4").one().events_enabled is False
+
+
+def test_market_shifts_is_offered_inside_the_sandbox_card(client):
+    page = client.get("/login").data.decode()
+    assert "Sandbox Mode Market Shifts" in page
+    assert "/sandbox/market-shifts" in page
+    assert "login-panel-shifts" not in page, "it is no longer its own card"

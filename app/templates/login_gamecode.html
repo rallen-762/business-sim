@@ -26,21 +26,18 @@
     <section class="card login-panel login-panel-sandbox">
       <h2>Sandbox Mode</h2>
       <p class="help-text">Practicing on your own? Play against bots without joining a classroom game.</p>
-      <p class="login-panel-action">
+      {# Market Shifts is the same sandbox game with scripted events on, so it
+         lives in this card rather than competing with it for a column. Both
+         actions share ONE .login-panel-action: that block carries the
+         card-alignment spacer in its ::after, and a second one would add the
+         spacer twice and push this card taller than the other two. #}
+      <p class="help-text">Or play one where the market moves: four news events
+        change costs and demand as you go.</p>
+      <div class="login-panel-action login-panel-action-pair">
         <a class="btn full login-button-sandbox" href="{{ url_for('sandbox.home') }}">Sandbox Mode</a>
-      </p>
+        <a class="btn full login-button-shifts" href="{{ url_for('sandbox.market_shifts_home') }}">Sandbox Mode Market Shifts</a>
+      </div>
     </section>
-
-    {# Same shape as the Sandbox card next to it: a plain link, no form,
-       so this adds no credential-shaped input to this page. #}
-    <section class="card login-panel login-panel-shifts">
-      <h2>Market Shifts</h2>
-      <p class="help-text">Play against bots in a market that changes. News events shift costs and demand mid-game.</p>
-      <p class="login-panel-action">
-        <a class="btn full login-button-shifts" href="{{ url_for('sandbox.market_shifts_home') }}">Market Shifts</a>
-      </p>
-    </section>
-
     <section class="card login-panel login-panel-teacher">
       <h2>Teacher Login</h2>
       <p class="help-text">Open the teacher dashboard to run the class, advance rounds, and manage worlds.</p>

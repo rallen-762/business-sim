@@ -1030,7 +1030,37 @@ input[type=text]:focus, input[type=password]:focus, input[type=number]:focus, se
 .login-panel-action .btn {
   text-decoration: none;
   box-sizing: border-box;
+  /* The global .btn sets white-space: nowrap, which is right for the compact
+     nav buttons it was written for and wrong here: these are full-width cards
+     and a long label ("Sandbox Mode Market Shifts") ran straight out of its
+     box. Wrapping is re-enabled for THESE buttons only, and the box grows to
+     fit rather than the text escaping -- the label can never exceed the
+     button, whatever it says. The taller line-height is what the nowrap
+     comment asks for: at 1.6 two pixel-font lines collide, at 2.0 they do not.
+     min-height keeps a one-line label the same size these buttons already
+     were, so nothing else on this screen moves. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 2;
+  min-height: var(--login-field-block);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Squarer: the label sits in a block with room around it rather than a
+     thin strip, and the two actions in the sandbox card match each other. */
+  padding: 14px 16px;
+  text-align: center;
 }
+
+/* Market Shifts lives inside the Sandbox card, so it carries the sandbox
+   accent in its darker pairing -- related, not a fourth colour. */
+.login-button-shifts {
+  background: var(--accent-sandbox-dark);
+  color: var(--text-primary);
+  box-shadow: 4px 4px 0 #2b2616;
+  order: 0;
+}
+.login-button-shifts:active { box-shadow: 0 0 0 #2b2616; }
 .login-panel h2 {
   margin-bottom: 10px;
   line-height: 1.2;
@@ -1782,9 +1812,7 @@ tr.bankrupt { opacity: 0.55; }
    read differently on purpose -- a supply event is about the team's own
    costs, a demand event is about the market moving under them. */
 .event-banner {
-  display: flex;
-  gap: 16px;
-  align-items: center;
+  display: block;
   background: var(--panel-alt);
   border: 2px solid var(--accent-primary);
   border-left-width: 10px;
@@ -1793,13 +1821,19 @@ tr.bankrupt { opacity: 0.55; }
   padding: 16px 20px;
   margin-bottom: 18px;
 }
+/* Supply vs demand read differently on purpose: a supply event is about the
+   team's own costs (primary accent, same as their own numbers elsewhere), a
+   demand event is about the market moving (sandbox accent). Supply is stated
+   rather than left to the base rule, so neither class can go unstyled. */
+.event-banner-supply { border-color: var(--accent-primary); }
 .event-banner-demand { border-color: var(--accent-sandbox); }
 .event-banner-art {
-  width: 104px;
-  height: 104px;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1024 / 384;
   object-fit: cover;
-  border-radius: var(--radius);
-  flex: 0 0 auto;
+  margin-bottom: 12px;
 }
 .event-banner-body { min-width: 0; }
 .event-banner-eyebrow {
@@ -1828,12 +1862,17 @@ tr.bankrupt { opacity: 0.55; }
   padding: 8px 14px;
   margin-bottom: 14px;
 }
+.event-chip-supply { border-color: var(--accent-primary); }
 .event-chip-demand { border-color: var(--accent-sandbox); }
-.event-chip-art { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: 0 0 auto; }
+.event-chip-art { width: 56px; height: 24px; object-fit: cover; flex: 0 0 auto; }
 .event-chip-title { font-weight: 600; color: var(--text-primary); font-size: 0.92rem; line-height: 1.3; }
 
 /* Chromebooks and iPads: the banner stacks rather than squeezing the title. */
 @media (max-width: 620px) {
-  .event-banner { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .event-banner-art { width: 100%; height: 120px; }
+  .event-banner { padding: 12px 14px; }
+  .event-banner-title { font-size: 1rem; }
 }
+
+/* Two stacked actions in one card: a gap between them, and the pair shares
+   the single alignment spacer the block already provides. */
+.login-panel-action-pair { gap: 10px; }

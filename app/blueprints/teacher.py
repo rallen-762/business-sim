@@ -148,7 +148,11 @@ def create_world():
         flash("Enter a period name and a firm count of at least 1.")
         return redirect(url_for("teacher.dashboard"))
 
-    world = World(name=name, game_code=_generate_game_code(), planned_firm_slots=planned_firm_slots)
+    # Market Shifts for a classroom period: the same world in every other
+    # respect, with the four scripted events switched on. Off unless ticked,
+    # so creating a world behaves exactly as it always has.
+    world = World(name=name, game_code=_generate_game_code(), planned_firm_slots=planned_firm_slots,
+                  events_enabled=request.form.get("events_enabled") == "yes")
     db.session.add(world)
     db.session.flush()  # assigns world.id before we reference it below
 
