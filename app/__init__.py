@@ -17,6 +17,15 @@ def _normalized_database_url():
     url = os.environ.get("DATABASE_URL", "sqlite:///dev.db")
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
+    # Name the driver explicitly. A bare "postgresql://" lets SQLAlchemy pick,
+    # and in 2.1 it changed that pick from psycopg2 to psycopg (v3). Nothing in
+    # this repo changed, but requirements.txt pins psycopg2-binary and does not
+    # pin SQLAlchemy, so the next Render build resolved 2.1 and every deploy
+    # died on "ModuleNotFoundError: No module named 'psycopg'" before the app
+    # could even build an engine. Being explicit means no future default moves
+    # this again; switching to psycopg3 is now a deliberate one-line change.
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return url
 
 

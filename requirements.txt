@@ -1,5 +1,10 @@
 Flask>=3.0
 Flask-SQLAlchemy>=3.1
+# Pinned deliberately: it arrives transitively via Flask-SQLAlchemy, and an
+# unpinned resolve took Render from 2.0 to 2.1, which changed the default
+# PostgreSQL driver and broke every deploy. Pinned so local tests run against
+# the version that actually ships.
+SQLAlchemy>=2.1,<2.2
 psycopg2-binary>=2.9
 python-dotenv>=1.0
 gunicorn>=22.0
