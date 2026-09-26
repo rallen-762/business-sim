@@ -179,8 +179,13 @@ def create_app(config_overrides=None):
                 if "events_enabled" not in world_cols:
                     with db.engine.connect() as conn:
                         conn.execute(sa.text(
+                            # DEFAULT false, not 0: SQLite treats booleans as
+                            # integers and accepts either, but Postgres rejects an
+                            # integer default on a boolean column outright, which
+                            # failed the deploy. Matches the working
+                            # show_standings_to_students migration below.
                             "ALTER TABLE worlds ADD COLUMN events_enabled BOOLEAN "
-                            "NOT NULL DEFAULT 0"
+                            "NOT NULL DEFAULT false"
                         ))
                         conn.commit()
                     print("Added worlds.events_enabled column.")
